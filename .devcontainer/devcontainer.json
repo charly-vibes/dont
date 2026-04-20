@@ -1,0 +1,19 @@
+{
+  "name": "dont",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "files.eol": "\n",
+        "editor.formatOnSave": false
+      },
+      "extensions": [
+        "tamasfe.even-better-toml",
+        "editorconfig.editorconfig",
+        "DavidAnson.vscode-markdownlint",
+        "valentjn.vscode-ltex"
+      ]
+    }
+  },
+  "postCreateCommand": "bash -lc 'if command -v cargo >/dev/null 2>&1; then cargo install --locked prek typos-cli wai-rs || true; fi'"
+}

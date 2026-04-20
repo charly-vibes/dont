@@ -1,0 +1,21 @@
+# OS / editor
+.DS_Store
+*~
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+.direnv/
+
+# Tool caches
+.cache/
+
+# Local notes
+*.tmp
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

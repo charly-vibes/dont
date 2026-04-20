@@ -1,0 +1,26 @@
+# dont
+
+A specification-first repository for `dont`, a proposed CLI forcing function for autonomous LLM harnesses.
+
+## Purpose
+
+`dont` is designed to interrupt unsupported assertions and require grounding before claims become trusted. It is intended to work alongside:
+
+- `wai` for workflow and project context
+- `beads` for memory and task tracking
+
+## Current state
+
+This repository currently contains design/specification documents rather than an implementation.
+
+Key files:
+- `dont-spec-v0_3_2.md` — latest draft specification
+- `README.md` — repo overview
+- `.wai/` — workflow/project metadata
+
+## Working norms
+
+- Run `wai status` first
+- Use `wai search "topic"` before creating new artifacts
+- Prefer `just` recipes for common commands
+- Record reasoning with `wai add research|design|plan`

@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install quality tools
+        run: cargo install --locked prek typos-cli
+
+      - name: Install Vale
+        run: |
+          curl -fsSL https://github.com/errata-ai/vale/releases/download/v3.14.1/vale_3.14.1_Linux_64-bit.tar.gz -o vale.tar.gz
+          tar -xzf vale.tar.gz
+          sudo mv vale /usr/local/bin/vale
+
+      - name: Install wai
+        run: cargo install --git https://github.com/charly-vibes/wai.git wai
+
+      - name: Run repository checks
+        run: just ci
