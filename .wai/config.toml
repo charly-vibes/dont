@@ -1,0 +1,9 @@
+plugins = []
+
+[project]
+name = "dont"
+version = "2026.4.5"
+description = ""
+tool_commit = "7463be9"
+
+[llm]
