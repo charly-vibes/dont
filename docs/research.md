@@ -15,13 +15,13 @@ The documentation site is grounded in two main source categories in this reposit
 
 ### 1. In-context self-correction is weak
 
-The research summary argues that models often rationalize earlier answers instead of reliably inspecting them. Asking the same model, in the same context, to "be more critical" often produces better-sounding prose rather than better epistemic behavior. Supported by `.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md` and `.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md`.
+The research summary argues that models often rationalize earlier answers instead of reliably inspecting them. Asking the same model, in the same context, to "be more critical" often produces better-sounding prose rather than better epistemic behavior.[^1][^2]
 
 This motivates `dont`’s refusal-oriented design: the system should block or route unsupported assertions instead of merely asking for a nicer explanation.
 
 ### 2. External signals are stronger than introspection
 
-The strongest correction patterns in the cited literature depend on something outside the initial generation stream. Supported by `.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md`.
+The strongest correction patterns in the cited literature depend on something outside the initial generation stream.[^1]
 
 - retrieved evidence
 - tests or executable checks
@@ -32,7 +32,7 @@ This is why the spec emphasizes evidence, explicit remediation, and spawn-style 
 
 ### 3. Institutions solve this with structure
 
-The research notes compare LLM verification failures to long-studied human failures in science, law, medicine, and engineering. Across those domains, reliability improves when systems enforce the following patterns. Supported by `.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md` and `.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md`:
+The research notes compare LLM verification failures to long-studied human failures in science, law, medicine, and engineering. Across those domains, reliability improves when systems enforce the following patterns[^1][^2]:
 
 - separation between generator and evaluator
 - explicit burden of proof
@@ -63,3 +63,6 @@ For deeper reading, start here:
 ## Limits of this page
 
 This page is a synthesis, not the full literature review. It is meant to explain why the project exists, not to replace the source documents.
+
+[^1]: [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md)
+[^2]: [Research: designing doubt into AI interaction](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md)
