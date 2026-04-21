@@ -15,7 +15,7 @@ Primary spec:
 
 This repository now includes an `mdBook` documentation site.
 
-- Source: `book-src/`
+- Source: `docs/`
 - Config: `book.toml`
 - Local build: `just docs-build`
 - Published site: GitHub Pages via `.github/workflows/docs.yml`

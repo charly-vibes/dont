@@ -1,7 +1,7 @@
 [book]
 authors = ["charly vibes"]
 language = "en"
-src = "book-src"
+src = "docs"
 title = "dont"
 description = "Purpose and design notes for dont, a proposed CLI that forces autonomous LLM agents to ground claims before asserting them."
 

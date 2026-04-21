@@ -10,7 +10,7 @@ In the surrounding tool ecology:
 - `bd` tracks concrete work
 - `dont` governs epistemic discipline
 
-This book is the reader-friendly front door for the project. It does not replace the full specification draft. Instead, it explains the problem the tool is meant to solve and points to the deeper source material.
+This book is the reader-friendly front door for the project. It does not replace the full specification draft. Instead, it explains the problem the tool is meant to solve and points to the deeper source material in the repository.
 
 ## Read this book if you want to know
 

@@ -50,8 +50,7 @@ The current draft spec turns those conclusions into concrete design choices:
 
 For deeper reading, start here:
 
-- [Purpose section in the draft spec](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md#1-purpose-revised)
-- [References and learning material in the draft spec](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md#20-references-and-learning-material-patched)
+- [Draft specification (`dont-spec-v0_3_2.md`)](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md) — especially section 1 (Purpose) and section 20 (References and learning material)
 - [Forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/0-dont-claude.md)
 
 ## Limits of this page
