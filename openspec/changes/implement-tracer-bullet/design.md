@@ -46,16 +46,19 @@ Use the `cozo` crate (≥0.7) with RocksDB for on-disk persistence at `.dont/db.
 **Schema (tracer-bullet subset):**
 
 ```
-# Claims
-:create claims { id: String => text: String, status: String, created_at: String, updated_at: String }
-
-# Events (append-only log)
-:create events { id: String => entity_id: String, kind: String, payload: String, author: String, timestamp: String }
+# Datoms (EAVT)
+:create datoms {
+    entity: String,
+    attribute: String,
+    value: Json,
+    tx: Int,
+    assert_bit: Bool
+}
 ```
 
-The tracer store is throwaway — no production data will exist to migrate. Typed relations are simpler than the full datom model (entity/attribute/value/tx/op); the goal is proving CozoDB works, not building the final schema. Migration to full datoms happens when we implement time-travel and the rule engine.
+The tracer uses the true datom schema `(entity, attr, value, tx, assert_bit)` to prove CozoDB datom query patterns immediately, complying with the data model specification. Even though the tracer-bullet subset won't implement the full rule engine, it will store facts as datoms.
 
-**Trade-off:** We'll need a schema replacement when moving to full datoms. Acceptable because the tracer store is disposable by design.
+**Trade-off:** slightly more complex initial queries than a relational model, but it prevents an architectural rewrite later and ensures we validate the core technical risk early.
 
 ### Entity IDs: ULIDs with type prefix
 
@@ -92,7 +95,13 @@ struct Envelope<T: Serialize> {
     data: T,                   // ErrorResult when ok=false
     hints: Option<Vec<Hint>>,  // deferred: always None for tracer
     warnings: Vec<Warning>,
-    meta: Option<Meta>,        // deferred: always None for tracer
+    meta: Meta,
+}
+
+struct Meta {
+    duration_ms: u64,
+    tx: Option<u64>,
+    request_id: Option<String>,
 }
 
 struct Hint {
@@ -128,7 +137,7 @@ struct Remediation {
 }
 ```
 
-**Why:** Maps directly to the envelope spec (§10.2, §10.5). Generic over `T` so each command provides its own payload type; when `ok: false`, `T` is `ErrorResult`. The `remediation` non-empty invariant from §3.2.5 is enforced at construction time via a builder that panics on empty remediation. `hints` and `meta` are `Option` — present in the type for forward compatibility but always `None` in the tracer.
+**Why:** Maps directly to the envelope spec (§10.2, §10.5). Generic over `T` so each command provides its own payload type; when `ok: false`, `T` is `ErrorResult`. The `remediation` non-empty invariant from §3.2.5 is enforced at construction time via a builder that panics on empty remediation. `hints` is `Option` — present in the type for forward compatibility but always `None` in the tracer. `meta` is required per the envelope specification; `duration_ms` will be populated, while `tx` and `request_id` may be `None` for the tracer.
 
 ### Refusal protocol: hardcoded checks, no rule engine
 
@@ -154,7 +163,6 @@ Deferred: 130/143 (signal handling).
 ## Risks / Trade-offs
 
 - **CozoDB maturity risk** → Mitigated by the tracer itself: if CozoDB is problematic, we discover it before building the full system. RocksDB backend is the most tested Cozo path.
-- **Simplified schema diverges from full datom model** → Accepted: tracer store is throwaway. No production data to migrate.
 - **No rule engine means refusals are incomplete** → Accepted: hardcoded checks prove the protocol shape. Rule engine is deferred but the `ErrorResult` envelope is identical regardless of source.
 - **JSON-only output** → Acceptable for tracer. Human-readable rendering is explicitly non-goal per monolith §3.1.4.
 
