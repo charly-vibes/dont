@@ -15,6 +15,7 @@ Primary spec:
 
 This repository now includes an `mdBook` documentation site.
 
+- Read the docs: https://charly-vibes.github.io/dont/
 - Source: `docs/`
 - Config: `book.toml`
 - Local build: `just docs-build`
