@@ -32,8 +32,12 @@ lint:
   typos
   vale README.md AGENTS.md CLAUDE.md llm.txt
 
+docs-build:
+  mdbook build
+
 ci:
   just lint
+  just docs-build
   wai doctor
 
 reflect:

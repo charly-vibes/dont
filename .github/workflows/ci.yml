@@ -32,5 +32,8 @@ jobs:
       - name: Install wai
         run: cargo install --git https://github.com/charly-vibes/wai.git wai
 
+      - name: Install mdBook
+        uses: taiki-e/install-action@mdbook
+
       - name: Run repository checks
         run: just ci

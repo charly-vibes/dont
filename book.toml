@@ -1,0 +1,14 @@
+[book]
+authors = ["charly vibes"]
+language = "en"
+src = "book-src"
+title = "dont"
+description = "Purpose and design notes for dont, a proposed CLI that forces autonomous LLM agents to ground claims before asserting them."
+
+[output.html]
+default-theme = "navy"
+git-repository-url = "https://github.com/charly-vibes/dont"
+edit-url-template = "https://github.com/charly-vibes/dont/edit/main/{path}"
+site-url = "/dont/"
+no-section-label = true
+additional-css = []

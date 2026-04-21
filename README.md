@@ -11,6 +11,15 @@ This repository currently contains design drafts and supporting notes, not an im
 Primary spec:
 - `dont-spec-v0_3_2.md`
 
+## Documentation
+
+This repository now includes an `mdBook` documentation site.
+
+- Source: `book-src/`
+- Config: `book.toml`
+- Local build: `just docs-build`
+- Published site: GitHub Pages via `.github/workflows/docs.yml`
+
 ## Workflow
 
 This repo is tracked with `wai` for workflow context and `bd` for issue tracking.
@@ -23,6 +32,7 @@ just doctor   # wai doctor
 just way      # wai way
 just sync     # wai sync
 just ready    # bd ready
+just docs-build
 ```
 
 For deeper project context:

@@ -11,6 +11,7 @@
 
 # Tool caches
 .cache/
+book/
 
 # Local notes
 *.tmp
