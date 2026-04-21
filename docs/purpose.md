@@ -60,10 +60,9 @@ That is why `dont` is proposed as a peer CLI tool, not just a prompt template.
 
 ## The role of `dont` in a harness
 
-A harness can use three different kinds of support:
-
 These companion tools reflect the surrounding workflow used in this repository; they are helpful context, not prerequisites for understanding `dont`.
 
+A harness can use three different kinds of support:
 
 - **memory tools** to remember what happened
 - **workflow tools** to know what stage of work is happening
@@ -87,7 +86,7 @@ It is a guardrail and protocol layer.
 
 ## A short example
 
-An agent concludes: "This package manager guarantees reproducible builds by default."
+An agent concludes: "The API rate limit is 500 requests per minute."
 
 `dont` should not let that sentence quietly become accepted project state just because it sounds plausible.
 

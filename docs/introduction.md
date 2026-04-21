@@ -6,7 +6,7 @@ This book explains what `dont` is, why it exists, and where the authoritative pr
 
 Its job is narrow and opinionated: stop an agent from turning ungrounded text into asserted project truth.
 
-In the surrounding tool ecology:
+In the surrounding tool ecology (these auxiliary tracking tools are used in this repo, but aren't prerequisites for understanding `dont`):
 
 - `wai` helps track workflow and design intent
 - `bd` tracks concrete work
@@ -21,6 +21,8 @@ This book is the reader-friendly front door for the project. It does not replace
 - how the project’s research maps onto the proposed tool
 
 ## Key sources
+
+*(Note: External links point to the `main` branch of the repository.)*
 
 - [Draft specification (`dont-spec-v0_3_2.md`)](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md)
 - [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md)

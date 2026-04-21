@@ -57,8 +57,8 @@ The current draft spec turns those conclusions into concrete design choices:
 For deeper reading, start here:
 
 - [Draft specification (`dont-spec-v0_3_2.md`)](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md) — especially section 1 (Purpose) and section 20 (References and learning material)
-- [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md) — repo path: `.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md`
-- [Research: designing doubt into AI interaction](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md) — repo path: `.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md`
+- [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md)
+- [Research: designing doubt into AI interaction](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md)
 
 ## Limits of this page
 

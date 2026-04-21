@@ -5,9 +5,9 @@ This documentation site is an overview, not the project’s only source of truth
 ## What each source is for
 
 - **This mdBook (`docs/`)** gives a reader-friendly explanation of the project’s purpose and research basis.
-- **The draft specification (`dont-spec-v0_3_2.md`)** is the main detailed design document for the proposed tool.
-- **Tracked research notes (`.wai/projects/dont/research/`)** capture the reasoning and source synthesis behind the project’s design.
-- **OpenSpec (`openspec/`)** is the structured specification workspace where the monolithic draft is being decomposed into capability-focused specifications.
+- **The [draft specification](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md)** is the main detailed design document for the proposed tool.
+- **Tracked [research notes](https://github.com/charly-vibes/dont/tree/main/.wai/projects/dont/research/)** capture the reasoning and source synthesis behind the project’s design.
+- **[OpenSpec](https://github.com/charly-vibes/dont/tree/main/openspec/)** is the structured specification workspace where the monolithic draft is being decomposed into capability-focused specifications.
 
 ## Current project status
 
