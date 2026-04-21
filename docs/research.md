@@ -1,9 +1,9 @@
 # Research basis
 
-The documentation site is grounded in two main sources in this repository:
+The documentation site is grounded in two main source categories in this repository:
 
 - the draft specification’s purpose and references sections
-- the long-form research synthesis on why LLMs defend prior outputs and how institutions force better verification
+- the tracked research artifacts under `.wai/projects/dont/research/`, especially the long-form syntheses on why LLMs defend prior outputs and how institutions force better verification
 
 ## Main conclusions carried into the tool design
 
@@ -51,7 +51,8 @@ The current draft spec turns those conclusions into concrete design choices:
 For deeper reading, start here:
 
 - [Draft specification (`dont-spec-v0_3_2.md`)](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md) — especially section 1 (Purpose) and section 20 (References and learning material)
-- [Forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/0-dont-claude.md)
+- [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md)
+- [Research: designing doubt into AI interaction](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md)
 
 ## Limits of this page
 

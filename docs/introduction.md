@@ -10,7 +10,7 @@ In the surrounding tool ecology:
 - `bd` tracks concrete work
 - `dont` governs epistemic discipline
 
-This book is the reader-friendly front door for the project. It does not replace the full specification draft. Instead, it explains the problem the tool is meant to solve and points to the deeper source material in the repository.
+This book is the reader-friendly front door for the project. It does not replace the full specification draft. Instead, it explains the problem the tool is meant to solve and points to the deeper source material in the repository, especially the tracked research artifacts under `.wai/projects/dont/research/`.
 
 ## Read this book if you want to know
 
@@ -21,5 +21,6 @@ This book is the reader-friendly front door for the project. It does not replace
 ## Primary source material
 
 - [Draft specification (`dont-spec-v0_3_2.md`)](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md)
-- [Research synthesis: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/0-dont-claude.md)
+- [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md)
+- [Research: designing doubt into AI interaction](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md)
 - [Repository README](https://github.com/charly-vibes/dont/blob/main/README.md)
