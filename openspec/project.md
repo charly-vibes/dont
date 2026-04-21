@@ -6,6 +6,7 @@
 
 ## Tech Stack
 - Markdown specifications and research artifacts
+- Planned implementation: Rust single-binary CLI with auxiliary out-of-process import tooling when required
 - `wai` for workflow context and design/research capture
 - `bd` for issue tracking
 - `OpenSpec` for structured capability specs and change proposals
@@ -42,6 +43,22 @@
 - The repo does not yet implement `dont`; specs describe intended behaviour.
 - Preserve traceability back to `dont-spec-v0_3_2.md` while splitting into capabilities.
 - Keep the first OpenSpec changes manageable; do not attempt to migrate the entire monolith in one pass.
+
+## Monolith Coverage Notes
+- `dont-spec-v0_3_2.md` remains the archived source draft; OpenSpec is the decomposition target.
+- Normative behavioural sections are covered by capability specs under `openspec/changes/*/specs/`:
+  - §§1-3 → `add-core-dont-specs`
+  - §§4.2-6, 10.4, 10.6 → `add-dont-data-model-specs`
+  - §§4.4, 7-9A → `add-dont-operational-specs`
+  - §§9, 10.2-10.7 → `add-core-dont-specs` and `add-dont-envelope-specs`
+  - §§10-12, 16 → `add-dont-harness-specs`
+  - §13 → `add-dont-rules-specs`
+  - §14 → `add-dont-project-layout-specs`
+  - §15 → `add-dont-import-specs`
+- Architectural and informative monolith sections are covered by OpenSpec project/design context rather than capability specs:
+  - §4.1 (Rust/single-binary choice) → `openspec/project.md` plus change design docs
+  - §4.2 substrate rationale (CozoDB choice) → `add-dont-data-model-specs/design.md`
+  - §§17-21 (out of scope, open questions, evaluation, references, glossary/changelog) remain draft/reference context and do not decompose into standalone capabilities in the first pass.
 
 ## External Dependencies
 - `wai` for workflow artifacts
