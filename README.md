@@ -8,8 +8,11 @@ Specification-first repository for `dont`, a proposed CLI that forces autonomous
 
 This repository currently contains design drafts and supporting notes, not an implementation yet.
 
-Primary spec:
-- `dont-spec-v0_3_2.md`
+Primary spec set:
+- `openspec/changes/*/specs/`
+
+Archived monolithic draft:
+- `.wai/projects/dont/research/2026-04-21-dont-specification-v0-3-2-draft-post-ux-dx.md`
 
 ## Documentation
 

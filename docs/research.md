@@ -8,7 +8,7 @@ This page explains which research conclusions most directly shaped the proposed 
 
 The documentation site is grounded in two main source categories in this repository:
 
-- the draft specification’s purpose and references sections
+- the OpenSpec change specs under `openspec/changes/*/specs/`, together with the archived monolithic draft preserved in `wai` research
 - the tracked research artifacts under `.wai/projects/dont/research/`, especially the long-form syntheses on why LLMs defend prior outputs and how institutions force better verification
 
 ## Main conclusions carried into the tool design
@@ -41,9 +41,9 @@ The research notes compare LLM verification failures to long-studied human failu
 
 `dont` translates that pattern into a CLI protocol for agents.
 
-## How this maps into the spec draft
+## How this maps into the spec set
 
-The current draft spec turns those conclusions into concrete design choices:
+The current OpenSpec decomposition turns those conclusions into concrete design choices:
 
 - a forcing-function CLI with a narrow role
 - append-only history instead of silent rewrite
@@ -56,7 +56,7 @@ The current draft spec turns those conclusions into concrete design choices:
 
 For deeper reading, start here:
 
-- [Draft specification (`dont-spec-v0_3_2.md`)](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md) — especially section 1 (Purpose) and section 20 (References and learning material)
+- [OpenSpec change specs (`openspec/changes/*/specs/`)](https://github.com/charly-vibes/dont/tree/main/openspec/changes)
 - [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md)
 - [Research: designing doubt into AI interaction](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md)
 
