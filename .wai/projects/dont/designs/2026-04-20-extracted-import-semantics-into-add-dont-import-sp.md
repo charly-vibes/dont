@@ -1,0 +1,1 @@
+Extracted import semantics into add-dont-import-specs with a shared import-surface capability and a dedicated LinkML adapter capability. Kept no-LLM grounding, idempotence, shared HTTP politeness, and LinkML's three-tier lossy/warn/refuse behaviour normative.

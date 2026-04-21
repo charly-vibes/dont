@@ -1,0 +1,1 @@
+Extracted harness-facing dont specs into add-dont-harness-specs with three capability boundaries: derived read-only queries, agent-help/docs surface, and spawn protocol orchestration. Deferred rules/import/project-layout to keep this batch coherent around sections 10-12 and reuse payload/envelope specs via cross-reference.

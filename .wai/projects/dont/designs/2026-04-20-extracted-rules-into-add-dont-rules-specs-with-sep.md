@@ -1,0 +1,1 @@
+Extracted rules into add-dont-rules-specs with separate engine and CLI capabilities. Preserved the v0.3 boundary between rule-layer outcomes (rule-not-met/warnings) and verb-level validators, and made sibling human-readable rule docs normative so explain/test/add have a stable contract.

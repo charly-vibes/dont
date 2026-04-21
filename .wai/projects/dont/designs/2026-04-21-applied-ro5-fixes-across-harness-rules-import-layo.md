@@ -1,0 +1,1 @@
+Applied Ro5 fixes across harness/rules/import/layout/data-model specs: restored guess parameter semantics, added bare help behaviour, resolved rule selector grammar in favor of rule names, specified per-importer config tightening and OBO URL support, and introduced a reserved internal project entity for mode-change audit events.

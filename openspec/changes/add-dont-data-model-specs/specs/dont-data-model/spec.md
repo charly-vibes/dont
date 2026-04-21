@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Entity structure
-All stored objects SHALL be entities. Each entity SHALL have an `id` (ULID, prefixed per kind: `claim:`, `term:`, `event:`, `evidence:`), a `kind` attribute (`claim`, `term`, `hypothesis`, `evidence`, ...), a set of attribute assertions, and a history of events. Class membership SHALL be recognised by predicate match, not stored as a fact — "Is this entity an X?" is a rule evaluation, not a lookup. Attributes SHALL be first-class and globally defined; they are not owned by classes. The `event:` and `evidence:` prefixes are internal storage identifiers; only `claim:` and `term:` are externally-addressable as `EntityId` values in CLI verbs and input schemas (see `dont-payload-types`). Parsers MUST use a default branch for unknown `entity_kind` values; adding a new entity kind requires a minor-version envelope bump.
+All stored objects SHALL be entities. Each entity SHALL have an `id` (ULID, prefixed per kind: `claim:`, `term:`, `event:`, `evidence:`, `project:`), a `kind` attribute (`claim`, `term`, `hypothesis`, `evidence`, `project`, ...), a set of attribute assertions, and a history of events. Class membership SHALL be recognised by predicate match, not stored as a fact — "Is this entity an X?" is a rule evaluation, not a lookup. Attributes SHALL be first-class and globally defined; they are not owned by classes. The `event:`, `evidence:`, and `project:` prefixes are internal storage identifiers; only `claim:` and `term:` are externally-addressable as `EntityId` values in CLI verbs and input schemas (see `dont-payload-types`). Parsers MUST use a default branch for unknown `entity_kind` values; adding a new entity kind requires a minor-version envelope bump.
 
 #### Scenario: entity has prefixed ULID identifier
 - **WHEN** a new entity is created
@@ -18,6 +18,10 @@ All stored objects SHALL be entities. Each entity SHALL have an `id` (ULID, pref
 #### Scenario: unknown entity kind uses default branch
 - **WHEN** a parser encounters an entity with an `entity_kind` value not in its known set
 - **THEN** it handles the entity through a default branch rather than failing
+
+#### Scenario: project entity is reserved for project-wide audit
+- **WHEN** the system needs to record a project-wide event such as `mode-changed`
+- **THEN** it uses a reserved internal `project:` entity rather than attaching the event to a claim or term
 
 ### Requirement: Datom-based event-sourced storage
 The system SHALL store all facts as datoms — immutable atomic facts in the shape `(entity, attr, value, tx, assert_bit)` — where `tx` is a monotonically increasing transaction number and `assert_bit` distinguishes assertion from retraction. Every CLI invocation SHALL be its own transaction; there is no batching across invocations. Within a transaction, event ordering SHALL be ULID-sorted.
@@ -114,7 +118,7 @@ Both `evidence` and `depends_on` SHALL key on `entity_id` (not `claim_id`) becau
 - **THEN** a `depends_on` edge exists between them for stale-cascade traversal
 
 ### Requirement: Kind disambiguation
-The system SHALL namespace "kind" to avoid overloading: `entity_kind` for what an entity is (`claim`, `term`, `event`, `evidence`), `event_kind` for what happened (see canonical event kind list), `envelope_kind` for the envelope's payload-type discriminator (see `dont-envelope`), and `rule_kind` for the applicable-rules discriminator (`gate`, `flag`; see `dont-payload-types`).
+The system SHALL namespace "kind" to avoid overloading: `entity_kind` for what an entity is (`claim`, `term`, `event`, `evidence`, `project`), `event_kind` for what happened (see canonical event kind list), `envelope_kind` for the envelope's payload-type discriminator (see `dont-envelope`), and `rule_kind` for the applicable-rules discriminator (`gate`, `flag`; see `dont-payload-types`).
 
 #### Scenario: entity_kind distinguishes stored object types
 - **WHEN** a claim entity is queried

@@ -1,0 +1,1 @@
+Extracted project-environment concerns into add-dont-project-layout-specs with separate filesystem and config capabilities. Kept .dont/ ownership, managed-doc targeting, and config-driven behavioural seams (mode changes, direct mode, rules, evidence, imports) explicit and cross-referenced to their operational specs.
