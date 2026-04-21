@@ -15,6 +15,8 @@ The core idea behind `dont` is that this failure mode should not be handled as a
 
 ## The research-backed claim
 
+**Takeaway:** Asking an LLM to reconsider is usually weaker than forcing it through an external verification path.
+
 The research corpus in this repository points to a consistent conclusion:
 
 1. LLMs do not reliably self-correct just because they are asked to reconsider.
@@ -26,6 +28,8 @@ So the design stance of `dont` is simple:
 > Do not let an agent assert what it has not yet grounded.
 
 ## What `dont` does
+
+**Takeaway:** `dont` turns epistemic caution into explicit tool-mediated state transitions.
 
 `dont` is a forcing function for autonomous LLM harnesses.
 
@@ -89,9 +93,9 @@ An agent concludes: "This package manager guarantees reproducible builds by defa
 
 Instead, the tool can force a better path:
 
-1. the claim is recorded as unverified
+1. the agent uses `conclude` and the claim is recorded as unverified
 2. the agent is refused when it tries to promote or rely on that claim without support
-3. the refusal tells the agent to gather evidence or request independent verification
+3. the refusal tells the agent to gather evidence, use `dismiss` with evidence, or request independent verification
 4. only after that grounding step can the claim earn a more trusted state
 
 That is the point of `dont`: not better-sounding caution, but enforced epistemic process.

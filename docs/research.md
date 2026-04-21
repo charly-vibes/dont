@@ -1,5 +1,11 @@
 # Research basis
 
+- LLMs do not reliably self-correct in the same context that produced a claim.
+- External signals such as evidence, tests, and independent critics are stronger.
+- `dont` translates those conclusions into an explicit claim-handling protocol.
+
+This page explains which research conclusions most directly shaped the proposed design.
+
 The documentation site is grounded in two main source categories in this repository:
 
 - the draft specification’s purpose and references sections

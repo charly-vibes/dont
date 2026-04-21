@@ -7,7 +7,7 @@ This documentation site is an overview, not the project’s only source of truth
 - **This mdBook (`docs/`)** gives a reader-friendly explanation of the project’s purpose and research basis.
 - **The draft specification (`dont-spec-v0_3_2.md`)** is the main detailed design document for the proposed tool.
 - **Tracked research notes (`.wai/projects/dont/research/`)** capture the reasoning and source synthesis behind the project’s design.
-- **OpenSpec (`openspec/`)** is where the monolithic draft is being decomposed into capability-focused specifications.
+- **OpenSpec (`openspec/`)** is the structured specification workspace where the monolithic draft is being decomposed into capability-focused specifications.
 
 ## Current project status
 

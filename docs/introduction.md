@@ -1,5 +1,7 @@
 # Introduction
 
+This book explains what `dont` is, why it exists, and where the authoritative project sources live.
+
 `dont` is a proposed command-line tool for autonomous LLM harnesses.
 
 Its job is narrow and opinionated: stop an agent from turning ungrounded text into asserted project truth.
@@ -18,7 +20,7 @@ This book is the reader-friendly front door for the project. It does not replace
 - why ordinary “please double-check yourself” prompting is not enough
 - how the project’s research maps onto the proposed tool
 
-## Primary source material
+## Key sources
 
 - [Draft specification (`dont-spec-v0_3_2.md`)](https://github.com/charly-vibes/dont/blob/main/dont-spec-v0_3_2.md)
 - [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md)
