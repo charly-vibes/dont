@@ -5,6 +5,9 @@ src = "docs"
 title = "dont"
 description = "Purpose and design notes for dont, a proposed CLI that forces autonomous LLM agents to ground claims before asserting them."
 
+[build]
+build-dir = "docs/_book"
+
 [output.html]
 default-theme = "navy"
 git-repository-url = "https://github.com/charly-vibes/dont"
