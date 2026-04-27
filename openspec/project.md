@@ -39,6 +39,27 @@
 - It works alongside `wai` (workflow) and `beads`/`bd` (memory/issues), but remains an independent tool.
 - Core concepts include claims, terms, evidence, an append-only event log, a status lattice, and a four-verb CLI core (`conclude`, `define`, `trust`, `dismiss`) plus lifecycle verbs.
 
+### Term Index
+Use this section as a quick lookup map while the monolith is being decomposed. Canonical definitions belong in the `dont-glossary` capability once the glossary change is archived into `openspec/specs/dont-glossary/spec.md`. `dont-glossary` owns definitions; adjacent capabilities own behavior.
+
+| Term | Canonical meaning | Primary home |
+|------|-------------------|--------------|
+| Claim | Declarative assertion managed by `dont` | `dont-glossary`, `dont-cli-core`, `dont-status-lifecycle` |
+| Term | LLM-coined project vocabulary entry | `dont-glossary`, `dont-cli-core`, `dont-data-model` |
+| Epistemic lattice | Canonical name for the shared status model governing claims and terms | `dont-glossary`, `dont-status-lifecycle` |
+| Status lattice | Alias of `epistemic lattice` | `dont-glossary`, `dont-status-lifecycle` |
+| Atom | Independently checkable sub-statement of a claim | `dont-glossary`, `dont-data-model`, `dont-cli-core` |
+| Atom-completion gate | Rule that all atoms must verify before the parent claim is verified | `dont-glossary`, `dont-data-model`, `dont-cli-core` |
+| Core four verbs | `conclude`, `define`, `trust`, `dismiss` | `dont-glossary`, `dont-cli-core` |
+| Lifecycle verb | `lock`, `reopen`, `ignore`, `verify-evidence` | `dont-glossary`, `dont-status-lifecycle`, `dont-lifecycle-verbs` |
+| Evidence | Grounding material cited during verification workflows | `dont-glossary`, `dont-data-model`, `dont-cli-core` |
+| Hedge pattern | Configured vague-reason pattern that fails `trust` reason quality checks | `dont-glossary`, `dont-cli-core`, `dont-project-config` |
+| Rule | Named policy or predicate used to warn or refuse | `dont-glossary`, `dont-rule-engine`, `dont-rule-cli` |
+| Author string | Event author identifier in `<actor-kind>:<id>` form | `dont-glossary`, `dont-data-model` |
+| Seed vocabulary | Bootstrap `dont:` vocabulary installed at init time | `dont-glossary`, `dont-init-modes` |
+| Event / event kind | Immutable history record and its classifier | `dont-glossary`, `dont-data-model`, `dont-envelope` |
+| Remediation | Actionable recovery guidance returned in error payloads | `dont-glossary`, `dont-envelope`, `dont-errors` |
+
 ## Important Constraints
 - The repo does not yet implement `dont`; specs describe intended behaviour.
 - Preserve traceability back to `dont-spec-v0_3_2.md` while splitting into capabilities.
