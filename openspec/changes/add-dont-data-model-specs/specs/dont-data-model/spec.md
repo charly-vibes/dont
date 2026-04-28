@@ -24,7 +24,7 @@ All stored objects SHALL be entities. Each entity SHALL have an `id` (ULID, pref
 - **THEN** it uses a reserved internal `project:` entity rather than attaching the event to a claim or term
 
 ### Requirement: Datom-based event-sourced storage
-The system SHALL store all facts as datoms — immutable atomic facts in the shape `(entity, attr, value, tx, assert_bit)` — where `tx` is a monotonically increasing transaction number and `assert_bit` distinguishes assertion from retraction. Every CLI invocation SHALL be its own transaction; there is no batching across invocations. Within a transaction, event ordering SHALL be ULID-sorted.
+The system SHALL store all epistemic core facts (claims, terms, statuses, events) as datoms — immutable atomic facts in the shape `(entity, attr, value, tx, assert_bit)` — where `tx` is a monotonically increasing transaction number and `assert_bit` distinguishes assertion from retraction. In-place mutations are permitted for project infrastructure (e.g. `config.toml`) and cache artifacts, but the epistemic core MUST remain strictly append-only. Every CLI invocation SHALL be its own transaction; there is no batching across invocations. Within a transaction, event ordering SHALL be ULID-sorted. Derived orchestration commands (like `assume` or `overlook`) MUST NOT bypass core invariants; if they need to reach a final state, they MUST emit a sequence of valid events (e.g. `concluded` then `dismissed`) rather than jumping directly to a verified state.
 
 #### Scenario: fact is stored as a datom
 - **WHEN** a claim is concluded
@@ -177,7 +177,7 @@ An atom SHALL be a sub-statement carrying `{idx, text, status, evidence[]}` wher
 - **THEN** both atom 0 and atom 1 transition to `verified` with the provided evidence
 
 ### Requirement: Atom-completion gate
-A claim SHALL reach `verified` in exactly one of two ways: (1) the claim has no declared atoms and a `dismiss` targets the claim with sufficient evidence, or (2) the claim has declared atoms and every declared atom has reached `verified` — the whole claim's `verified` transition is then automatic on the last atom's transition. A whole-claim `dismiss` (no `--atom` flags) on a claim that has declared atoms with any atom still `unverified` or `doubted` SHALL be refused with error code `atoms-incomplete`. A `trust` call MAY target a single atom via `--atom <idx>`; doubting any atom SHALL cascade the parent claim to `doubted`.
+A claim SHALL reach `verified` in exactly one of two ways: (1) the claim has no declared atoms and a `dismiss` targets the claim with sufficient evidence, or (2) the claim has declared atoms and every declared atom has reached `verified` — the whole claim's `verified` transition is then automatic on the last atom's transition. A whole-claim `dismiss` (no `--atom` flags) on a claim that has declared atoms with any atom still `unverified` or `doubted` SHALL be refused with error code `atoms-incomplete`. This atom-completion gate is an absolute data-model invariant and MUST NOT be disabled or relaxed by project configurations or methodology rules. A `trust` call MAY target a single atom via `--atom <idx>`; doubting any atom SHALL cascade the parent claim to `doubted`.
 
 #### Scenario: auto-promotion on last atom verified
 - **WHEN** the last unverified atom of a claim is dismissed
@@ -192,7 +192,7 @@ A claim SHALL reach `verified` in exactly one of two ways: (1) the claim has no 
 - **THEN** atom 0 transitions to `doubted` and the parent claim also transitions to `doubted`
 
 ### Requirement: Import relations
-The system SHALL maintain import relations separate from core entities: `imported_term { curie, label, definition, xrefs, source, imported_at }`, `reference { uri, title, authors, year, source, imported_at }`, and `prefix { prefix, uri_base, canonical, imported_at }`. Imports SHALL populate reference material; they are not entities in the core store and SHALL NOT be targetable by doubt/dismiss verbs. `imported_term` and `term` SHALL be queried together when checking CURIE resolution.
+The system SHALL maintain import relations separate from core entities: `imported_term { curie, label, definition, xrefs, source, imported_at }`, `reference { uri, title, authors, year, source, imported_at }`, and `prefix { prefix, uri_base, canonical, imported_at }`. Imports SHALL populate reference material; they are not entities in the core store and SHALL NOT be targetable by doubt/dismiss verbs. Auto-generation of local coined terms from imports is forbidden; imported terms remain in the imported graph until explicitly adopted via a `define` event. `imported_term` and `term` SHALL be queried together when checking CURIE resolution.
 
 #### Scenario: imported term is not targetable by trust
 - **WHEN** a consumer tries to `trust` an imported term
@@ -218,7 +218,7 @@ The system SHALL recognise exactly five schema-level primitives and SHALL requir
 1. **`attribute`** — `{ ident, value_type, cardinality, predicate?, doc }` where `value_type` is one of `string`, `int`, `float`, `bool`, `ref`, `tuple`, `enum`, `expr` and `predicate` is an optional Datalog fragment or reference to an external verifier tool
 2. **`derived_class`** — `{ ident, defining_attributes, extra_predicates, doc }` — a named recognition query; not inheritance
 3. **`enum`** — `{ ident, values[], doc }`
-4. **`prefix`** — `{ prefix, uri_base, canonical }`
+4. **`prefix`** — `{ prefix, uri_base, canonical }`. While authoritative prefix definitions may reside in project infrastructure (`config.toml`), the data model MUST log the effective prefix mappings used by any event to ensure historical queries resolve correctly even if infrastructure changes.
 5. **`rule`** — `{ name, body, severity: warn|strict, doc }`
 
 Explicitly not primitives: inheritance, mixins, `slot_usage`, identifier prefixes as a separate concept from `prefix`, class-owns-slot relationships.
@@ -240,7 +240,7 @@ Explicitly not primitives: inheritance, mixins, `slot_usage`, identifier prefixe
 - **THEN** the system does not provide it; membership is by predicate match only
 
 ### Requirement: Author identity format
-Authors SHALL be identified by a string `<actor-kind>:<id>` where `actor-kind` is one of `human`, `llm`, `tool`, or `ci`, and `id` is an opaque stable identifier within that kind. Parsing SHALL split on the first `:` only — the `id` portion may itself contain colons. Empty `id` is invalid; `actor_kind` outside the four-value set is invalid. The `actor_kind` set is closed by design; extending it requires a minor-version bump and a parser upgrade gate. The convention is shared with `beads` and `wai` for cross-tool audit correlation.
+Authors SHALL be identified by a string `<actor-kind>:<id>` where `actor-kind` is one of `human`, `llm`, `tool`, or `ci`, and `id` is an opaque stable identifier within that kind. Anonymous events are strictly forbidden; background processes, rule engines, and automated workflows MUST use a defined `actor-kind` (e.g., `tool:rule-engine`). Parsing SHALL split on the first `:` only — the `id` portion may itself contain colons. Empty `id` is invalid; `actor_kind` outside the four-value set is invalid. The `actor_kind` set is closed by design; extending it requires a minor-version bump and a parser upgrade gate. The convention is shared with `beads` and `wai` for cross-tool audit correlation.
 
 #### Scenario: author string with colons in id
 - **WHEN** author is `tool:github-actions:prod`

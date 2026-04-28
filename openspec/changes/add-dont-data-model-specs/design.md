@@ -15,13 +15,15 @@ The monolithic spec interleaves storage architecture (§4.2), entity model (§4.
 
 ## Decisions
 - **Two capabilities, not one**: The data model (what's stored) and payload types (what's on the wire) change independently. A storage migration might change relation shapes without altering view types; a new CLI command adds a view type without changing the data model.
-- **Storage semantics, not CozoDB specifics**: The data model spec captures the datom shape, event-sourcing invariants, transaction semantics, and signal handling as abstract requirements. "CozoDB" appears in rationale, not in normative requirements. This allows future substrate changes without spec rewrites.
-- **Atom-completion gate lives in data model**: The gate is a stored-state invariant (when atoms reach verified, the claim auto-promotes). It references the status lattice (`dont-status-lifecycle`) and is referenced by verb specs (`dont-cli-core`).
-- **Input schemas paired with view types**: Input and output shapes are the same concern boundary — "what does the wire look like?" Keeping them in one capability means consumers have a single reference for JSON Schema generation.
-- **suggest-term in payload types**: Its contract is about search behaviour and return shape, not about storage. It searches across coined terms and imported terms but does not write.
+- **Storage semantics, not CozoDB specifics**: The data model spec captures the datom shape, event-sourcing invariants, and transaction semantics abstractly. Signal handling and retry logic are excluded, deferred to operational capabilities.
+- **Atom-completion gate is a hard persisted invariant**: When atoms reach verified, the claim auto-promotes. Whole-claim dismiss is refused if atoms are incomplete. Doubting an atom cascades to doubting the parent.
+- **Input schemas paired with view types**: Input and output shapes are the same concern boundary. Schemas enforce non-empty arrays where semantically required and define stable additive contracts.
+- **Payloads separate persisted status from derived analysis**: Views like `ClaimView` and `WhyView` expose explicit `updated_at` (persisted event time) separately from computed trace analysis like `applicable_rules`.
+- **Closed normative vocabularies**: `AuthorString`, `event_kind`, and the five MVP primitives are closed; adding to them requires spec evolution. `envelope_kind` moves to the envelope capability entirely.
+- **Imported vs Coined terms**: They live in separate tables to restrict the imported lifecycle, and coined terms shadow imported ones on collision.
 
 ## Source Mapping
-- `dont-data-model`: §4.2 (storage: datom shape, event-sourcing, transactions, concurrency, signals), §4.3 (entities: id, kind, attributes, history), §5.2 (core relations: entity, attribute, event, evidence, depends_on; kind disambiguation; canonical event_kind list; atom model; atom-completion gate), §5.3 (import relations: imported_term, reference, prefix; CURIE collision), §6 (MVP primitives: attribute, derived_class, enum, prefix, rule)
+- `dont-data-model`: §4.2 (storage: datom shape, event-sourcing, transactions, concurrency), §4.3 (entities: id, kind, attributes, history), §5.2 (core relations: entity, attribute, event, evidence, depends_on; kind disambiguation; canonical event_kind list; atom model; atom-completion gate), §5.3 (import relations: imported_term, reference, prefix; CURIE collision), §6 (MVP primitives: attribute, derived_class, enum, prefix, rule)
 - `dont-payload-types`: §10.1 (suggest-term), §10.4 (ClaimView, TermView, EventView, SpawnRequest, PrimeView, WhyView, ClaimsList, DoctorReport, ExamplesList, SchemaDoc; applicable_rules with gate/flag kinds), §10.6 (input schemas: ConcludeInput through ImportInput; cardinality notation; AuthorString and EntityId shapes)
 
 ## Risks / Trade-offs
@@ -33,4 +35,4 @@ The monolithic spec interleaves storage architecture (§4.2), entity model (§4.
   - Mitigation: Cross-reference established; `dont-cli-core` already references `dont-status-lifecycle` for status transitions.
 
 ## Open Questions
-- Should `applicable_rules` shape (gate/flag discriminator) be in data model or payload types? Currently in payload types since it's a view concern.
+- None for the high-level boundary of these two capabilities; boundary questions resolved by design interview.

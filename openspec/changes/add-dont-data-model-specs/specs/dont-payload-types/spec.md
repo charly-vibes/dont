@@ -135,7 +135,7 @@ The system SHALL return a `SchemaDoc` payload (envelope_kind: `"schema_doc"`) co
 - **THEN** the response has `envelope_kind: "empty"` and `hints[]` listing available schema names
 
 ### Requirement: Applicable rules gate/flag contract
-Each entry in `applicable_rules` SHALL be discriminated by a `rule_kind` field (namespaced per `dont-data-model` Kind disambiguation). Two rule kinds exist in v0.3: `"gate"` (the rule gates a transition, payload: `{rule_kind, met: bool, unmet: [string]}` where `unmet` lists failing clauses) and `"flag"` (the rule flags a condition without gating, payload: `{rule_kind, flagged: bool, detail?: string}`). New rule kinds SHALL require a minor `envelope_version` bump. Parsers MUST default-branch on unknown `rule_kind` values.
+Each entry in `applicable_rules` SHALL be discriminated by a `rule_kind` field (namespaced per `dont-data-model` Kind disambiguation). Two rule kinds exist in v0.3: `"gate"` (the rule gates a transition, payload: `{rule_kind, met: bool, unmet: [string]}` where `unmet` lists failing clauses) and `"flag"` (the rule flags a condition without gating, payload: `{rule_kind, flagged: bool, detail?: string}`). Command refusals and rule evaluations MUST evaluate against the combined computed trace (which includes these derived warnings and compromised support), not merely the persisted status. New rule kinds SHALL require a minor `envelope_version` bump. Parsers MUST default-branch on unknown `rule_kind` values.
 
 #### Scenario: gate rule that is not met
 - **WHEN** a claim's `lockable` rule requires 3 hypotheses but only 1 exists
@@ -208,7 +208,7 @@ The system SHALL accept: `LockInput { entity_id, author? }` (entity must resolve
 - **THEN** the command refuses because `reason` is required
 
 ### Requirement: Spawn verb input schemas
-The system SHALL accept: `AssumeInput { entity_id, model_hint?, max_tool_calls? }`, `OverlookInput { entity_id, model_hint?, max_tool_calls? }`, `GuessInput { question, n?, temperature? }`.
+The system SHALL accept: `AssumeInput { entity_id, model_hint?, max_tool_calls? }`, `OverlookInput { entity_id, model_hint?, max_tool_calls? }`, `GuessInput { question, n?, temperature? }`. The CLI MUST enforce the negative-shell phrase context globally: every command MUST read coherently as `dont <verb>` (e.g. `dont assume`, `dont guess`), and its documentation MUST define behavior according to this phrase meaning.
 
 #### Scenario: assume with model hint
 - **WHEN** `dont assume claim:X --model-hint verifier --json` is run

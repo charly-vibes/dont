@@ -6,8 +6,10 @@ The repository's main draft, `dont-spec-v0_3_2.md`, is comprehensive but too lar
 
 ## What Changes
 - Add initial OpenSpec capabilities for the core `dont` model.
-- Capture the status lattice and primary entity semantics as capability specs.
-- Capture the CLI core verbs as capability specs.
+- Capture the core purpose and invariants around standalone operation, append-only history, explicit epistemic status, and claims/terms as the only initial first-class entities.
+- Capture a shared persisted lifecycle model for claims and terms, while treating dependency fallout as computed trace analysis rather than a stored `stale` status.
+- Capture the CLI core verbs as phrase-interpreted commands (`dont <verb>`), including `dont trust` as explicit doubt registration.
+- Capture strict deduplication for claim and term creation while preserving append-only enrichment such as redefinition and additional evidence.
 - Establish the first decomposition boundary so later changes can continue splitting the remaining sections.
 - Make the capability boundary explicit: core purpose/invariants, lifecycle semantics, and CLI command contracts are split into separate specs.
 
@@ -19,8 +21,8 @@ The repository's main draft, `dont-spec-v0_3_2.md`, is comprehensive but too lar
 
 ## Traceability
 - `dont-core` is sourced mainly from sections 1-3 of `dont-spec-v0_3_2.md`
-- `dont-status-lifecycle` is sourced mainly from section 5.1 plus related lifecycle material
-- `dont-cli-core` is sourced mainly from section 9 and references lifecycle behavior instead of duplicating it
+- `dont-status-lifecycle` is sourced mainly from section 5.1 plus related lifecycle material, but narrows the persisted lattice to explicit statuses and moves dependency fallout into computed trace assessment
+- `dont-cli-core` is sourced mainly from section 9 and references lifecycle behavior instead of duplicating it, while clarifying phrase-form command semantics and strict duplicate refusal
 
 ## Impact
 - Affected specs: `dont-core`, `dont-status-lifecycle`, `dont-cli-core`

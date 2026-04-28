@@ -5,8 +5,10 @@
 The data model (entity structure, core relations, import relations, MVP primitives) and the payload types (view shapes returned by commands, input schemas accepted by commands) are currently specified only in `dont-spec-v0_3_2.md` (sections 4.2-4.3, 5.2-5.3, 6, 10.1, 10.4, 10.6). Extracting them as focused OpenSpec capabilities makes the stored-shape and wire-shape contracts testable, versioned, and independently evolvable. Downstream specs (harness integration, spawn protocol, import) depend on these shapes.
 
 ## What Changes
-- Add a capability for the data model: entity structure, CozoDB storage semantics, core relations (entity, attribute, event, evidence, depends_on), import relations (imported_term, reference, prefix), and the five MVP primitives (attribute, derived_class, enum, prefix, rule).
+- Add a capability for the data model: entity structure, abstract datom-like storage semantics (excluding OS signals/retries), core relations (entity, attribute, event, evidence, depends_on), import relations (imported_term, reference, prefix), and the five closed MVP primitives (attribute, derived_class, enum, prefix, rule).
 - Add a capability for payload types: all view types (ClaimView, TermView, EventView, SpawnRequest, PrimeView, WhyView, ClaimsList, DoctorReport, ExamplesList, SchemaDoc), input schemas (ConcludeInput through ImportInput), and the suggest-term command contract.
+- Distinguish explicitly between persisted status (in the data model) and computed trace assessment (in payload views like `applicable_rules`).
+- Treat the atom-completion gate as a hard, persisted invariant in the data model.
 
 ## Deferred
 - Spawn-request protocol (assume/overlook/guess orchestration, harness detection, timeouts) — separate operational concern
@@ -16,8 +18,8 @@ The data model (entity structure, core relations, import relations, MVP primitiv
 - Self-teaching surface (orientation block, worked examples, how-to guides) — documentation/UX
 
 ## Traceability
-- `dont-data-model` is sourced from sections 4.2, 4.3, 5.2, 5.3, and 6 of `dont-spec-v0_3_2.md`
-- `dont-payload-types` is sourced from sections 10.1, 10.4, and 10.6 of `dont-spec-v0_3_2.md`
+- `dont-data-model` is sourced from sections 4.2, 4.3, 5.2, 5.3, and 6 of `dont-spec-v0_3_2.md`, but pushes signal handling and retry logic out to operational specs, and removes `envelope_kind`.
+- `dont-payload-types` is sourced from sections 10.1, 10.4, and 10.6 of `dont-spec-v0_3_2.md`, while enforcing non-empty arrays and explicitly separating persisted status from derived trace views.
 
 ## Impact
 - Affected specs: `dont-data-model`, `dont-payload-types` (both new)
