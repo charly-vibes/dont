@@ -1,9 +1,9 @@
 ## 1. Specification
-- [ ] 1.1 Create `specs/dont-glossary/spec.md` as a core glossary slice sourced from the v0.3.2 monolith Appendix A
-- [ ] 1.2 Define canonical terms and aliases for the current core vocabulary (`dont-core`, `dont-status-lifecycle`, `dont-cli-core`)
-- [ ] 1.3 Keep glossary entries definitional and point behavior-owning semantics to the relevant capability specs
-- [ ] 1.4 Document the canonical-spec cross-linking convention in `design.md`
-- [ ] 1.5 Update `openspec/project.md` with a concise Term Index that points to `dont-glossary`
+- [x] 1.1 Create `specs/dont-glossary/spec.md` as a core glossary slice sourced from the v0.3.2 monolith Appendix A
+- [x] 1.2 Define canonical terms and aliases for the current core vocabulary (`dont-core`, `dont-status-lifecycle`, `dont-cli-core`)
+- [x] 1.3 Keep glossary entries definitional and point behavior-owning semantics to the relevant capability specs
+- [x] 1.4 Document the canonical-spec cross-linking convention in `design.md`
+- [x] 1.5 Update `openspec/project.md` with a concise Term Index that points to `dont-glossary`
 
 ## 2. Deferred follow-on integration
 - [ ] 2.1 After archive, add glossary links to canonical specs such as `dont-core`, `dont-status-lifecycle`, and `dont-cli-core`

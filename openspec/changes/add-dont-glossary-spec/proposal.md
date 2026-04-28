@@ -6,8 +6,12 @@ Currently, many load-bearing terms used across the `dont` OpenSpec decomposition
 This change establishes a first-class glossary capability so the current core specs can share a single definitional source instead of repeating term explanations inline.
 
 ## What Changes
-- Add a new `dont-glossary` capability spec containing authoritative definitions for the current core `dont` vocabulary.
-- Define canonical names and aliases for terms that are already used inconsistently (for example `epistemic lattice` and `status lattice`).
+- Add a new `dont-glossary` capability spec containing authoritative semantic definitions for the current core `dont` vocabulary.
+- Define canonical names and aliases for terms that are already used inconsistently (e.g. `epistemic lattice` is canonical; `status lattice` is an alias).
+- Establish that the glossary is strictly definitional (what a thing is) and MUST NOT contain normative behavioral or lifecycle rules (which remain in their respective capabilities).
+- Define `epistemic entity` as the umbrella concept, with `claim` and `term` as concrete instantiations.
+- Codify verb groupings explicitly: `core four verbs` (`conclude`, `define`, `trust`, `dismiss`) and `lifecycle verb` (`lock`, `reopen`, `ignore`, `verify-evidence`).
+- Define load-bearing concepts including `atom`, `atom-completion gate`, `evidence`, `hedge pattern`, `rule`, `author string`, `seed vocabulary`, `event`, `event kind`, and `remediation`.
 - Document a cross-linking convention that is valid after the glossary capability is archived into `openspec/specs/`.
 - Update `openspec/project.md` to add a Term Index that points readers to the glossary capability.
 

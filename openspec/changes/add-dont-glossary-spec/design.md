@@ -16,9 +16,11 @@ The immediate problem is not that every Appendix A term is missing everywhere. T
 
 ## Decisions
 - **Glossary as a capability**: The glossary will be a standalone capability (`dont-glossary`) rather than a long appendix in `project.md`.
-- **Definitional requirements**: Each glossary entry will be written as a definitional requirement (`The glossary SHALL define X as ...`) rather than as the owning behavioral rule. Behavioral semantics remain owned by the relevant capability specs.
-- **Core-first scope**: This change covers the vocabulary currently needed by the core decomposition (`dont-core`, `dont-status-lifecycle`, `dont-cli-core`) plus immediately adjacent load-bearing terms such as `hedge pattern`, `rule`, `evidence`, and `author string`.
-- **Alias policy**: Each concept gets one canonical glossary term. Existing alternate phrasings are recorded as aliases in the relevant entry. For example, `status lattice` is treated as an alias of `epistemic lattice`.
+- **Definitional requirements**: Each glossary entry will be written as a definitional requirement (`The glossary SHALL define X as ...`) rather than as the owning behavioral rule. Behavioral semantics remain strictly owned by the relevant capability specs (e.g. `dont-data-model` or `dont-cli-core`).
+- **Core-first scope**: This change covers the vocabulary currently needed by the core decomposition (`dont-core`, `dont-status-lifecycle`, `dont-cli-core`) plus immediately adjacent load-bearing terms such as `hedge pattern`, `rule`, `evidence`, `author string`, `atom`, `atom-completion gate`, `seed vocabulary`, `event`, `event kind`, and `remediation`.
+- **Epistemic entity as umbrella**: `epistemic entity` is defined as the parent concept; `claim` and `term` are its concrete instantiations.
+- **Alias policy**: Each concept gets one canonical glossary term. Existing alternate phrasings are recorded as aliases in the relevant entry. For example, `status lattice` is treated strictly as an alias of the canonical `epistemic lattice`.
+- **Verb groupings codified**: Explicitly define `core four verbs` (`conclude`, `define`, `trust`, `dismiss`) and `lifecycle verb` (`lock`, `reopen`, `ignore`, `verify-evidence`).
 - **Archive-safe linking convention**: Cross-links are documented for canonical specs only, after archive into `openspec/specs/`. The standard relative form is:
   - From one canonical capability spec to another: `[Atom](../dont-glossary/spec.md#requirement-atom)`
   - Link the first occurrence of a glossary term in each spec section or requirement block where the term is load-bearing.
