@@ -26,29 +26,13 @@ and error-code table only.
 
 ## What Changes
 
-- **`dont-cli-core`**: `define` gains an optional `--label "<noun phrase>"` flag.
-  When present, five verb-level validators fire on it before any rule
-  evaluation. When absent, three of those validators fire at warn-level on a
-  leading-phrase extraction of `--doc`.
-- **`dont-errors`**: Five new refusal codes (`term-label-empty`,
-  `term-shape-indefinite`, `term-shape-punctuated`, `term-compound-undeclared`,
-  `term-label-sentence`) and three new warning codes
-  (`term-doc-shape-indefinite`, `term-doc-shape-punctuated`,
-  `term-doc-shape-sentence`) are added to the v0.2 known-code set.
-- **`dont-rule-engine`**: One new off-by-default warn rule
-  (`term-nonfunctional-label`) is added to the shipped catalogue. It flags
-  labels that fold a non-functional relationship into the type text — a
-  structural smell that will benefit from aspect-shaped redesign once aspects
-  land as a primitive.
-- **`dont-project-config`**: Two new config blocks: `[define.shape]` for
-  toggling the verb-level validators and extending compound-structure markers;
-  `[rules.term_nonfunctional]` for enabling/disabling and extending the heuristic
-  rule patterns.
-- **`dont-data-model`**: Term-specific attributes gain an optional `label` field
-  (the SK11 type-text value). Seed entries without `label` suppress the
-  verb-level checks on that term.
-- **`dont-agent-help`**: Orientation prompt contract gains one explicit guidance
-  line recommending `--label` alongside `--doc` when coining terms.
+- **`dont-cli-core`**: `define` gains a strictly required `--label "<noun phrase>"` flag for all new coined terms.
+  Five verb-level validators (strict pass/fail refusals) fire on it before any rule evaluation: empty label, indefinite shape, punctuated shape, sentence shape, and compound-undeclared. No "magic extraction" from `--doc` is performed.
+- **`dont-errors`**: Five new refusal codes (`term-label-empty`, `term-shape-indefinite`, `term-shape-punctuated`, `term-compound-undeclared`, `term-label-sentence`) are added to the known-code set. Soft warnings are strictly reserved for the rule engine.
+- **`dont-rule-engine`**: One new rule (`term-nonfunctional-label`) is added to the shipped catalogue with an absolute minimum severity of `warn`. It cannot be turned off completely.
+- **`dont-project-config`**: Two new config blocks: `[define.shape]` for toggling the verb-level validators and extending compound-structure markers; `[rules.term_nonfunctional]` for configuring the heuristic rule patterns.
+- **`dont-data-model`**: Term-specific attributes gain a `label` field (the SK11 type-text value), which is strictly required for all local coined terms, remaining optional only for imported/seed terms.
+- **`dont-agent-help`**: Orientation prompt contract gains explicit guidance requiring `--label` alongside `--doc` when coining terms.
 
 ## Deferred
 
@@ -84,9 +68,5 @@ SK11 sections:
 
 - Affected capabilities: `dont-cli-core`, `dont-errors`, `dont-rule-engine`,
   `dont-project-config`, `dont-data-model`, `dont-agent-help`
-- No breaking changes; all additions are either optional flags, additive code
-  entries, or off-by-default configuration
-- Existing `--doc`-only invocations continue to succeed; they gain warn-level
-  feedback only (not refusals)
-- Seed installations via `dont init` are immune — seed entries without `label`
-  suppress the checks
+- Existing `--doc`-only invocations for new coined terms will fail, as `--label` is strictly required. Seed/imported installations are immune.
+- Soft heuristic warnings are delegated solely to the rule engine, preserving the absolute boundary between verb-level syntax validators and graph-layer trace evaluation.
