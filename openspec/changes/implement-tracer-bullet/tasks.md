@@ -32,14 +32,13 @@
 - [ ] 7.4 Test: trust on already-doubted claim returns refusal with remediation (invalid-transition), exit 1
 
 ## 8. CLI: dismiss (per §9.4 — "dismiss verifies an entity", §5.1 transition table)
-- [ ] 8.1 Test + implement: `dont dismiss <id> --reason "..." --evidence "..."` transitions unverified→verified, records `dismissed` event
-- [ ] 8.2 Test: dismiss without --reason returns refusal (reason-required), exit 1
-- [ ] 8.3 Test: dismiss without --evidence returns refusal (no-evidence), exit 1
-- [ ] 8.4 Test + implement: `dont dismiss <id> --reason "..." --evidence "..."` transitions doubted→verified (clearing doubt with evidence)
+- [ ] 8.1 Test + implement: `dont dismiss <id> --evidence "..."` transitions unverified→verified, records `dismissed` event
+- [ ] 8.2 Test: dismiss without --evidence returns refusal (no-evidence), exit 1
+- [ ] 8.3 Test + implement: `dont dismiss <id> --evidence "..."` transitions doubted→verified (clearing doubt with evidence)
 
 ## 9. CLI: show and list (per §10.4)
-- [ ] 9.1 Test + implement: `dont show <id>` returns ClaimView with event history
-- [ ] 9.2 Test + implement: `dont list` returns all claims with current status
+- [ ] 9.1 Test + implement: `dont show <id>` returns ClaimView with event history and hardcoded empty `applicable_rules: {}`
+- [ ] 9.2 Test + implement: `dont list` returns all claims with current status and hardcoded empty `applicable_rules: {}`
 - [ ] 9.3 Test: show with nonexistent ID returns error with remediation, exit 1
 
 ## 10. Integration Tests

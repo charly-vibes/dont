@@ -11,7 +11,7 @@ Seven OpenSpec changes decompose the monolith into capability specs, but none ar
 - Implement 6 CLI commands: `init`, `conclude`, `trust`, `dismiss`, `show`, `list`
 - Implement the status lattice for the 3-state subset: `trust` → `:doubted`, `dismiss` → `:verified` (4 valid transitions across the 3 states)
 - Implement the versioned JSON envelope (§10.2) with `ok`, `envelope_version: "0.2"`, `cli_version`, `envelope_kind`, `data`, structured `warnings[]`
-- Implement the refusal protocol: `ErrorResult` in `data` with structured `remediation[{command, description}]`, hardcoded `reason-required` and `no-evidence` checks
+- Implement the refusal protocol: `ErrorResult` in `data` with structured `remediation[{command, description}]`, hardcoded `reason-required` (for `trust`) and `no-evidence` (for `dismiss`) checks
 - Add `dont-build` capability spec for build/distribution requirements (§4.1, §4.2)
 
 ## What This Proves

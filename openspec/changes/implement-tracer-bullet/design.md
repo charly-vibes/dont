@@ -56,7 +56,7 @@ Use the `cozo` crate (≥0.7) with RocksDB for on-disk persistence at `.dont/db.
 }
 ```
 
-The tracer uses the true datom schema `(entity, attr, value, tx, assert_bit)` to prove CozoDB datom query patterns immediately, complying with the data model specification. Even though the tracer-bullet subset won't implement the full rule engine, it will store facts as datoms.
+The tracer uses the true datom schema `(entity, attr, value, tx, assert_bit)` to prove CozoDB datom query patterns immediately, complying with the data model specification. Even though the tracer-bullet subset won't implement the full rule engine, it will store facts as datoms. The `store` module API boundary encapsulates the raw `assert_bit` logic, exposing a clean event-sourced interface to the rest of the CLI.
 
 **Trade-off:** slightly more complex initial queries than a relational model, but it prevents an architectural rewrite later and ensures we validate the core technical risk early.
 
@@ -137,12 +137,12 @@ struct Remediation {
 }
 ```
 
-**Why:** Maps directly to the envelope spec (§10.2, §10.5). Generic over `T` so each command provides its own payload type; when `ok: false`, `T` is `ErrorResult`. The `remediation` non-empty invariant from §3.2.5 is enforced at construction time via a builder that panics on empty remediation. `hints` is `Option` — present in the type for forward compatibility but always `None` in the tracer. `meta` is required per the envelope specification; `duration_ms` will be populated, while `tx` and `request_id` may be `None` for the tracer.
+**Why:** Maps directly to the envelope spec (§10.2, §10.5). Generic over `T` so each command provides its own payload type; when `ok: false`, `T` is `ErrorResult`. The tracer's `ClaimView` payload (represented by `T`) MUST include a hardcoded empty `applicable_rules: {}` object to strictly conform to the JSON envelope contract. The `remediation` non-empty invariant from §3.2.5 is enforced at construction time via a builder that panics on empty remediation. `hints` is `Option` — present in the type for forward compatibility but always `None` in the tracer. `meta` is required per the envelope specification; `duration_ms` will be populated, while `tx` and `request_id` may be `None` for the tracer.
 
 ### Refusal protocol: hardcoded checks, no rule engine
 
 The tracer hardcodes three refusal checks:
-1. **reason-required**: `trust` and `dismiss` require `--reason`
+1. **reason-required**: `trust` requires `--reason`
 2. **no-evidence**: `dismiss` requires `--evidence`
 3. **invalid-transition**: status lattice rejects impossible transitions
 
