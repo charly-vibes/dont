@@ -5,8 +5,8 @@
 The monolithic spec still contains the import surface that grounds `dont` against external vocabularies and references. The importer command family, its idempotence/rate-limit contract, and the LinkML adapter's special-case behaviour are not yet captured as focused OpenSpec capabilities. Extracting them makes import behaviour testable without mixing it into rule, layout, or harness specs.
 
 ## What Changes
-- Add `dont-import-surface` for importer commands, write targets, idempotence, rate limiting, and auxiliary-tool expectations.
-- Add `dont-linkml-import` for the lossy LinkML adapter, including supported transforms, warning-tier features, and refusal-tier unsupported features.
+- Add `dont-import-surface` for importer commands, write targets, strict declarative idempotence (full replace/upsert per source), hardcoded default HTTP rate limits (e.g. 5 req/sec with config override), the explicit no-LLM contract (strictly deterministic mapping), and the rule bypass contract (imports bypass project methodology rules).
+- Add `dont-linkml-import` for the lossy LinkML adapter, including explicit feature tiers (flattened-without-warning, imported-with-warning, refused-without-partial-import) and `dont doctor` pre-flight integration checking for the `linkml` binary.
 
 ## Deferred
 - Full project-layout/config schema for importer configuration blocks
