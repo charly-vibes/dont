@@ -3,10 +3,10 @@
 The repo now has focused specs for the core verbs, lifecycle verbs, envelope/error contracts, and data shapes. The next gap is the harness-facing behaviour that stitches those pieces together: what the read-only derived commands mean, how the CLI teaches the LLM to use itself, how spawn requests are emitted and resolved, and how the optional MCP transport exposes the same command surface. The monolith currently spreads these concerns across §§10–12 and §16.
 
 ## Goals
-- Capture the read-only derived command surface as a standalone capability separate from write verbs
-- Capture the agent-facing documentation/help contract as a first-class capability rather than prose-only guidance
-- Capture spawn-request orchestration and timeout rules without dragging in the whole project-layout or import surface
-- Capture the optional MCP server mode as a transport contract rather than leaving it as a monolith-only note
+- Capture the read-only derived command surface as a standalone capability separate from write verbs, mandating universal time-travel (`--as-of`) and trace-evaluation filters (e.g. `--dependency-compromise`).
+- Capture the agent-facing documentation/help contract as a first-class capability rather than prose-only guidance, strictly protecting document layouts (`sync-docs` markers) and hardcoding the tutorial.
+- Capture spawn-request orchestration, explicit callback command constraints, and synchronous timeout sweeps without dragging in the whole project-layout or import surface.
+- Capture the optional MCP server mode as a transport contract that exposes the *entire* CLI surface (read-only and mutating commands) rather than leaving it as a monolith-only note.
 
 ## Non-Goals
 - Specify importer behaviour or source adapters
@@ -15,10 +15,10 @@ The repo now has focused specs for the core verbs, lifecycle verbs, envelope/err
 
 ## Decisions
 - **Four capabilities, not one**: query commands, agent-help/docs, spawn orchestration, and MCP transport evolve on different axes. A new help topic should not require editing the spawn protocol spec; a timeout policy change should not touch `list` semantics; an MCP transport tweak should not restate query semantics.
-- **Read-only commands grouped together**: `list`, `vocab`, `show`, `why`, `prime`, `doctor`, `schema`, and `examples` are all derived, non-mutating, and primarily return previously defined payload types. Keeping them together avoids tiny per-command specs with repetitive cross-references.
-- **Teaching surface treated as normative UX contract**: the managed docs block, orientation text, tutorial, and how-to entry points are not implementation notes; they are part of how `dont` enforces disciplined agent behaviour.
-- **Spawn protocol owns command orchestration, not payload shape**: `dont-payload-types` defines `SpawnRequest`; this change defines when and why that payload is emitted, how harness/direct mode is selected, and what timeout recovery means.
-- **MCP is a transport wrapper, not a privileged API**: the MCP capability specifies how the CLI surface is re-exposed over stdio and how tool results carry envelopes, while reusing the same underlying command contracts as the direct CLI.
+- **Read-only commands grouped together**: `list`, `vocab`, `show`, `why`, `prime`, `doctor`, `schema`, and `examples` are all derived, non-mutating, and primarily return previously defined payload types. Keeping them together avoids tiny per-command specs with repetitive cross-references. They MUST universally support `--as-of <timestamp/tx>` for time-travel queries, and `list` MUST support `--dependency-compromise` filtering.
+- **Teaching surface treated as normative UX contract**: the managed docs block, orientation text, tutorial, and how-to entry points are not implementation notes; they are part of how `dont` enforces disciplined agent behaviour. `sync-docs` strictly requires exact markers and refuses magic insertion. The first-session tutorial is hardcoded into the binary.
+- **Spawn protocol owns command orchestration, not payload shape**: `dont-payload-types` defines `SpawnRequest`; this change defines when and why that payload is emitted, how harness/direct mode is selected, and what timeout recovery means. It explicitly embeds allowed terminal command strings into the payload and enforces a synchronous timeout sweep on every invocation.
+- **MCP is a transport wrapper, not a privileged API**: the MCP capability specifies how the CLI surface is re-exposed over stdio and how tool results carry envelopes, while reusing the same underlying command contracts as the direct CLI. It exposes both read-only and mutating verbs.
 
 ## Source Mapping
 - `dont-derived-queries`: §10 command summary lines for `list`, `vocab`, `show`, `why`, `prime`, `doctor`, `schema`, and `examples`; payload cross-refs in §10.4; help references in §10.7.6

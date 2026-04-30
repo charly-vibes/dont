@@ -5,10 +5,10 @@
 The monolithic spec still holds the operational surface that makes `dont` usable by LLM harnesses: read-only derived commands, the agent-facing help and teaching surface, the spawn-request protocol, and the optional MCP transport interface. These concerns are downstream of the envelope/payload work but are not yet captured as focused OpenSpec capabilities. Extracting them now makes the harness contract testable without dragging in imports or project-layout details.
 
 ## What Changes
-- Add `dont-derived-queries` for read-only derived commands: `list`, `vocab`, `show`, `why`, `prime`, `doctor`, `schema`, and `examples`.
-- Add `dont-agent-help` for the managed docs block, orientation prompt, tutorial/how-to/help surface, and `sync-docs` behaviour.
-- Add `dont-spawn-protocol` for `guess` / `assume` / `overlook`, harness-mode detection, spawn timeouts, and `dont spawns` listing semantics.
-- Add `dont-mcp-interface` for the optional `dont mcp` server mode and MCP tool-return contract.
+- Add `dont-derived-queries` for read-only derived commands (`list`, `vocab`, `show`, `why`, `prime`, `doctor`, `schema`, `examples`), requiring universal support for time-travel (`--as-of`) and computed trace filters (e.g. `--dependency-compromise`).
+- Add `dont-agent-help` for the managed docs block (strict marker refusal on `sync-docs`), orientation prompt, hardcoded tutorial/how-to/help surface, and `sync-docs` behaviour.
+- Add `dont-spawn-protocol` for `guess` / `assume` / `overlook`, explicit allowed callback command strings in the payload, harness-mode detection, synchronous spawn timeout sweeps on every invocation, and `dont spawns` listing semantics.
+- Add `dont-mcp-interface` for the optional `dont mcp` server mode, explicitly exposing the *entire* CLI surface (read-only and mutating verbs) as MCP tools.
 
 ## Deferred
 - Rule-authoring and `dont rules` command semantics — separate rule-system concern (§13)
