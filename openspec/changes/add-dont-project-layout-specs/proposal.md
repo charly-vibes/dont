@@ -5,8 +5,8 @@
 The monolithic spec still contains the persistent project structure and `config.toml` surface that all other capabilities rely on. The `.dont/` directory layout, managed-doc ownership, and operational configuration blocks are not yet captured as focused OpenSpec capabilities. Extracting them makes environment and configuration expectations testable and gives implementation work a stable filesystem/config contract.
 
 ## What Changes
-- Add `dont-project-layout` for the `.dont/` directory structure, owned artifacts, and root managed-doc relationship.
-- Add `dont-project-config` for the `config.toml` surface: project mode, output defaults, direct-mode LLM config, harness config, rule severity config, trust hedge patterns, storage tuning, verify-evidence tuning, and importer config blocks.
+- Add `dont-project-layout` for the `.dont/` directory structure, ensuring it is strictly self-contained (no state outside `.dont/` except managed docs). Includes owned artifacts, root managed-doc relationship, and the "convention over configuration" auto-loading of rules from `.dont/rules/`.
+- Add `dont-project-config` for the `config.toml` surface: project mode, strict failure on missing config (no silent defaults), output defaults, strict separation of direct-mode `[llm]` config from orchestration `[harness]` config, rule severity config, `[trust.hedges]` (as deterministic substrings, not regexes), storage tuning, `[verify_evidence]` tuning (including network politeness via `max_concurrent_requests`), and importer config blocks.
 
 ## Deferred
 - Implementation-specific RocksDB or Cozo internals beyond the presence of the store path and exposed tuning knobs

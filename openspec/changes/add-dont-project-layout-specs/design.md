@@ -3,9 +3,9 @@
 The spec decomposition now covers verbs, lifecycle, envelopes, errors, data shapes, harness/help surfaces, rules, and imports. The remaining major monolith section is the persistent project structure and configuration surface in §14. These are foundational because other capabilities already assume `.dont/AGENTS.md`, rules directories, schema locations, managed-doc targets, and config-driven behaviour such as harness mode, rule severities, and evidence verification tuning.
 
 ## Goals
-- Capture the `.dont/` on-disk contract as a standalone capability
-- Capture the externally visible `config.toml` surface as a separate capability
-- Preserve cross-feature relationships without restating each dependent spec in full
+- Capture the strictly self-contained `.dont/` on-disk contract as a standalone capability, mandating "convention over configuration" for auto-loading rule files.
+- Capture the externally visible `config.toml` surface as a separate capability, requiring the CLI to fail deterministically (no silent defaults) if it is missing or unparseable.
+- Preserve cross-feature relationships without restating each dependent spec in full, while guaranteeing safe constraints (like non-regex substring matching for hedges and rate limits for evidence checks).
 
 ## Non-Goals
 - Specify low-level storage engine implementation details
@@ -14,9 +14,12 @@ The spec decomposition now covers verbs, lifecycle, envelopes, errors, data shap
 
 ## Decisions
 - **Two capabilities, not one**: layout and config change independently. A new subdirectory should not require editing config semantics, and a new tuning knob should not imply a directory-layout change.
-- **Filesystem roles are normative, implementations are not**: the spec names the directories and what they are for, but does not lock in internal file formats beyond what the operator or adjacent capability observes.
-- **Config expresses behavioural seams**: the config spec captures knobs that alter externally visible behaviour, such as project mode, rule severity, spawn timeout, and evidence verification politeness.
-- **Cross-referenced side effects stay visible**: some config fields imply runtime behaviour already specified elsewhere (e.g. mode changes, direct-mode only LLM config). Those effects are referenced so the config surface is meaningful in isolation.
+- **Strictly self-contained layout**: The CLI MUST NOT create or rely on persistent state outside the `.dont/` folder (except for rewriting managed blocks in root docs via `sync-docs`).
+- **Fail on Missing Config**: The CLI MUST refuse to run if `config.toml` is missing or unparseable. It MUST NOT silently fall back to defaults, ensuring epistemic policy cannot be bypassed.
+- **Convention over Configuration for Rules**: Rules in `.dont/rules/` are loaded and evaluated automatically based on their filename base. `config.toml` is used only to configure their severity or explicitly disable them.
+- **Harness vs LLM separation**: The `[harness]` block (orchestration, spawn protocols) is strictly separated from the `[llm]` block (API keys, direct-mode models) to reinforce `dont`'s role as an orchestrator of other agents, not a standalone AI assistant.
+- **Deterministic Hedges**: The `[trust.hedges]` patterns MUST be evaluated as case-insensitive substrings, not regular expressions, to prevent ReDoS and ensure fast validation.
+- **Network Politeness**: The `[verify_evidence]` config MUST include a configurable `max_concurrent_requests` (default 5) to throttle parallel HTTP checks.
 
 ## Source Mapping
 - `dont-project-layout`: §14 directory tree and comments about canonical docs / managed root docs
