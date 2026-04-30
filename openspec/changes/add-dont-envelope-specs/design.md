@@ -14,9 +14,17 @@ Section 10 of `dont-spec-v0_3_2.md` covers derived commands, the output envelope
 
 ## Decisions
 - **Three capabilities, not one or two**: Envelope versioning, error taxonomy, and CLI conventions change independently and have different consumers. Envelope is consumed by all JSON parsers; errors by harness retry logic; CLI surface by shell integrations.
-- **Exit codes live with errors, not CLI surface**: Exit codes (§10.7.1) are the shell projection of the error taxonomy. A harness branches on exit code to decide "retry via remediation" vs "stop and check config" — this logic is error-centric, not shell-centric.
-- **Payload type list in envelope, shapes deferred**: The `envelope_kind` discriminator values are listed in `dont-envelope` because they're part of the envelope contract. But the actual `data` shapes (`ClaimView`, etc.) are deferred to the data-model change.
+- **Versioning rules defined here**: The envelope spec explicitly defines what constitutes a major vs. minor version bump (e.g. changing field types is major, adding optional fields is minor).
+- **Exclusive canonical discriminator list**: `dont-envelope` owns the canonical list of `envelope_kind` discriminators (e.g. `"claim"`, `"error"`). Payload specs merely reference them.
+- **Exit codes live with errors, not CLI surface**: Exit codes (§10.7.1) are the shell projection of the error taxonomy. A harness branches on exit code to decide "retry via remediation" (`1` - epistemic error) vs "stop and check config" (`2` - systemic error). This logic is error-centric, not shell-centric.
+- **Remediation invariant**: Every handled error envelope MUST contain at least one actionable recovery string in its `remediation` array.
+- **String literal error codes**: Error codes MUST be globally unique string literals (e.g. `term-label-empty`), not HTTP-style numeric codes.
+- **Universal silent JSON**: Every single CLI command (including `init` and `doctor`) MUST support `--json`. When active, the single JSON object is the *only* output emitted to stdout, and stderr MUST be completely silent.
+- **Native Completions**: The binary MUST natively generate shell completions (e.g., `dont completions <shell>`).
+- **Auto-Color Stripping**: ANSI escape sequences MUST be stripped automatically when stdout is not a TTY, but can be forced via env vars (`CLICOLOR_FORCE=1`).
+- **Stdin Prose Consumption**: If `--doc` or `--statement` is omitted, the commands `conclude` and `define` MUST consume standard input (if not a TTY) as the prose body.
 - **Forward-compatibility rules are normative**: Parsers MUST have default branches for unknown `envelope_kind`, unknown error codes, and unknown rule `kind` values.
+- **No Automatic Paging**: The CLI MUST NOT automatically pipe help or explanations to a pager (like `less`).
 
 ## Source Mapping
 - `dont-envelope`: §10.2 (envelope shape, fields, versioning), §10.3 (identity and format conventions)
@@ -30,4 +38,4 @@ Section 10 of `dont-spec-v0_3_2.md` covers derived commands, the output envelope
   - Mitigation: envelope spec notes that `data` is typed by `envelope_kind` without specifying shapes.
 
 ## Open Questions
-- Should `envelope_version` bumping rules (what constitutes a minor vs major change) be specified here or deferred to a versioning/migration capability?
+- None remain for the high-level boundary of these three capabilities; boundaries and semantics resolved by design interview.
