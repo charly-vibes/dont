@@ -16,12 +16,15 @@ This change is a spec-clarification pass across three capabilities. It does not 
 
 ## Decisions
 
-- `hints` is required on success envelopes; omission is non-conformant.
-- `meta.tx` is `null` for read-only commands and an integer in `[1, 2^53-1]` for mutating commands.
-- Import idempotence is keyed by `canonical_source_id` with importer-specific normalization rules (including deterministic SPARQL normalization and file-content hash authority for path aliases).
-- HTTP imports refuse non-HTTP(S) schemes and blocked destination classes (loopback/link-local/multicast/private); mixed DNS answer sets are denied if any resolved address is blocked.
-- Import safety refusals use deterministic codes: blocked destination/scheme → `unresolvable-uri`; policy-evaluation config failure → `config-missing`.
-- Spawn timeout/callback collisions are resolved by transaction-commit order; loser path is surfaced as warning-only and must not apply a second terminal transition.
+- **`hints` presence**: `hints` is strictly required as an array on success envelopes (empty `[]` if unused). Omission is non-conformant for producers, though parsers MUST tolerate missing `hints` for legacy v0.1/v0.2 compatibility.
+- **`meta.tx` constraints**: `meta.tx` is strictly `null` (not omitted) for read-only commands and an integer in the safe JSON range `[1, 2^53-1]` for mutating commands.
+- **Import idempotence**: Keyed by `canonical_source_id` with importer-specific normalization rules (SHA-256 content hash for local files to handle aliases/symlinks, and deterministic whitespace/comment normalization for SPARQL queries).
+- **Network safety policy**: HTTP imports strictly refuse non-HTTP(S) schemes and blocked destination classes (loopback/link-local/multicast/private) by default. Mixed DNS answer sets are denied immediately if *any* resolved address is blocked.
+- **Import safety refusals**: Use deterministic codes: blocked destination/scheme → `unresolvable-uri`; policy-evaluation config failure → `config-missing`.
+- **Spawn race determinism**:
+  - Late callbacks arriving after a timeout MUST be accepted (to preserve epistemic work) but surface a `spawn-expired` warning.
+  - Late timeout sweeps encountering an already-resolved spawn MUST ignore the spawn (transaction commit order wins).
+  - Duplicate terminal callbacks MUST be explicitly refused with `spawn-already-resolved`.
 
 ## Risks / Trade-offs
 

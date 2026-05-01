@@ -13,10 +13,10 @@ The highest-risk gaps are:
 
 ## What Changes
 
-- Modify `dont-envelope` to make `hints` presence and `meta.tx` constraints unambiguous
-- Modify `dont-import-surface` to define importer-specific canonical source identity for idempotence
-- Add a network destination safety requirement for HTTP-backed imports
-- Modify and extend `dont-spawn-protocol` to define deterministic resolution of timeout/callback races
+- Modify `dont-envelope` to make `hints` strictly required as an array on success envelopes, and `meta.tx` explicitly `null` (not omitted) for read-only commands and bounded `[1, 2^53-1]` for mutating commands.
+- Modify `dont-import-surface` to define importer-specific canonical source identity for idempotence (SHA-256 for local files, deterministic whitespace/comment normalization for HTTP queries).
+- Add a strict network destination safety requirement for HTTP-backed imports (default refusal of loopback/private/multicast destinations and mixed DNS answer sets).
+- Modify and extend `dont-spawn-protocol` to define deterministic resolution of timeout/callback races (accepting late callbacks with warnings, ignoring resolved spawns on timeout sweeps, and explicitly refusing duplicate callbacks with `spawn-already-resolved`).
 
 ## Impact
 
