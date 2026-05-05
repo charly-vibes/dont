@@ -1,7 +1,9 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
-const COMMANDS: &[&str] = &["init", "conclude", "trust", "dismiss", "show", "list"];
+// Commands not yet implemented (stubs print "<command>: not implemented").
+// Remove a command from this list once it is wired up.
+const STUB_COMMANDS: &[&str] = &["trust", "dismiss", "show", "list"];
 
 #[test]
 fn help_lists_tracer_bullet_commands() {
@@ -20,11 +22,10 @@ fn help_lists_tracer_bullet_commands() {
 
 #[test]
 fn tracer_bullet_subcommands_are_stubbed() {
-    for command in COMMANDS {
+    for command in STUB_COMMANDS {
         let mut cmd = Command::cargo_bin("dont").expect("binary exists");
         let args = match *command {
-            "init" | "list" => vec![*command],
-            "conclude" => vec![*command, "unsupported assertions need grounding"],
+            "list" => vec![*command],
             "trust" => vec![
                 *command,
                 "claim:01HX05A9K8VP",

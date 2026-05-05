@@ -138,9 +138,19 @@ impl fmt::Display for StoreError {
 impl std::error::Error for StoreError {}
 
 impl Store {
+    /// Open (or create) a store rooted at `project_root`. The DB lives at
+    /// `project_root/.dont/db.cozo`.
     pub fn open_project(project_root: impl AsRef<Path>) -> Result<Self, StoreError> {
         let dont_dir = project_root.as_ref().join(".dont");
-        std::fs::create_dir_all(&dont_dir).map_err(StoreError::Io)?;
+        Self::open_dont_dir(dont_dir)
+    }
+
+    /// Open (or create) a store whose DB lives directly inside `dont_dir`
+    /// (`dont_dir/db.cozo`). Use this when `dont_dir` is already the `.dont/`
+    /// directory (e.g. when `DONT_DIR` is set for test isolation).
+    pub fn open_dont_dir(dont_dir: impl AsRef<Path>) -> Result<Self, StoreError> {
+        let dont_dir = dont_dir.as_ref();
+        std::fs::create_dir_all(dont_dir).map_err(StoreError::Io)?;
         let path = dont_dir.join("db.cozo");
         let lock_path = dont_dir.join("db.cozo.lock");
         let db = DbInstance::new("sqlite", &path, "")
