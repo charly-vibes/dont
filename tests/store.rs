@@ -85,6 +85,7 @@ fn status_changes_are_stored_as_retraction_and_assertion_datoms() {
     let event = StoreEvent {
         kind: StoreEventKind::Trusted,
         note: Some("source is ambiguous".to_string()),
+        evidence: vec![],
     };
 
     let transition = store

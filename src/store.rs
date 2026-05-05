@@ -86,6 +86,7 @@ impl StoreEventKind {
 pub struct StoreEvent {
     pub kind: StoreEventKind,
     pub note: Option<String>,
+    pub evidence: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -110,6 +111,7 @@ pub struct EventRecord {
     pub id: String,
     pub kind: StoreEventKind,
     pub note: Option<String>,
+    pub evidence: Vec<String>,
     pub tx: i64,
     pub created_at: String,
 }
@@ -280,6 +282,63 @@ impl Store {
             ];
             if let Some(note) = event.note {
                 datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
+            }
+            if !event.evidence.is_empty() {
+                let arr = Value::Array(
+                    event.evidence.iter().map(|u| Value::String(u.clone())).collect(),
+                );
+                datoms.push(Datom::assert(&event_id, "evidence", arr, tx));
+            }
+            store.put_datoms(&datoms)?;
+            Ok(AppendResult {
+                id: claim_id.to_string(),
+                event_id,
+                tx,
+                created_at: now,
+            })
+        })
+    }
+
+    /// Append an evidence-only event without changing the claim's status.
+    /// Used when dismissing an already-verified claim (Phase 8).
+    pub fn append_evidence_event(
+        &self,
+        claim_id: &str,
+        event: StoreEvent,
+    ) -> Result<AppendResult, StoreError> {
+        self.with_write_lock(|store| {
+            let tx = store.next_tx()?;
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            let mut datoms = vec![
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "claim_id",
+                    Value::String(claim_id.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String(event.kind.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ];
+            if let Some(note) = event.note {
+                datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
+            }
+            if !event.evidence.is_empty() {
+                let arr = Value::Array(
+                    event.evidence.iter().map(|u| Value::String(u.clone())).collect(),
+                );
+                datoms.push(Datom::assert(&event_id, "evidence", arr, tx));
             }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
@@ -496,10 +555,15 @@ fn event_from_datoms<'a>(
     let note = latest_asserted_ref(&datoms, "note")
         .and_then(Value::as_str)
         .map(ToString::to_string);
+    let evidence: Vec<String> = latest_asserted_ref(&datoms, "evidence")
+        .and_then(Value::as_array)
+        .map(|arr| arr.iter().filter_map(|e| e.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
     Ok(EventRecord {
         id,
         kind,
         note,
+        evidence,
         tx,
         created_at,
     })
