@@ -5,7 +5,8 @@
 ## 2. Storage Layer (Red→Green→Tidy)
 - [ ] 2.1 Test + implement: CozoDB database open/create at `.dont/db.cozo` with claim and event schemas (per §4.2); timestamps as RFC 3339 UTC strings (per §10.3)
 - [ ] 2.2 Test + implement: append event (write) and query claim by ID; entity IDs use `claim:` and `event:` prefixes with ULID (per §10.3)
-- [ ] 2.3 Tidy: extract `store` module with clean API boundary
+- [ ] 2.3 Add `meta` table with `schema_version: 1` to prevent future migration collisions
+- [ ] 2.4 Tidy: extract `store` module with clean API boundary
 
 ## 3. JSON Envelope & Error Types (per §10.2, §10.5)
 - [ ] 3.1 Test + implement: `Envelope<T>` serialization with `ok`, `envelope_version: "0.2"`, `cli_version`, `envelope_kind`, `data`, structured `warnings[]` (`{rule_name?, entity_id?, message, suggested_remediation?}`), `hints` and `meta` as `Option` (always `None` for tracer)
@@ -17,9 +18,11 @@
 - [ ] 4.2 Test: invalid transitions (Doubted→Unverified, Verified→Unverified, Doubted→Doubted, Verified→Verified) return typed refusal
 - [ ] 4.3 Tidy: extract `model` module with Status, Claim, Event types
 
-## 5. CLI: init (per §4.4, §14)
+## 5. CLI: Context & init (per §4.4, §14)
 - [ ] 5.1 Test + implement: `dont init` creates `.dont/` directory with database and minimal `config.toml`
 - [ ] 5.2 Test: `dont init` on existing project returns error envelope with code `already-initialised`, exit 3 (substrate/config per §10.7.1), remediation pointing to existing `.dont/` directory
+- [ ] 5.3 Implement recursive parent-directory search for `.dont/` (Project Root discovery)
+- [ ] 5.4 Support `DONT_DIR` environment variable as a Project Root override for test isolation
 
 ## 6. CLI: conclude (per §9.1)
 - [ ] 6.1 Test + implement: `dont conclude "claim text"` creates unverified claim, returns ClaimView envelope
@@ -30,6 +33,7 @@
 - [ ] 7.2 Test: trust without --reason returns refusal with remediation (reason-required), exit 1
 - [ ] 7.3 Test + implement: `dont trust <id> --reason "..."` transitions verified→doubted (re-doubting a verified claim)
 - [ ] 7.4 Test: trust on already-doubted claim returns refusal with remediation (invalid-transition), exit 1
+- [ ] 7.5 Implement "Hedge MVP": refuse reasons matching `(?i)^(i think|maybe|not sure|probably)` with code `reason-not-hedge`
 
 ## 8. CLI: dismiss (per §9.4 — "dismiss verifies an entity", §5.1 transition table)
 - [ ] 8.1 Test + implement: `dont dismiss <id> --evidence "..."` transitions unverified→verified, records `dismissed` event

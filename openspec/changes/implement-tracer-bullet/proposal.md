@@ -7,17 +7,19 @@ Seven OpenSpec changes decompose the monolith into capability specs, but none ar
 ## What Changes
 
 - Add a Rust project scaffold (`Cargo.toml`, `src/`, `just` recipes)
-- Implement CozoDB-backed event-sourced storage (datom writes, snapshot queries)
+- Implement CozoDB-backed event-sourced storage (datom writes, snapshot queries) with `schema_version` protection
 - Implement 6 CLI commands: `init`, `conclude`, `trust`, `dismiss`, `show`, `list`
+- Implement upward project discovery (finding `.dont/` in parent directories) and `DONT_DIR` override
 - Implement the status lattice for the 3-state subset: `trust` → `:doubted`, `dismiss` → `:verified` (4 valid transitions across the 3 states)
 - Implement the versioned JSON envelope (§10.2) with `ok`, `envelope_version: "0.2"`, `cli_version`, `envelope_kind`, `data`, structured `warnings[]`
-- Implement the refusal protocol: `ErrorResult` in `data` with structured `remediation[{command, description}]`, hardcoded `reason-required` (for `trust`) and `no-evidence` (for `dismiss`) checks
+- Implement the refusal protocol: `ErrorResult` in `data` with structured `remediation[{command, description}]`, hardcoded `reason-required` (for `trust`), `reason-not-hedge` (Hedge MVP), and `no-evidence` (for `dismiss`) checks
 - Add `dont-build` capability spec for build/distribution requirements (§4.1, §4.2)
 
 ## What This Proves
 
 - Rust + CozoDB datom model works for the event-sourced design
-- The four-verb lattice is implementable as specified
+- Upward project discovery and context isolation work as expected
+- The four-verb lattice and Hedge MVP are implementable as specified
 - The refusal-with-remediation pattern works end-to-end
 - The JSON envelope contract is coherent
 - Sub-50ms cold start is achievable
