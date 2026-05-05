@@ -1,8 +1,10 @@
 use std::fmt;
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 
 use chrono::{SecondsFormat, Utc};
 use cozo::DbInstance;
+use fs2::FileExt;
 use serde_json::Value;
 use ulid::Ulid;
 
@@ -11,6 +13,13 @@ const SCHEMA_VERSION: i64 = 1;
 pub struct Store {
     db: DbInstance,
     path: PathBuf,
+    lock_path: PathBuf,
+}
+
+impl fmt::Debug for Store {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Store").field("path", &self.path).finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,9 +30,61 @@ pub struct AppendResult {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoreStatus {
+    Unverified,
+    Verified,
+    Doubted,
+}
+
+impl StoreStatus {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Unverified => "unverified",
+            Self::Verified => "verified",
+            Self::Doubted => "doubted",
+        }
+    }
+
+    fn from_str(value: &str) -> Result<Self, StoreError> {
+        match value {
+            "unverified" => Ok(Self::Unverified),
+            "verified" => Ok(Self::Verified),
+            "doubted" => Ok(Self::Doubted),
+            _ => Err(StoreError::Malformed(format!("unknown status {value}"))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoreEventKind {
+    Concluded,
+    Trusted,
+    Dismissed,
+}
+
+impl StoreEventKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Concluded => "concluded",
+            Self::Trusted => "trusted",
+            Self::Dismissed => "dismissed",
+        }
+    }
+
+    fn from_str(value: &str) -> Result<Self, StoreError> {
+        match value {
+            "concluded" => Ok(Self::Concluded),
+            "trusted" => Ok(Self::Trusted),
+            "dismissed" => Ok(Self::Dismissed),
+            _ => Err(StoreError::Malformed(format!("unknown event kind {value}"))),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoreEvent {
-    pub kind: String,
+    pub kind: StoreEventKind,
     pub note: Option<String>,
 }
 
@@ -40,25 +101,37 @@ pub struct Datom {
 pub struct ClaimRecord {
     pub id: String,
     pub statement: String,
-    pub status: String,
+    pub status: StoreStatus,
     pub events: Vec<EventRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventRecord {
     pub id: String,
-    pub kind: String,
+    pub kind: StoreEventKind,
     pub note: Option<String>,
     pub tx: i64,
     pub created_at: String,
 }
 
 #[derive(Debug)]
-pub struct StoreError(String);
+pub enum StoreError {
+    Io(std::io::Error),
+    Cozo(String),
+    SchemaMismatch { found: i64, expected: i64 },
+    Malformed(String),
+}
 
 impl fmt::Display for StoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        match self {
+            Self::Io(error) => write!(f, "I/O error: {error}"),
+            Self::Cozo(message) => write!(f, "Cozo error: {message}"),
+            Self::SchemaMismatch { found, expected } => {
+                write!(f, "unsupported schema_version {found}; expected {expected}")
+            }
+            Self::Malformed(message) => f.write_str(message),
+        }
     }
 }
 
@@ -67,11 +140,17 @@ impl std::error::Error for StoreError {}
 impl Store {
     pub fn open_project(project_root: impl AsRef<Path>) -> Result<Self, StoreError> {
         let dont_dir = project_root.as_ref().join(".dont");
-        std::fs::create_dir_all(&dont_dir).map_err(StoreError::from_err)?;
+        std::fs::create_dir_all(&dont_dir).map_err(StoreError::Io)?;
         let path = dont_dir.join("db.cozo");
-        let db = DbInstance::new("sqlite", &path, "").map_err(|err| StoreError(err.to_string()))?;
-        let store = Self { db, path };
-        store.ensure_schema()?;
+        let lock_path = dont_dir.join("db.cozo.lock");
+        let db = DbInstance::new("sqlite", &path, "")
+            .map_err(|err| StoreError::Cozo(err.to_string()))?;
+        let store = Self {
+            db,
+            path,
+            lock_path,
+        };
+        store.with_write_lock(|store| store.ensure_schema())?;
         Ok(store)
     }
 
@@ -80,104 +159,125 @@ impl Store {
     }
 
     pub fn schema_version(&self) -> Result<i64, StoreError> {
-        let rows = self.query_rows(r#"?[value] := *metadata["schema_version", value]"#)?;
-        rows.first()
-            .and_then(|row| row.first())
-            .and_then(Value::as_i64)
-            .ok_or_else(|| StoreError("missing schema_version metadata".to_string()))
+        self.stored_schema_version()?
+            .ok_or_else(|| StoreError::Malformed("missing schema_version metadata".to_string()))
+    }
+
+    #[doc(hidden)]
+    pub fn set_schema_version_for_test(&self, version: i64) -> Result<(), StoreError> {
+        self.with_write_lock(|store| {
+            store.run(&format!(
+                r#"?[key, value] <- [["schema_version", {}]] :put metadata {{key => value}}"#,
+                version
+            ))
+        })
     }
 
     pub fn append_claim(&self, statement: &str) -> Result<AppendResult, StoreError> {
-        let tx = self.next_tx()?;
-        let claim_id = prefixed_ulid("claim");
-        let event_id = prefixed_ulid("event");
-        let now = now_rfc3339_seconds();
-        let datoms = vec![
-            Datom::assert(
-                &claim_id,
-                "entity_type",
-                Value::String("claim".to_string()),
+        self.with_write_lock(|store| {
+            let tx = store.next_tx()?;
+            let claim_id = prefixed_ulid("claim");
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            let datoms = vec![
+                Datom::assert(
+                    &claim_id,
+                    "entity_type",
+                    Value::String("claim".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &claim_id,
+                    "statement",
+                    Value::String(statement.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &claim_id,
+                    "status",
+                    Value::String(StoreStatus::Unverified.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(&claim_id, "created_at", Value::String(now.clone()), tx),
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "claim_id", Value::String(claim_id.clone()), tx),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String(StoreEventKind::Concluded.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ];
+            store.put_datoms(&datoms)?;
+            Ok(AppendResult {
+                id: claim_id,
+                event_id,
                 tx,
-            ),
-            Datom::assert(
-                &claim_id,
-                "statement",
-                Value::String(statement.to_string()),
-                tx,
-            ),
-            Datom::assert(
-                &claim_id,
-                "status",
-                Value::String("unverified".to_string()),
-                tx,
-            ),
-            Datom::assert(&claim_id, "created_at", Value::String(now.clone()), tx),
-            Datom::assert(
-                &event_id,
-                "entity_type",
-                Value::String("event".to_string()),
-                tx,
-            ),
-            Datom::assert(&event_id, "claim_id", Value::String(claim_id.clone()), tx),
-            Datom::assert(
-                &event_id,
-                "kind",
-                Value::String("concluded".to_string()),
-                tx,
-            ),
-            Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
-        ];
-        self.put_datoms(&datoms)?;
-        Ok(AppendResult {
-            id: claim_id,
-            event_id,
-            tx,
-            created_at: now,
+                created_at: now,
+            })
         })
     }
 
     pub fn append_status_change(
         &self,
         claim_id: &str,
-        from_status: &str,
-        to_status: &str,
+        from_status: StoreStatus,
+        to_status: StoreStatus,
         event: StoreEvent,
     ) -> Result<AppendResult, StoreError> {
-        let tx = self.next_tx()?;
-        let event_id = prefixed_ulid("event");
-        let now = now_rfc3339_seconds();
-        let mut datoms = vec![
-            Datom::retract(
-                claim_id,
-                "status",
-                Value::String(from_status.to_string()),
+        self.with_write_lock(|store| {
+            let tx = store.next_tx()?;
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            let mut datoms = vec![
+                Datom::retract(
+                    claim_id,
+                    "status",
+                    Value::String(from_status.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    claim_id,
+                    "status",
+                    Value::String(to_status.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "claim_id",
+                    Value::String(claim_id.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String(event.kind.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ];
+            if let Some(note) = event.note {
+                datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
+            }
+            store.put_datoms(&datoms)?;
+            Ok(AppendResult {
+                id: claim_id.to_string(),
+                event_id,
                 tx,
-            ),
-            Datom::assert(claim_id, "status", Value::String(to_status.to_string()), tx),
-            Datom::assert(
-                &event_id,
-                "entity_type",
-                Value::String("event".to_string()),
-                tx,
-            ),
-            Datom::assert(
-                &event_id,
-                "claim_id",
-                Value::String(claim_id.to_string()),
-                tx,
-            ),
-            Datom::assert(&event_id, "kind", Value::String(event.kind), tx),
-            Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
-        ];
-        if let Some(note) = event.note {
-            datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
-        }
-        self.put_datoms(&datoms)?;
-        Ok(AppendResult {
-            id: claim_id.to_string(),
-            event_id,
-            tx,
-            created_at: now,
+                created_at: now,
+            })
         })
     }
 
@@ -188,12 +288,12 @@ impl Store {
         }
         let statement = latest_asserted_value(&datoms, "statement")
             .and_then(Value::as_str)
-            .ok_or_else(|| StoreError(format!("claim {claim_id} has no statement")))?
+            .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} has no statement")))?
             .to_string();
         let status = latest_asserted_value(&datoms, "status")
             .and_then(Value::as_str)
-            .ok_or_else(|| StoreError(format!("claim {claim_id} has no status")))?
-            .to_string();
+            .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} has no status")))
+            .and_then(StoreStatus::from_str)?;
         let mut events = self.events_for_claim(claim_id)?;
         events.sort_by_key(|event| event.tx);
         Ok(Some(ClaimRecord {
@@ -217,11 +317,25 @@ impl Store {
     fn ensure_schema(&self) -> Result<(), StoreError> {
         self.run(r#"%ignore_error { :create datoms {entity: String, attribute: String, value: Any, tx: Int => assert_bit: Bool} }"#)?;
         self.run(r#"%ignore_error { :create metadata {key: String => value: Any} }"#)?;
-        self.run(&format!(
-            r#"?[key, value] <- [["schema_version", {}]] :put metadata {{key => value}}"#,
-            SCHEMA_VERSION
-        ))?;
-        Ok(())
+        match self.stored_schema_version()? {
+            Some(SCHEMA_VERSION) => Ok(()),
+            Some(found) => Err(StoreError::SchemaMismatch {
+                found,
+                expected: SCHEMA_VERSION,
+            }),
+            None => self.run(&format!(
+                r#"?[key, value] <- [["schema_version", {}]] :put metadata {{key => value}}"#,
+                SCHEMA_VERSION
+            )),
+        }
+    }
+
+    fn stored_schema_version(&self) -> Result<Option<i64>, StoreError> {
+        let rows = self.query_rows(r#"?[value] := *metadata["schema_version", value]"#)?;
+        Ok(rows
+            .first()
+            .and_then(|row| row.first())
+            .and_then(Value::as_i64))
     }
 
     fn next_tx(&self) -> Result<i64, StoreError> {
@@ -275,11 +389,35 @@ impl Store {
         ))
     }
 
+    fn with_write_lock<T>(
+        &self,
+        f: impl FnOnce(&Self) -> Result<T, StoreError>,
+    ) -> Result<T, StoreError> {
+        let lock = self.open_lock_file()?;
+        lock.lock_exclusive().map_err(StoreError::Io)?;
+        let result = f(self);
+        let unlock_result = lock.unlock().map_err(StoreError::Io);
+        match (result, unlock_result) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+        }
+    }
+
+    fn open_lock_file(&self) -> Result<File, StoreError> {
+        OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(&self.lock_path)
+            .map_err(StoreError::Io)
+    }
+
     fn run(&self, script: &str) -> Result<(), StoreError> {
         let result = self.db.run_script_str(script, "", false);
         let value: Value = serde_json::from_str(&result).map_err(StoreError::from_err)?;
         if value.get("ok").and_then(Value::as_bool) == Some(false) {
-            return Err(StoreError(format!("Cozo script failed: {value}")));
+            return Err(StoreError::Cozo(value.to_string()));
         }
         Ok(())
     }
@@ -288,7 +426,7 @@ impl Store {
         let result = self.db.run_script_str(script, "", true);
         let value: Value = serde_json::from_str(&result).map_err(StoreError::from_err)?;
         if value.get("ok").and_then(Value::as_bool) == Some(false) {
-            return Err(StoreError(format!("Cozo query failed: {value}")));
+            return Err(StoreError::Cozo(value.to_string()));
         }
         serde_json::from_value(value.get("rows").cloned().unwrap_or(Value::Array(vec![])))
             .map_err(StoreError::from_err)
@@ -319,7 +457,7 @@ impl Datom {
 
 impl StoreError {
     fn from_err(error: impl std::error::Error) -> Self {
-        Self(error.to_string())
+        Self::Malformed(error.to_string())
     }
 }
 
@@ -338,8 +476,8 @@ fn event_from_datoms<'a>(
     let datoms: Vec<&Datom> = datoms.collect();
     let kind = latest_asserted_ref(&datoms, "kind")
         .and_then(Value::as_str)
-        .ok_or_else(|| StoreError(format!("event {id} has no kind")))?
-        .to_string();
+        .ok_or_else(|| StoreError::Malformed(format!("event {id} has no kind")))
+        .and_then(StoreEventKind::from_str)?;
     let tx = datoms.iter().map(|d| d.tx).min().unwrap_or_default();
     let created_at = latest_asserted_ref(&datoms, "created_at")
         .and_then(Value::as_str)
@@ -372,22 +510,22 @@ fn row_to_datom(row: Vec<Value>) -> Result<Datom, StoreError> {
         entity: row
             .next()
             .and_then(|v| v.as_str().map(ToString::to_string))
-            .ok_or_else(|| StoreError("datom row missing entity".to_string()))?,
+            .ok_or_else(|| StoreError::Malformed("datom row missing entity".to_string()))?,
         attribute: row
             .next()
             .and_then(|v| v.as_str().map(ToString::to_string))
-            .ok_or_else(|| StoreError("datom row missing attribute".to_string()))?,
+            .ok_or_else(|| StoreError::Malformed("datom row missing attribute".to_string()))?,
         value: row
             .next()
-            .ok_or_else(|| StoreError("datom row missing value".to_string()))?,
+            .ok_or_else(|| StoreError::Malformed("datom row missing value".to_string()))?,
         tx: row
             .next()
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| StoreError("datom row missing tx".to_string()))?,
+            .ok_or_else(|| StoreError::Malformed("datom row missing tx".to_string()))?,
         assert_bit: row
             .next()
             .and_then(|v| v.as_bool())
-            .ok_or_else(|| StoreError("datom row missing assert_bit".to_string()))?,
+            .ok_or_else(|| StoreError::Malformed("datom row missing assert_bit".to_string()))?,
     })
 }
 

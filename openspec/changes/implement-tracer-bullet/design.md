@@ -37,11 +37,11 @@ Use `clap` with derive macros for command parsing. Subcommand enum maps 1:1 to v
 
 **Why:** Clap is the Rust standard. Derive API keeps command definitions close to handler code. Supports `--json` flag natively. Monolith §9 assumes clap-style conventions.
 
-### Storage: CozoDB embedded with RocksDB backend
+### Storage: CozoDB embedded with SQLite backend
 
-Use the `cozo` crate (≥0.7) with RocksDB for on-disk persistence at `.dont/db.cozo`.
+Use the `cozo` crate (≥0.7) with SQLite for on-disk persistence at `.dont/db.cozo`.
 
-**Why:** Settled in monolith §4.2. Datoms are the natural shape for event-sourced entities. Datalog queries are native. Time-travel is built in (deferred but free to add later).
+**Why:** CozoDB is settled in monolith §4.2, and SQLite is the lightest embedded backend for the tracer harness: it avoids a C++ RocksDB toolchain requirement while still proving CozoScript, persistence, and the datom shape. Datoms are the natural shape for event-sourced entities. Datalog queries are native. Time-travel is built in (deferred but free to add later).
 
 **Schema (tracer-bullet subset):**
 
@@ -164,7 +164,7 @@ Deferred: 130/143 (signal handling).
 
 ## Risks / Trade-offs
 
-- **CozoDB maturity risk** → Mitigated by the tracer itself: if CozoDB is problematic, we discover it before building the full system. RocksDB backend is the most tested Cozo path.
+- **CozoDB backend risk** → Mitigated by the tracer itself: if the SQLite backend is insufficient for production, the `store` module boundary keeps a later RocksDB migration localized while preserving the datom API.
 - **No rule engine means refusals are incomplete** → Accepted: hardcoded checks prove the protocol shape. Rule engine is deferred but the `ErrorResult` envelope is identical regardless of source.
 - **JSON-only output** → Acceptable for tracer. Human-readable rendering is explicitly non-goal per monolith §3.1.4.
 
