@@ -1,0 +1,1 @@
+Implemented dont-79o via TDD: added init tests for --strict, locked .dont/seed/dont-seed.yaml, project.initialized events.jsonl audit entry, and minimal dont prime visibility for mode/status counts; cargo test and clippy are green.

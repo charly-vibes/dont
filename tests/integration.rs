@@ -48,7 +48,7 @@ fn assert_envelope_conformance(v: &Value, expect_ok: bool) {
     } else {
         assert_eq!(v["ok"], false);
         assert!(
-            v.as_object().map_or(true, |m| !m.contains_key("hints")),
+            v.as_object().is_none_or(|m| !m.contains_key("hints")),
             "error envelope must not carry hints"
         );
         let remediation = v["data"]["remediation"].as_array().unwrap();

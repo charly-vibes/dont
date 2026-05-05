@@ -1,5 +1,4 @@
 use assert_cmd::Command;
-use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
@@ -53,6 +52,94 @@ fn init_config_toml_defaults_to_permissive_mode() {
 
     let config = fs::read_to_string(dir.path().join("config.toml")).unwrap();
     assert!(config.contains("mode = \"permissive\""));
+}
+
+#[test]
+fn init_strict_sets_strict_mode() {
+    let dir = TempDir::new().unwrap();
+
+    dont()
+        .arg("init")
+        .arg("--strict")
+        .arg("--json")
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let config = fs::read_to_string(dir.path().join("config.toml")).unwrap();
+    assert!(config.contains("mode = \"strict\""));
+}
+
+#[test]
+fn init_strict_mode_is_visible_in_prime() {
+    let dir = TempDir::new().unwrap();
+    dont()
+        .arg("init")
+        .arg("--strict")
+        .arg("--json")
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let output = dont()
+        .arg("prime")
+        .arg("--json")
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["envelope_kind"], "prime");
+    assert_eq!(v["data"]["mode"], "strict");
+    assert_eq!(v["data"]["status_counts"]["unverified"], 0);
+    assert_eq!(v["data"]["blocking"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn init_creates_locked_seed_vocabulary_snapshot() {
+    let dir = TempDir::new().unwrap();
+    init_in(&dir).success();
+
+    let seed = fs::read_to_string(dir.path().join("seed/dont-seed.yaml")).unwrap();
+    for term in [
+        "dont:Entity",
+        "dont:Claim",
+        "dont:Term",
+        "dont:Evidence",
+        "dont:kind_of",
+        "dont:related_to",
+        "dont:defined_as",
+        "dont:Hypothesis",
+        "dont:Retraction",
+        "dont:external_ref",
+    ] {
+        assert!(seed.contains(term), "missing seed term {term}");
+    }
+    assert_eq!(seed.matches("status: locked").count(), 10);
+    assert!(!seed.contains("owl:Thing"));
+    assert!(!seed.contains("rdfs:subClassOf"));
+}
+
+#[test]
+fn init_records_initial_mode_project_event() {
+    let dir = TempDir::new().unwrap();
+
+    dont()
+        .arg("init")
+        .arg("--strict")
+        .arg("--json")
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let events = fs::read_to_string(dir.path().join("events.jsonl")).unwrap();
+    let event: Value = serde_json::from_str(events.lines().next().unwrap()).unwrap();
+    assert_eq!(event["kind"], "project.initialized");
+    assert_eq!(event["mode"], "strict");
+    assert!(event["created_at"].as_str().unwrap().ends_with('Z'));
 }
 
 #[test]

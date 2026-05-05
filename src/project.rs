@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use chrono::{SecondsFormat, Utc};
+use serde_json::json;
+
 use crate::store::{Store, StoreError};
 
 pub struct Project {
@@ -41,9 +44,11 @@ impl From<std::io::Error> for ProjectError {
     }
 }
 
-const MINIMAL_CONFIG: &str = r#"[project]
+fn minimal_config(mode: ProjectMode) -> String {
+    format!(
+        r#"[project]
 name = "dont-project"
-mode = "permissive"
+mode = "{}"
 
 [output]
 default_format = "json"
@@ -54,6 +59,51 @@ patterns = ["i think", "maybe", "not sure", "probably"]
 [storage]
 busy_retry_attempts = 5
 busy_retry_base_ms = 100
+"#,
+        mode.as_str()
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectMode {
+    Permissive,
+    Strict,
+}
+
+impl ProjectMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Permissive => "permissive",
+            Self::Strict => "strict",
+        }
+    }
+}
+
+const SEED_VOCABULARY: &str = r#"# dont seed vocabulary snapshot
+# Installed project-locally by `dont init`. Tool upgrades MUST NOT rewrite this
+# file except through an explicit seed-migration operation.
+prefix: "dont:"
+terms:
+  - id: "dont:Entity"
+    status: locked
+  - id: "dont:Claim"
+    status: locked
+  - id: "dont:Term"
+    status: locked
+  - id: "dont:Evidence"
+    status: locked
+  - id: "dont:kind_of"
+    status: locked
+  - id: "dont:related_to"
+    status: locked
+  - id: "dont:defined_as"
+    status: locked
+  - id: "dont:Hypothesis"
+    status: locked
+  - id: "dont:Retraction"
+    status: locked
+  - id: "dont:external_ref"
+    status: locked
 "#;
 
 const AGENTS_MD: &str = r#"# dont
@@ -117,8 +167,20 @@ impl Project {
         Ok(Self { dont_dir, store })
     }
 
+    pub fn mode(&self) -> String {
+        let config = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
+        config
+            .lines()
+            .find_map(|line| {
+                let line = line.trim();
+                line.strip_prefix("mode = ")
+                    .map(|value| value.trim_matches('"').to_string())
+            })
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
     /// Initialize a new project. Returns `AlreadyInitialised` if `.dont/` already present.
-    pub fn init(cwd: &Path) -> Result<Self, ProjectError> {
+    pub fn init(cwd: &Path, mode: ProjectMode) -> Result<Self, ProjectError> {
         let dont_dir = if let Ok(dir) = std::env::var("DONT_DIR") {
             PathBuf::from(dir)
         } else {
@@ -133,10 +195,22 @@ impl Project {
         for subdir in &["seed", "vocab", "rules", "imports", "sessions", "schemas"] {
             fs::create_dir_all(dont_dir.join(subdir))?;
         }
-        fs::write(dont_dir.join("config.toml"), MINIMAL_CONFIG)?;
+        fs::write(dont_dir.join("config.toml"), minimal_config(mode))?;
         fs::write(dont_dir.join("AGENTS.md"), AGENTS_MD)?;
+        fs::write(dont_dir.join("seed/dont-seed.yaml"), SEED_VOCABULARY)?;
+        fs::write(dont_dir.join("events.jsonl"), init_event(mode))?;
 
         let store = Store::open_dont_dir(&dont_dir)?;
         Ok(Self { dont_dir, store })
     }
+}
+
+fn init_event(mode: ProjectMode) -> String {
+    let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    let event = json!({
+        "kind": "project.initialized",
+        "mode": mode.as_str(),
+        "created_at": created_at,
+    });
+    format!("{}\n", serde_json::to_string(&event).expect("project init event serializes"))
 }

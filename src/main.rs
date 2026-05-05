@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 
 use dont::envelope::{Envelope, ErrorResult, HintEntry, RemediationEntry, Warning};
 use dont::model::{dismiss as model_dismiss, trust as model_trust, Status};
-use dont::project::{Project, ProjectError};
+use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{AppendResult, ClaimRecord, StoreError, StoreEvent, StoreEventKind, StoreStatus};
 
 #[derive(Debug, Parser)]
@@ -25,7 +25,11 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Initialize dont state in the current project.
-    Init,
+    Init {
+        /// Start the project in strict mode instead of permissive mode.
+        #[arg(long)]
+        strict: bool,
+    },
 
     /// Introduce an unverified claim.
     Conclude {
@@ -58,6 +62,9 @@ enum Command {
         /// Claim identifier.
         id: String,
     },
+
+    /// Return session-start orientation and project state summary.
+    Prime,
 
     /// List claims.
     List,
@@ -244,10 +251,15 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Init => {
-            match Project::init(&cwd()) {
+        Command::Init { strict } => {
+            let mode = if strict {
+                ProjectMode::Strict
+            } else {
+                ProjectMode::Permissive
+            };
+            match Project::init(&cwd(), mode) {
                 Ok(_) => {
-                    let env = Envelope::success("empty", Value::Null, vec![], vec![HintEntry {
+                    let env = Envelope::success("empty", json!({ "mode": mode.as_str() }), vec![], vec![HintEntry {
                         command: "dont conclude \"claim text\"".to_string(),
                         description: "Introduce your first claim".to_string(),
                     }]);
@@ -525,6 +537,63 @@ fn main() {
             }
         }
 
+        Command::Prime => {
+            let project = open_project_or_exit();
+            let claims = match project.store.list_claims() {
+                Ok(c) => c,
+                Err(err) => handle_store_error(err, None),
+            };
+            let mut unverified = 0;
+            let mut doubted = 0;
+            let mut verified = 0;
+            let mut blocking = Vec::new();
+            for claim in &claims {
+                match claim.status {
+                    StoreStatus::Unverified => unverified += 1,
+                    StoreStatus::Doubted => {
+                        doubted += 1;
+                        blocking.push(json!({
+                            "id": claim.id,
+                            "statement": claim.statement,
+                            "status": "doubted",
+                        }));
+                    }
+                    StoreStatus::Verified => verified += 1,
+                }
+            }
+            let payload = json!({
+                "project": "dont-project",
+                "mode": project.mode(),
+                "status_counts": {
+                    "unverified": unverified,
+                    "doubted": doubted,
+                    "verified": verified,
+                    "locked": 0,
+                    "ignored": 0,
+                },
+                "assessment_counts": {
+                    "stale": 0,
+                    "compromised_support": 0,
+                    "dangling_dependency": 0,
+                    "unresolved_term": 0,
+                },
+                "rules": { "strict": [], "warn": [] },
+                "ontologies": [],
+                "blocking": blocking,
+                "pending_spawns": 0,
+                "harness_mode": false,
+                "invariants": [
+                    "Use --json envelopes for agent-facing commands",
+                    "Verified entities must not depend on unresolved terms"
+                ],
+            });
+            let env = Envelope::success("prime", payload, vec![], vec![HintEntry {
+                command: "dont help --tutorial".to_string(),
+                description: "Read the first-session tutorial for the full workflow".to_string(),
+            }]);
+            emit_json(&env);
+        }
+
         Command::List => {
             let project = open_project_or_exit();
             let mut claims = match project.store.list_claims() {
@@ -542,8 +611,4 @@ fn main() {
             emit_json(&env);
         }
     }
-}
-
-fn print_stub(command: &str) {
-    println!("{command}: not implemented");
 }
