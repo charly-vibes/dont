@@ -93,9 +93,9 @@ struct Envelope<T: Serialize> {
     cli_version: String,       // "0.0.1-tracer" for tracer
     envelope_kind: String,     // "claim", "claims", "events", "error"
     data: T,                   // ErrorResult when ok=false
-    hints: Option<Vec<Hint>>,  // deferred: always None for tracer
+    hints: Vec<Hint>,          // required on success envelopes; empty for tracer when unused
     warnings: Vec<Warning>,
-    meta: Meta,
+    meta: Meta,                // required on every envelope
 }
 
 struct Meta {
@@ -110,7 +110,7 @@ struct Hint {
 }
 
 struct Warning {
-    rule_name: Option<String>,
+    rule_name: String,
     entity_id: Option<String>,
     message: String,
     suggested_remediation: Option<String>,
@@ -137,14 +137,16 @@ struct Remediation {
 }
 ```
 
-**Why:** Maps directly to the envelope spec (§10.2, §10.5). Generic over `T` so each command provides its own payload type; when `ok: false`, `T` is `ErrorResult`. The tracer's `ClaimView` payload (represented by `T`) MUST include a hardcoded empty `applicable_rules: {}` object to strictly conform to the JSON envelope contract. The `remediation` non-empty invariant from §3.2.5 is enforced at construction time via a builder that panics on empty remediation. `hints` is `Option` — present in the type for forward compatibility but always `None` in the tracer. `meta` is required per the envelope specification; `duration_ms` will be populated, while `tx` and `request_id` may be `None` for the tracer.
+**Why:** Maps directly to the envelope spec (§10.2, §10.5). Generic over `T` so each command provides its own payload type; when `ok: false`, `T` is `ErrorResult`. The tracer's `ClaimView` payload (represented by `T`) MUST include a hardcoded empty `applicable_rules: {}` object to strictly conform to the JSON envelope contract. The `remediation` non-empty invariant from §3.2.5 is enforced at construction time via a builder that panics on empty remediation. `hints` is required on success envelopes and omitted on error envelopes; the tracer emits `hints: []` when no next action applies. `meta` is required per the envelope specification; `duration_ms` will be populated, `tx` will be an integer for mutations and `null` for read-only commands, and `request_id` will be `null` for the tracer.
 
 ### Refusal protocol: hardcoded checks, no rule engine
 
-The tracer hardcodes three refusal checks:
+The tracer hardcodes verb-level refusal checks:
 1. **reason-required**: `trust` requires `--reason`
-2. **no-evidence**: `dismiss` requires `--evidence`
-3. **invalid-transition**: status lattice rejects impossible transitions
+2. **reason-not-hedge**: `trust --reason` refuses configured case-insensitive hedge substrings (default: `i think`, `maybe`, `not sure`, `probably`); these are deterministic substring checks, not regexes
+3. **no-evidence**: `dismiss` requires at least one `--evidence`
+4. **invalid-transition**: status lattice rejects impossible state-changing transitions
+5. **already-initialised**, **config-missing**, and **claim-not-found** for project/store lookup failures
 
 **Why:** The full rule engine (§13) evaluates Datalog rules. For the tracer, hardcoded checks prove the refusal→remediation→retry loop works. The rule engine is a separate work stream.
 
@@ -168,7 +170,7 @@ Deferred: 130/143 (signal handling).
 
 ## Migration Plan
 
-Not applicable — this is greenfield. When the full datom model is implemented, the tracer's typed-relation schema will be replaced. No backward compatibility needed.
+Not applicable — this is greenfield. The tracer already uses the true datom shape, so later work should extend the schema with additional entity kinds, attributes, rules, and query projections rather than replacing a temporary relational store.
 
 ## Open Questions
 

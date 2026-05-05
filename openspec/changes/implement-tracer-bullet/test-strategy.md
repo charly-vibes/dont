@@ -20,11 +20,16 @@ Each integration test:
 
 Schema conformance means:
 - Top-level fields `ok`, `envelope_version`, `cli_version`, `envelope_kind`,
-  `data`, `warnings` are all present.
+  `data`, `warnings`, and `meta` are all present.
 - `envelope_version` is exactly `"0.2"`.
-- When `ok: false`, `data.remediation` is a non-empty array where every entry
-  has `command` and `description` strings.
-- When `ok: true`, the `data` shape matches the declared `envelope_kind`.
+- `warnings` is always an array.
+- `meta.duration_ms` is a non-negative integer, `meta.tx` is an integer for
+  mutating commands and `null` for read-only commands, and `meta.request_id` is
+  `null` for the tracer.
+- When `ok: true`, `hints` is present as an array and the `data` shape matches
+  the declared `envelope_kind`.
+- When `ok: false`, `hints` is absent and `data.remediation` is a non-empty
+  array where every entry has `command` and `description` strings.
 
 ## Required Coverage
 
@@ -69,6 +74,9 @@ state.
 | `trust <id> --reason "I think this is wrong"` | Refusal `reason-not-hedge`, exit 1 |
 | `trust <id> --reason "Evidence contradicts §3.2"` | Succeeds, exit 0 |
 
+The hedge check MUST use configured case-insensitive substring matching, not
+regular expressions, to match `dont-project-config`.
+
 ### Status lattice
 
 All four valid transitions must be covered in integration tests (not just unit
@@ -86,7 +94,7 @@ Invalid transitions must also be confirmed at the integration level:
 | Scenario | Expected |
 |---|---|
 | `trust` on already-doubted claim | `invalid-transition`, exit 1 |
-| `dismiss` on already-verified claim with no new evidence path | Either appended evidence (per spec) or explicit error — behaviour must match spec |
+| `dismiss` on already-verified claim with additional evidence | Appends evidence/history without changing identity or status; exits 0 |
 
 ### Performance
 
