@@ -532,6 +532,7 @@ name = "dont"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
+ "chrono",
  "clap",
  "cozo",
  "predicates",

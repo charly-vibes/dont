@@ -3,10 +3,10 @@
 - [x] 1.2 Add `just` recipes: build, test, lint, run
 
 ## 2. Storage Layer (Red→Green→Tidy)
-- [ ] 2.1 Test + implement: CozoDB database open/create at `.dont/db.cozo` with true datom storage `(entity, attr, value, tx, assert_bit)` (per §4.2); timestamps as RFC 3339 UTC whole-second strings (per §10.3)
-- [ ] 2.2 Test + implement: append event (write) and query claim by ID; writes use monotonically increasing transaction numbers, assertion/retraction datoms for status changes, and `claim:`/`event:` ULID prefixes (per §10.3)
-- [ ] 2.3 Add store metadata with `schema_version: 1` to prevent future migration collisions
-- [ ] 2.4 Tidy: extract `store` module with clean API boundary
+- [x] 2.1 Test + implement: CozoDB database open/create at `.dont/db.cozo` with true datom storage `(entity, attr, value, tx, assert_bit)` (per §4.2); timestamps as RFC 3339 UTC whole-second strings (per §10.3)
+- [x] 2.2 Test + implement: append event (write) and query claim by ID; writes use monotonically increasing transaction numbers, assertion/retraction datoms for status changes, and `claim:`/`event:` ULID prefixes (per §10.3)
+- [x] 2.3 Add store metadata with `schema_version: 1` to prevent future migration collisions
+- [x] 2.4 Tidy: extract `store` module with clean API boundary
 
 ## 3. JSON Envelope & Error Types (per §10.2, §10.5)
 - [ ] 3.1 Test + implement: `Envelope<T>` serialization with `ok`, `envelope_version: "0.2"`, `cli_version`, `envelope_kind`, `data`, required structured `warnings[]` (`{rule_name, entity_id?, message, suggested_remediation?}`), required `meta {duration_ms, tx, request_id}`, and required success-only `hints[]` (empty for tracer when no next action applies; omitted on error envelopes)
