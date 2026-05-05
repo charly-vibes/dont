@@ -170,6 +170,16 @@ fn collect_evidence(record: &ClaimRecord) -> Vec<String> {
     all.into_iter().map(|(_, uri)| uri).collect()
 }
 
+fn updated_at(record: &ClaimRecord) -> String {
+    record
+        .events
+        .iter()
+        .map(|e| &e.created_at)
+        .max()
+        .cloned()
+        .unwrap_or_else(|| record.created_at.clone())
+}
+
 fn build_claim_view(record: &ClaimRecord) -> Value {
     let evidence = collect_evidence(record);
     json!({
@@ -182,6 +192,8 @@ fn build_claim_view(record: &ClaimRecord) -> Value {
         "evidence": evidence,
         "depends_on": [],
         "applicable_rules": {},
+        "created_at": record.created_at,
+        "updated_at": updated_at(record),
     })
 }
 
@@ -480,8 +492,55 @@ fn main() {
             emit_claim_view(&updated, &result);
         }
 
-        Command::Show { .. } => print_stub("show"),
-        Command::List => print_stub("list"),
+        Command::Show { id } => {
+            let project = open_project_or_exit();
+            match project.store.claim_by_id(&id) {
+                Ok(Some(record)) => {
+                    let payload = build_claim_view(&record);
+                    let env = Envelope::success(
+                        "claim",
+                        payload,
+                        vec![],
+                        vec![HintEntry {
+                            command: format!("dont trust {id} --reason \"...\""),
+                            description: "Register doubt about this claim".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
+                }
+                Ok(None) => emit_error_and_exit(
+                    refusal(
+                        "claim-not-found",
+                        &format!("no claim with id {id}"),
+                        Some(&id),
+                        vec![RemediationEntry {
+                            command: "dont list".to_string(),
+                            description: "List all claims to find the correct id".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                ),
+                Err(err) => handle_store_error(err, Some(&id)),
+            }
+        }
+
+        Command::List => {
+            let project = open_project_or_exit();
+            let mut claims = match project.store.list_claims() {
+                Ok(c) => c,
+                Err(err) => handle_store_error(err, None),
+            };
+            // Sort by created_at descending; use id (ULID) as tiebreaker within same second
+            claims.sort_by(|a, b| {
+                b.created_at
+                    .cmp(&a.created_at)
+                    .then_with(|| b.id.cmp(&a.id))
+            });
+            let views: Vec<Value> = claims.iter().map(build_claim_view).collect();
+            let env = Envelope::success("claims", views, vec![], vec![]);
+            emit_json(&env);
+        }
     }
 }
 

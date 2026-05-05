@@ -103,6 +103,7 @@ pub struct ClaimRecord {
     pub id: String,
     pub statement: String,
     pub status: StoreStatus,
+    pub created_at: String,
     pub events: Vec<EventRecord>,
 }
 
@@ -350,6 +351,25 @@ impl Store {
         })
     }
 
+    /// Return all claims, each with its current state. Order is undefined; callers sort.
+    pub fn list_claims(&self) -> Result<Vec<ClaimRecord>, StoreError> {
+        let rows = self.query_rows(
+            r#"?[entity] := *datoms[entity, "entity_type", "claim", _, true]"#,
+        )?;
+        rows.into_iter()
+            .map(|row| {
+                let id = row
+                    .into_iter()
+                    .next()
+                    .and_then(|v| v.as_str().map(str::to_string))
+                    .ok_or_else(|| StoreError::Malformed("list_claims row missing entity".to_string()))?;
+                self.claim_by_id(&id)?.ok_or_else(|| {
+                    StoreError::Malformed(format!("claim {id} vanished during list"))
+                })
+            })
+            .collect()
+    }
+
     pub fn claim_by_id(&self, claim_id: &str) -> Result<Option<ClaimRecord>, StoreError> {
         let datoms = self.datoms_for_entity(claim_id)?;
         if datoms.is_empty() {
@@ -363,12 +383,17 @@ impl Store {
             .and_then(Value::as_str)
             .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} has no status")))
             .and_then(StoreStatus::from_str)?;
+        let created_at = latest_asserted_value(&datoms, "created_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
         let mut events = self.events_for_claim(claim_id)?;
         events.sort_by_key(|event| event.tx);
         Ok(Some(ClaimRecord {
             id: claim_id.to_string(),
             statement,
             status,
+            created_at,
             events,
         }))
     }

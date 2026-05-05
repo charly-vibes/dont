@@ -1,0 +1,245 @@
+use assert_cmd::Command;
+use serde_json::Value;
+use tempfile::TempDir;
+
+fn dont() -> Command {
+    Command::cargo_bin("dont").unwrap()
+}
+
+fn init_dir(dir: &TempDir) {
+    dont()
+        .args(["init", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+}
+
+fn conclude_claim(dir: &TempDir, statement: &str) -> String {
+    let out = dont()
+        .args(["conclude", statement, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    serde_json::from_slice::<Value>(&out).unwrap()["data"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+// --- show ---
+
+#[test]
+fn show_returns_claim_view_envelope() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "the moon orbits the earth");
+
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "claim");
+    assert_eq!(v["data"]["id"], id.as_str());
+    assert_eq!(v["data"]["status"], "unverified");
+    assert_eq!(v["data"]["statement"], "the moon orbits the earth");
+}
+
+#[test]
+fn show_claim_view_has_required_arrays_and_meta() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "required arrays test");
+
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let data = &v["data"];
+    assert!(data["derived_assessments"].is_array());
+    assert!(data["atoms"].is_array());
+    assert!(data["hypotheses"].is_array());
+    assert!(data["evidence"].is_array());
+    assert!(data["depends_on"].is_array());
+    assert!(data["applicable_rules"].is_object());
+    assert!(data["created_at"].is_string());
+    assert!(data["updated_at"].is_string());
+}
+
+#[test]
+fn show_reflects_current_status_after_trust() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim to be trusted");
+    dont()
+        .args(["trust", &id, "--reason", "Source has conflicts of interest", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["status"], "doubted");
+}
+
+#[test]
+fn show_evidence_reflects_dismiss_history() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim with evidence");
+    let ev = "https://example.test/proof";
+    dont()
+        .args(["dismiss", &id, "--evidence", ev, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["status"], "verified");
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert!(evidence.iter().any(|e| e.as_str() == Some(ev)));
+}
+
+#[test]
+fn show_nonexistent_id_returns_claim_not_found_exit_1() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["show", "claim:01JNONEXISTENT", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "claim-not-found");
+    assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
+}
+
+// --- list ---
+
+#[test]
+fn list_returns_claims_envelope_kind() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    conclude_claim(&dir, "first claim");
+
+    let out = dont()
+        .args(["list", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "claims");
+    assert!(v["data"].is_array());
+}
+
+#[test]
+fn list_returns_all_concluded_claims() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id1 = conclude_claim(&dir, "alpha claim");
+    let id2 = conclude_claim(&dir, "beta claim");
+
+    let out = dont()
+        .args(["list", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let claims = v["data"].as_array().unwrap();
+    let ids: Vec<&str> = claims.iter().filter_map(|c| c["id"].as_str()).collect();
+    assert!(ids.contains(&id1.as_str()), "alpha claim missing");
+    assert!(ids.contains(&id2.as_str()), "beta claim missing");
+}
+
+#[test]
+fn list_claims_sorted_by_created_at_descending() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id1 = conclude_claim(&dir, "earliest claim");
+    let id2 = conclude_claim(&dir, "latest claim");
+
+    let out = dont()
+        .args(["list", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let claims = v["data"].as_array().unwrap();
+    assert!(claims.len() >= 2);
+    // Most recent first
+    let ids: Vec<&str> = claims.iter().filter_map(|c| c["id"].as_str()).collect();
+    let pos1 = ids.iter().position(|&i| i == id1.as_str()).unwrap();
+    let pos2 = ids.iter().position(|&i| i == id2.as_str()).unwrap();
+    assert!(pos2 < pos1, "latest claim should appear before earliest");
+}
+
+#[test]
+fn list_empty_project_returns_empty_array() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["list", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "claims");
+    assert_eq!(v["data"].as_array().unwrap().len(), 0);
+}
