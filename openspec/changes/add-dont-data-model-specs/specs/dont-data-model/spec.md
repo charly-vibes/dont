@@ -129,11 +129,11 @@ The system SHALL namespace "kind" to avoid overloading: `entity_kind` for what a
 - **THEN** its `event_kind` is `"trusted"`
 
 ### Requirement: Canonical event kind list
-The v0.3 system SHALL emit exactly these 14 event kinds: `created`, `concluded`, `defined`, `trusted`, `dismissed`, `locked`, `ignored`, `stale-cascaded`, `stale-restored`, `spawn-requested`, `spawn-resolved`, `spawn-timeout`, `evidence-checked`, `mode-changed`. All event kinds SHALL be lower-kebab-case per the naming convention in `dont-envelope`. Additions SHALL require a minor-version envelope bump and MUST be documented in the changelog. Parsers MUST treat unknown event kinds as ignorable (forward compatibility) — unknown events SHALL appear in `history[]` output but SHALL NOT cause parser failure.
+The v0.3 system SHALL emit exactly these 12 event kinds: `created`, `concluded`, `defined`, `trusted`, `dismissed`, `locked`, `ignored`, `spawn-requested`, `spawn-resolved`, `spawn-timeout`, `evidence-checked`, `mode-changed`. Derived assessments such as `stale` SHALL NOT emit event kinds because they are recomputed trace results rather than persisted lifecycle changes. All event kinds SHALL be lower-kebab-case per the naming convention in `dont-envelope`. Additions SHALL require a minor-version envelope bump and MUST be documented in the changelog. Parsers MUST treat unknown event kinds as ignorable (forward compatibility) — unknown events SHALL appear in `history[]` output but SHALL NOT cause parser failure.
 
 #### Scenario: complete event kind set
 - **WHEN** the system processes events
-- **THEN** it recognises exactly the 14 canonical event kinds listed for v0.3
+- **THEN** it recognises exactly the 12 canonical event kinds listed for v0.3
 
 #### Scenario: unknown event kind is ignorable
 - **WHEN** a parser encounters an event kind not in the v0.3 set
@@ -155,7 +155,7 @@ Claims SHALL carry these attributes: `statement` (string), `status` (lattice val
 - **THEN** consumers treat this as the LLM's stated number, not a calibrated probability
 
 ### Requirement: Term-specific attributes
-Terms SHALL carry these attributes: `curie` (string, the term's compact URI), `definition` (string, prose definition), `kind_of[]` (array of CURIEs referencing parent terms), `related_to[]` (array of CURIEs referencing related terms), `status` (lattice value per `dont-status-lifecycle`), and `provenance` (structured object). `kind_of[]` and `related_to[]` create edges traversed by `stale-cascade` and `dangling-definition` rules.
+Terms SHALL carry these attributes: `curie` (string, the term's compact URI), `definition` (string, prose definition), `kind_of[]` (array of CURIEs referencing parent terms), `related_to[]` (array of CURIEs referencing related terms), `status` (persisted lattice value per `dont-status-lifecycle`), and `provenance` (structured object). `kind_of[]` and `related_to[]` create edges traversed by `stale-cascade` derived-assessment computation and `dangling-definition` rules.
 
 #### Scenario: term carries curie and definition
 - **WHEN** a term is defined with `dont define proj:RicciTensor --doc "..."`
@@ -166,7 +166,7 @@ Terms SHALL carry these attributes: `curie` (string, the term's compact URI), `d
 - **THEN** the `stale-cascade` rule can traverse from the parent term to this term
 
 ### Requirement: Atom model
-An atom SHALL be a sub-statement carrying `{idx, text, status, evidence[]}` where `status` uses a three-value sub-lattice (`unverified`, `doubted`, `verified`) — atoms cannot become `stale`, `locked`, or `ignored` (those states apply only at the entity level per `dont-status-lifecycle`). Atom-level `evidence[]` is stored but MAY be projected differently in view payloads (see `dont-payload-types` ClaimView). An atom SHALL transition to `verified` when a `dismiss` call names it via `--atom <idx>`. The `--atom` flag SHALL be repeatable on a single `dismiss` call so that one body of evidence can verify multiple atoms without issuing N separate commands.
+An atom SHALL be a sub-statement carrying `{idx, text, status, evidence[]}` where `status` uses a three-value sub-lattice (`unverified`, `doubted`, `verified`) — atoms cannot become `locked` or `ignored`, and `stale` appears only as a derived assessment on entity views, not as atom status. Atom-level `evidence[]` is stored but MAY be projected differently in view payloads (see `dont-payload-types` ClaimView). An atom SHALL transition to `verified` when a `dismiss` call names it via `--atom <idx>`. The `--atom` flag SHALL be repeatable on a single `dismiss` call so that one body of evidence can verify multiple atoms without issuing N separate commands.
 
 #### Scenario: atom has its own status
 - **WHEN** a claim with 3 atoms has atom 0 dismissed but atoms 1 and 2 undismissed

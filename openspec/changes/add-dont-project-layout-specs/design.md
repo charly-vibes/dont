@@ -4,7 +4,7 @@ The spec decomposition now covers verbs, lifecycle, envelopes, errors, data shap
 
 ## Goals
 - Capture the strictly self-contained `.dont/` on-disk contract as a standalone capability, mandating "convention over configuration" for auto-loading rule files.
-- Capture the externally visible `config.toml` surface as a separate capability, requiring the CLI to fail deterministically (no silent defaults) if it is missing or unparseable.
+- Capture the externally visible `config.toml` surface as a separate capability, requiring the CLI to fail deterministically (no silent defaults) if it is missing or unparsable.
 - Preserve cross-feature relationships without restating each dependent spec in full, while guaranteeing safe constraints (like non-regex substring matching for hedges and rate limits for evidence checks).
 
 ## Non-Goals
@@ -15,7 +15,7 @@ The spec decomposition now covers verbs, lifecycle, envelopes, errors, data shap
 ## Decisions
 - **Two capabilities, not one**: layout and config change independently. A new subdirectory should not require editing config semantics, and a new tuning knob should not imply a directory-layout change.
 - **Strictly self-contained layout**: The CLI MUST NOT create or rely on persistent state outside the `.dont/` folder (except for rewriting managed blocks in root docs via `sync-docs`).
-- **Fail on Missing Config**: The CLI MUST refuse to run if `config.toml` is missing or unparseable. It MUST NOT silently fall back to defaults, ensuring epistemic policy cannot be bypassed.
+- **Fail on Missing Config**: The CLI MUST refuse to run if `config.toml` is missing or unparsable. It MUST NOT silently fall back to defaults, ensuring epistemic policy cannot be bypassed.
 - **Convention over Configuration for Rules**: Rules in `.dont/rules/` are loaded and evaluated automatically based on their filename base. `config.toml` is used only to configure their severity or explicitly disable them.
 - **Harness vs LLM separation**: The `[harness]` block (orchestration, spawn protocols) is strictly separated from the `[llm]` block (API keys, direct-mode models) to reinforce `dont`'s role as an orchestrator of other agents, not a standalone AI assistant.
 - **Deterministic Hedges**: The `[trust.hedges]` patterns MUST be evaluated as case-insensitive substrings, not regular expressions, to prevent ReDoS and ensure fast validation.

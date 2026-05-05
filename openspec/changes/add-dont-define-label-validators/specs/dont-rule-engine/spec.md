@@ -13,10 +13,16 @@ The system SHALL ship the following default rules with the documented semantics:
 - **WHEN** the caller attempts `dont dismiss` on a claim whose CURIEs remain unresolved in coined or imported vocabulary
 - **THEN** `unresolved-terms` refuses the dismissal
 
-#### Scenario: stale-cascade propagates doubt
-- **WHEN** a trust transition occurs on an entity
-- **THEN** `stale-cascade` propagates `stale` across supported dependency edges
-- **AND** locked and ignored entities are exempt from that cascade
+#### Scenario: stale-cascade computes derived stale assessment
+- **WHEN** a trust transition moves an entity to persisted status `doubted`
+- **THEN** `stale-cascade` computes `stale` as a derived assessment for verified dependents reached through supported dependency edges
+- **AND** it does not emit a status-changing event or mutate persisted dependent statuses
+- **AND** locked and ignored entities are exempt from derived stale output
+
+#### Scenario: stale-cascade traversal is cycle-safe
+- **WHEN** dependency traversal revisits an entity already seen in the current trace
+- **THEN** traversal stops for that branch
+- **AND** the cycle itself does not trigger `stale`
 
 #### Scenario: lockable gates lock
 - **WHEN** the caller attempts `dont lock`

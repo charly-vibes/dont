@@ -1,19 +1,35 @@
 ## ADDED Requirements
 
 ### Requirement: Shared persisted status lattice
-The system SHALL define a single persisted status lattice for claims and terms containing `unverified`, `verified`, `doubted`, `locked`, and `ignored`.
+The system SHALL define a single persisted status lattice for claims and terms containing `unverified`, `verified`, `doubted`, `locked`, and `ignored`. In `dont`, `status` is what users explicitly record through commands; `derived_assessments` are what the system automatically infers from dependency graph integrity. The system SHALL NOT mix derived assessments into the persisted lattice.
 
 #### Scenario: entity statuses are drawn from the shared lattice
 - **WHEN** the specification describes the persisted state of a claim or term
 - **THEN** that state is expressed using the shared persisted status lattice
 
 ### Requirement: Persisted status and derived assessment are distinct
-The system SHALL distinguish persisted status from derived assessment, and SHALL treat dependency-trace findings such as compromised verification support as computed analysis rather than stored lifecycle state.
+The system SHALL distinguish persisted status from derived assessment. A derived assessment is a read-time annotation computed on demand from an entity's persisted status, dependency graph, imported references, and evidence liveness records. Derived assessments SHALL NOT be stored as lifecycle state; they SHALL be recomputed for read/query output and for command policy checks that consult dependency integrity.
+
+The v0.3 derived assessment names are:
+- `stale`: at least one transitive support dependency has persisted status `doubted` or itself carries `stale` during the current trace.
+- `compromised-support`: at least one transitive support dependency is `ignored` or `locked`, making the dependent entity's verification support constrained without changing its status.
+- `dangling-dependency`: a persisted dependency edge points to an entity or imported term that no longer resolves.
+- `unresolved-term`: a claim or term references a CURIE that resolves neither to a coined term nor to an imported term.
+
+Each derived assessment SHALL clear automatically from later read/query output when its trigger condition is no longer true. For example, `stale` clears when all transitive support dependencies are no longer `doubted`; `compromised-support` clears when constrained dependencies stop being part of the support trace or leave constraining statuses; `dangling-dependency` clears when the referenced dependency resolves again or the dependency edge is removed; and `unresolved-term` clears when the CURIE resolves or the reference is removed.
 
 #### Scenario: derived trace finding does not replace persisted status
-- **WHEN** dependency analysis finds that a claim or term has compromised support because an upstream dependency is doubted or unresolved
-- **THEN** the entity keeps its persisted lifecycle status
-- **AND** the compromised support finding is presented as separate computed analysis
+- **WHEN** dependency analysis finds that a verified claim has a transitive dependency in `doubted` status
+- **THEN** the claim keeps its persisted `verified` status
+- **AND** the output presents `stale` in `derived_assessments[]`
+
+#### Scenario: derived assessments are recomputed after status changes
+- **WHEN** any persisted status transition occurs on an entity in the dependency graph
+- **THEN** later read/query operations recompute derived assessments for affected entities rather than reading stored assessment state
+
+#### Scenario: ignored entities are excluded from derived assessment output
+- **WHEN** an entity has persisted status `ignored`
+- **THEN** read/query output for that entity has an empty `derived_assessments[]` unless a future spec explicitly opts into ignored-entity diagnostics
 
 ### Requirement: Entry state is unverified
 The system SHALL require both `conclude` and `define` to introduce new claims and terms in the `unverified` state.
@@ -26,8 +42,8 @@ The system SHALL require both `conclude` and `define` to introduce new claims an
 - **WHEN** an actor invokes `define` successfully
 - **THEN** the new term is introduced as `unverified`
 
-### Requirement: Locked and ignored states are terminal
-The system SHALL treat `locked` and `ignored` as terminal states that reject further normal state transitions.
+### Requirement: Locked and ignored states reject normal transitions
+The system SHALL treat `locked` and `ignored` as closure states that reject further normal state transitions. `locked` is not reopenable in v0.3. `ignored` rejects normal transitions but MAY be restored by the explicit `reopen` lifecycle operation defined in `dont-lifecycle-verbs`.
 
 #### Scenario: locked entity refuses later transitions
 - **WHEN** an actor attempts a normal state-changing operation on a locked entity
@@ -38,7 +54,7 @@ The system SHALL treat `locked` and `ignored` as terminal states that reject fur
 - **THEN** the operation is refused
 
 ### Requirement: Dependency fallout is computed on demand
-The system SHALL compute dependency fallout on demand across claim-to-claim, claim-to-term, and term-to-term edges, and SHALL NOT persist automatic downstream status changes solely because a dependency became `doubted`.
+The system SHALL compute dependency fallout on demand across claim-to-claim, claim-to-term, and term-to-term edges, and SHALL NOT persist automatic downstream status changes solely because a dependency became `doubted`. Dependency traversal SHALL be cycle-safe: a trace SHALL keep a visited set for the current traversal, SHALL terminate when it revisits an entity, and SHALL NOT treat the existence of a cycle by itself as a `stale` assessment.
 
 #### Scenario: direct doubt does not cascade into persisted dependent status changes
 - **WHEN** a dependency transitions to `doubted`
@@ -49,13 +65,21 @@ The system SHALL compute dependency fallout on demand across claim-to-claim, cla
 - **THEN** the trace may report compromised or constrained support
 - **AND** it does so without rewriting the dependent entity's persisted status
 
-### Requirement: Reopen applies to persisted lifecycle closure
-The system SHALL treat `reopen` as operating on explicit persisted lifecycle states rather than as recovery from derived dependency fallout.
+### Requirement: Reopen applies to ignored persisted lifecycle closure
+The system SHALL treat `reopen` as operating only on the explicit persisted `ignored` lifecycle state in v0.3. `reopen` SHALL NOT target `locked` entities and SHALL NOT target derived assessments such as `stale`.
 
-#### Scenario: reopened entity leaves a persisted terminal state
-- **WHEN** an actor explicitly reopens an entity that is in a persisted terminal state governed by lifecycle rules
-- **THEN** the entity transitions according to those lifecycle rules
-- **AND** the reopen operation does not target a derived trace assessment
+#### Scenario: reopened ignored entity leaves persisted closure
+- **WHEN** an actor explicitly reopens an entity that has persisted status `ignored`
+- **THEN** the entity transitions to `unverified`
+- **AND** derived assessments for affected dependency traces are recomputed on later reads
+
+#### Scenario: reopen does not target derived stale assessment
+- **WHEN** an actor invokes `reopen` on an entity whose persisted status is `verified` and whose `derived_assessments[]` contains `stale`
+- **THEN** the command is refused because `stale` is not a persisted lifecycle state
+
+#### Scenario: reopen refuses locked entities
+- **WHEN** an actor invokes `reopen` on an entity whose persisted status is `locked`
+- **THEN** the command is refused because locked entities are not reopenable in v0.3
 
 ### Requirement: Status transitions record audit context
 The system SHALL make status transitions auditable and SHALL allow transition-specific context such as reasons or evidence references to be attached when applicable.

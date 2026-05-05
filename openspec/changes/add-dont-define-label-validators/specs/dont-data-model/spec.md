@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Term-specific attributes
-Terms SHALL carry these attributes: `curie` (string, the term's compact URI), `definition` (string, prose definition), `label` (string, optional; the SK11 type-text — a singular indefinite noun phrase suitable for use in olog diagrams), `kind_of[]` (array of CURIEs referencing parent terms), `related_to[]` (array of CURIEs referencing related terms), `status` (lattice value per `dont-status-lifecycle`), and `provenance` (structured object). `kind_of[]` and `related_to[]` create edges traversed by `stale-cascade` and `dangling-definition` rules.
+Terms SHALL carry these attributes: `curie` (string, the term's compact URI), `definition` (string, prose definition), `label` (string, optional; the SK11 type-text — a singular indefinite noun phrase suitable for use in olog diagrams), `kind_of[]` (array of CURIEs referencing parent terms), `related_to[]` (array of CURIEs referencing related terms), `status` (persisted lattice value per `dont-status-lifecycle`), and `provenance` (structured object). `kind_of[]` and `related_to[]` create edges traversed by `stale-cascade` derived-assessment computation and `dangling-definition` rules.
 
 Seed entries (populated during `dont init`) that omit `label` in the seed YAML suppress the verb-level label-shape validators during seed installation only. Suppression is limited to the `dont init` seed pass; subsequent `dont define` calls on the same CURIE are subject to normal validator behaviour. The seed is pre-locked and is not round-tripped through `define`, so no `term-shape-*` refusal fires during seed installation regardless of whether `label` is present.
 

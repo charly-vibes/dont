@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: List and vocabulary query scopes
-The system SHALL provide read-only collection queries for claims and terms. `dont list` MUST return claims by default, filtered by optional `--status` and `--as-of` arguments. `dont vocab` MUST return terms by default with the same filter semantics. `dont list --all` MUST include terms, and `dont vocab` MUST remain equivalent to `list --kind term`.
+The system SHALL provide read-only collection queries for claims and terms. `dont list` MUST return claims by default, filtered by optional `--status`, `--derived-assessment`, and `--as-of` arguments. `--status` SHALL match only persisted lifecycle status; `--derived-assessment` SHALL match computed assessments such as `stale` without treating them as statuses. `dont vocab` MUST return terms by default with the same filter semantics. `dont list --all` MUST include terms, and `dont vocab` MUST remain equivalent to `list --kind term`.
 
 #### Scenario: list defaults to claims
 - **WHEN** the caller runs `dont list --json`
@@ -11,6 +11,11 @@ The system SHALL provide read-only collection queries for claims and terms. `don
 #### Scenario: vocab narrows to terms
 - **WHEN** the caller runs `dont vocab --status unverified --json`
 - **THEN** the command returns only term entities matching that status filter
+
+#### Scenario: list filters by derived assessment separately from status
+- **WHEN** the caller runs `dont list --derived-assessment stale --json`
+- **THEN** the command returns claims whose computed `derived_assessments[]` contains `stale`
+- **AND** it does not require those claims to have persisted status `stale`
 
 #### Scenario: as-of produces historical slice
 - **WHEN** the caller supplies `--as-of <timestamp>` to `dont list` or `dont vocab`

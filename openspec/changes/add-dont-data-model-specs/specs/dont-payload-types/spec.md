@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: ClaimView payload
-The system SHALL return a `ClaimView` payload (envelope_kind: `"claim"`) containing: `id`, `entity_kind: "claim"`, `statement`, `status`, `confidence` (float | null; null when no LLM-authored value was provided), `atoms[]` (each with `idx`, `text`, `status`; atom-level `evidence[]` is stored but not inlined in ClaimView — use `dont why` for atom-level evidence detail), `hypotheses[]` (each with `idx`, `text`, `assessment` where `assessment = {supporting: string[], refuting: string[]}`), `evidence[]` (each with `source_uri`, `kind`, `supports`, `quote`), `depends_on[]`, `provenance`, `created_at`, `updated_at`, and `applicable_rules`. All array fields SHALL always be present (possibly empty), never omitted. Atom `status` SHALL be a three-value sub-lattice (`unverified`, `doubted`, `verified`) — atoms cannot become `stale`, `locked`, or `ignored`. The `applicable_rules` object SHALL be keyed by rule name with values discriminated by `rule_kind` (see applicable_rules contract). Future minor versions MAY add new fields to `ClaimView`; such additions SHALL be optional from the parser's perspective.
+The system SHALL return a `ClaimView` payload (envelope_kind: `"claim"`) containing: `id`, `entity_kind: "claim"`, `statement`, `status` (persisted lifecycle status only), `derived_assessments[]`, `confidence` (float | null; null when no LLM-authored value was provided), `atoms[]` (each with `idx`, `text`, `status`; atom-level `evidence[]` is stored but not inlined in ClaimView — use `dont why` for atom-level evidence detail), `hypotheses[]` (each with `idx`, `text`, `assessment` where `assessment = {supporting: string[], refuting: string[]}`), `evidence[]` (each with `source_uri`, `kind`, `supports`, `quote`), `depends_on[]`, `provenance`, `created_at`, `updated_at`, and `applicable_rules`. All array fields SHALL always be present (possibly empty), never omitted. `derived_assessments[]` SHALL contain zero or more names from `dont-status-lifecycle` (`stale`, `compromised-support`, `dangling-dependency`, `unresolved-term`) computed on demand. Atom `status` SHALL be a three-value sub-lattice (`unverified`, `doubted`, `verified`) — atoms cannot become `stale`, `locked`, or `ignored`. The `applicable_rules` object SHALL be keyed by rule name with values discriminated by `rule_kind` (see applicable_rules contract). Future minor versions MAY add new fields to `ClaimView`; such additions SHALL be optional from the parser's perspective.
 
 #### Scenario: ClaimView with atoms
 - **WHEN** `dont show claim:X --json` is run on a claim with 3 atoms
@@ -10,6 +10,11 @@ The system SHALL return a `ClaimView` payload (envelope_kind: `"claim"`) contain
 #### Scenario: ClaimView includes applicable rules
 - **WHEN** a claim has a `lockable` rule that is not met
 - **THEN** `applicable_rules.lockable` has `rule_kind: "gate"`, `met: false`, and `unmet` listing failing clauses
+
+#### Scenario: ClaimView separates status from derived assessment
+- **WHEN** a verified claim depends on a doubted upstream entity
+- **THEN** the payload has `status: "verified"`
+- **AND** `derived_assessments[]` contains `stale`
 
 #### Scenario: ClaimView includes evidence array
 - **WHEN** a claim has been dismissed with evidence
@@ -20,7 +25,7 @@ The system SHALL return a `ClaimView` payload (envelope_kind: `"claim"`) contain
 - **THEN** `updated_at` in the ClaimView is later than `created_at`
 
 ### Requirement: TermView payload
-The system SHALL return a `TermView` payload (envelope_kind: `"term"`) containing: `id`, `entity_kind: "term"`, `curie`, `definition`, `kind_of[]`, `related_to[]`, `status`, `confidence` (float | null), `provenance`, `created_at`, and `applicable_rules`. `TermView` intentionally omits `updated_at` — term status transitions are tracked through the event history (see `dont why`).
+The system SHALL return a `TermView` payload (envelope_kind: `"term"`) containing: `id`, `entity_kind: "term"`, `curie`, `definition`, `kind_of[]`, `related_to[]`, `status` (persisted lifecycle status only), `derived_assessments[]`, `confidence` (float | null), `provenance`, `created_at`, and `applicable_rules`. `derived_assessments[]` has the same computed-on-demand contract as ClaimView. `TermView` intentionally omits `updated_at` — term status transitions are tracked through the event history (see `dont why`).
 
 #### Scenario: TermView includes kind_of hierarchy
 - **WHEN** `dont show term:X --json` is run on a term with `kind_of: ["dont:Term"]`
@@ -61,11 +66,11 @@ The system SHALL return a `SpawnRequest` payload (envelope_kind: `"spawn_request
 - **THEN** `expires_at` is `issued_at` plus 24 hours
 
 ### Requirement: PrimeView payload
-The system SHALL return a `PrimeView` payload (envelope_kind: `"prime"`) containing: `project` (name), `mode` (`"permissive"` or `"strict"`; parsers MUST handle unknown mode values gracefully), `status_counts` (map containing exactly the keys `unverified`, `doubted`, `verified`, `locked`, `stale`, `ignored` with integer counts), `rules` (keyed by severity `"strict"` and `"warn"` with rule name arrays), `ontologies[]` (each with `prefix` and `refreshed`), `blocking[]` (entries with `{id, statement, status}` for entities currently in `doubted` state), `pending_spawns` (count), `harness_mode` (boolean), and `invariants[]` (human-readable invariant summaries).
+The system SHALL return a `PrimeView` payload (envelope_kind: `"prime"`) containing: `project` (name), `mode` (`"permissive"` or `"strict"`; parsers MUST handle unknown mode values gracefully), `status_counts` (map containing exactly the persisted-status keys `unverified`, `doubted`, `verified`, `locked`, and `ignored` with integer counts), `assessment_counts` (map containing exactly the derived-assessment keys `stale`, `compromised-support`, `dangling-dependency`, and `unresolved-term` with integer counts), `rules` (keyed by severity `"strict"` and `"warn"` with rule name arrays), `ontologies[]` (each with `prefix` and `refreshed`), `blocking[]` (entries with `{id, statement, status}` for entities currently in `doubted` state), `pending_spawns` (count), `harness_mode` (boolean), and `invariants[]` (human-readable invariant summaries).
 
 #### Scenario: PrimeView on fresh project
 - **WHEN** `dont prime --json` is run on a just-initialized project
-- **THEN** `status_counts` shows all zeros, `blocking` is empty, and `pending_spawns` is 0
+- **THEN** `status_counts` shows all zeros, `assessment_counts` shows all zeros, `blocking` is empty, and `pending_spawns` is 0
 
 #### Scenario: PrimeView reports blocking entities
 - **WHEN** 3 claims are in `doubted` status
@@ -135,7 +140,7 @@ The system SHALL return a `SchemaDoc` payload (envelope_kind: `"schema_doc"`) co
 - **THEN** the response has `envelope_kind: "empty"` and `hints[]` listing available schema names
 
 ### Requirement: Applicable rules gate/flag contract
-Each entry in `applicable_rules` SHALL be discriminated by a `rule_kind` field (namespaced per `dont-data-model` Kind disambiguation). Two rule kinds exist in v0.3: `"gate"` (the rule gates a transition, payload: `{rule_kind, met: bool, unmet: [string]}` where `unmet` lists failing clauses) and `"flag"` (the rule flags a condition without gating, payload: `{rule_kind, flagged: bool, detail?: string}`). Command refusals and rule evaluations MUST evaluate against the combined computed trace (which includes these derived warnings and compromised support), not merely the persisted status. New rule kinds SHALL require a minor `envelope_version` bump. Parsers MUST default-branch on unknown `rule_kind` values.
+Each entry in `applicable_rules` SHALL be discriminated by a `rule_kind` field (namespaced per `dont-data-model` Kind disambiguation). Two rule kinds exist in v0.3: `"gate"` (the rule gates a transition, payload: `{rule_kind, met: bool, unmet: [string]}` where `unmet` lists failing clauses) and `"flag"` (the rule flags a condition without gating, payload: `{rule_kind, flagged: bool, detail?: string}`). Command refusals and rule evaluations MUST evaluate against the combined computed trace (including `derived_assessments[]`), not merely the persisted status. New rule kinds SHALL require a minor `envelope_version` bump. Parsers MUST default-branch on unknown `rule_kind` values.
 
 #### Scenario: gate rule that is not met
 - **WHEN** a claim's `lockable` rule requires 3 hypotheses but only 1 exists

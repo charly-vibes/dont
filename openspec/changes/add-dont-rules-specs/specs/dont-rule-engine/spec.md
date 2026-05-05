@@ -22,10 +22,16 @@ The system SHALL ship the following default rules with the documented semantics:
 - **WHEN** the caller attempts `dont dismiss` on a claim whose CURIEs remain unresolved in coined or imported vocabulary
 - **THEN** `unresolved-terms` refuses the dismissal
 
-#### Scenario: stale-cascade propagates doubt
-- **WHEN** a trust transition occurs on an entity
-- **THEN** `stale-cascade` propagates `stale` across supported dependency edges
-- **AND** locked and ignored entities are exempt from that cascade
+#### Scenario: stale-cascade computes derived stale assessment
+- **WHEN** a trust transition moves an entity to persisted status `doubted`
+- **THEN** `stale-cascade` computes `stale` as a derived assessment for verified dependents reached through supported dependency edges
+- **AND** it does not emit a status-changing event or mutate persisted dependent statuses
+- **AND** locked and ignored entities are exempt from derived stale output
+
+#### Scenario: stale-cascade traversal is cycle-safe
+- **WHEN** dependency traversal revisits an entity already seen in the current trace
+- **THEN** traversal stops for that branch
+- **AND** the cycle itself does not trigger `stale`
 
 #### Scenario: lockable gates lock
 - **WHEN** the caller attempts `dont lock`
@@ -40,7 +46,7 @@ The system SHALL ship the following default rules with the documented semantics:
 - **THEN** `dangling-definition` refuses the definition in both permissive and strict modes
 
 ### Requirement: Severity defaults and override boundaries
-The system SHALL assign default severities by rule and mode. `unresolved-terms`, `dangling-definition`, and `stale-cascade` MUST remain strict and non-overridable. `lockable` MUST remain a manual gate evaluated only on `dont lock`. `ungrounded` MUST default to warn in permissive mode and strict in strict mode, and remain overridable. `correlated-error` MUST default to warn in both modes and remain overridable.
+The system SHALL assign default severities by rule and mode. `unresolved-terms`, `dangling-definition`, and `stale-cascade` MUST remain strict and non-overridable. Strict `stale-cascade` means commands that gate on dependency integrity (including `dont lock`) MUST refuse when the computed trace contains `stale`; it does not mean the rule persists a `stale` status. `lockable` MUST remain a manual gate evaluated only on `dont lock`. `ungrounded` MUST default to warn in permissive mode and strict in strict mode, and remain overridable. `correlated-error` MUST default to warn in both modes and remain overridable.
 
 #### Scenario: permissive mode keeps ungrounded as warning
 - **WHEN** the project runs in permissive mode without overrides

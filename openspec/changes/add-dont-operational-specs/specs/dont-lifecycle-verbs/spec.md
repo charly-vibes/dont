@@ -1,10 +1,10 @@
 ## ADDED Requirements
 
 ### Requirement: Lock promotes verified claims to a terminal state
-The system SHALL provide a `lock` operation that promotes a verified claim to the `locked` state only when the claim is in the `verified` state, has at least three assessed hypotheses, and has at least two independent supporting evidence items.
+The system SHALL provide a `lock` operation that promotes a verified claim to the `locked` state only when the claim is in the `verified` state, has at least three assessed hypotheses, has at least two independent supporting evidence items, and has no derived assessment that compromises dependency integrity (`stale`, `compromised-support`, `dangling-dependency`, or `unresolved-term`).
 
 #### Scenario: lock succeeds for an eligible verified claim
-- **WHEN** an actor invokes `lock` on a verified claim with at least three assessed hypotheses and at least two independent supporting evidence items
+- **WHEN** an actor invokes `lock` on a verified claim with at least three assessed hypotheses, at least two independent supporting evidence items, and an empty dependency-integrity `derived_assessments[]`
 - **THEN** the claim transitions to `locked`
 
 #### Scenario: lock refuses claims that do not satisfy the gate
@@ -19,23 +19,35 @@ The system SHALL provide a `lock` operation that promotes a verified claim to th
 - **WHEN** an actor invokes `lock` on a claim that is already `locked`
 - **THEN** the command is refused
 
+#### Scenario: lock refuses claims with stale support
+- **WHEN** an actor invokes `lock` on a verified claim whose `derived_assessments[]` contains `stale`
+- **THEN** the command is refused until the stale dependency trace is cleared
+
 #### Scenario: lock refuses terms
 - **WHEN** an actor invokes `lock` on a term
 - **THEN** the command is refused because term locking is not supported for non-seed terms in this version
 
-### Requirement: Reopen bypasses stale-cascade manually
-The system SHALL provide a `reopen` operation that moves a stale claim or term to `unverified` so it can be reconsidered on its own merits.
+### Requirement: Reopen restores ignored entities
+The system SHALL provide a `reopen` operation that moves an `ignored` claim or term to `unverified` so it can be reconsidered on its own merits. `reopen` SHALL NOT target `stale` or any other derived assessment, because derived assessments are computed trace results rather than persisted lifecycle states. `reopen` SHALL NOT unlock `locked` entities in v0.3.
 
-#### Scenario: reopen moves stale entity to unverified
-- **WHEN** an actor invokes `reopen` on a stale entity
+#### Scenario: reopen moves ignored entity to unverified
+- **WHEN** an actor invokes `reopen` on an entity whose persisted status is `ignored`
 - **THEN** the entity transitions to `unverified`
 
-#### Scenario: reopen refuses non-stale entities
-- **WHEN** an actor invokes `reopen` on an entity that is not stale
+#### Scenario: reopen refuses derived-stale entity
+- **WHEN** an actor invokes `reopen` on an entity whose persisted status is `verified` and whose `derived_assessments[]` contains `stale`
+- **THEN** the command is refused because `stale` is not a persisted lifecycle state
+
+#### Scenario: reopen refuses non-ignored entities
+- **WHEN** an actor invokes `reopen` on an entity whose persisted status is `unverified`, `verified`, or `doubted`
 - **THEN** the command is refused
 
+#### Scenario: reopen refuses locked entities
+- **WHEN** an actor invokes `reopen` on an entity whose persisted status is `locked`
+- **THEN** the command is refused because locked entities are not reopenable in v0.3
+
 ### Requirement: Ignore moves entities to a terminal escape state
-The system SHALL provide an `ignore` operation that moves a claim or term to the `ignored` state and SHALL require a non-empty, non-hedge-only reason for doing so.
+The system SHALL provide an `ignore` operation that moves a claim or term whose persisted status is `unverified`, `verified`, or `doubted` to the `ignored` state and SHALL require a non-empty, non-hedge-only reason for doing so. `ignore` SHALL refuse entities that are already `ignored` or `locked`.
 
 #### Scenario: ignore moves eligible entity to ignored
 - **WHEN** an actor invokes `ignore` on a claim or term with a non-empty, non-hedge-only reason
@@ -47,6 +59,10 @@ The system SHALL provide an `ignore` operation that moves a claim or term to the
 
 #### Scenario: ignore refuses hedge-only reasons
 - **WHEN** an actor invokes `ignore` with a reason that contains only hedge language and no specific defect or justification
+- **THEN** the command is refused
+
+#### Scenario: ignore refuses locked entities
+- **WHEN** an actor invokes `ignore` on a locked entity
 - **THEN** the command is refused
 
 ### Requirement: Verify-evidence checks liveness without changing status

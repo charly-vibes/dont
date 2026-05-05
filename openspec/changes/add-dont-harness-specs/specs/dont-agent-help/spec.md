@@ -10,7 +10,7 @@ The system SHALL own a managed documentation block describing `dont` usage in pr
 
 #### Scenario: managed block marks overwrite boundary
 - **WHEN** a project document contains the managed block markers
-- **THEN** the content between those markers is treated as tool-owned and overwriteable by `dont sync-docs`
+- **THEN** the content between those markers is treated as tool-owned and overwritable by `dont sync-docs`
 
 ### Requirement: Orientation prompt contract
 The system SHALL provide a minimum-viable orientation prompt for LLM sessions. The orientation text MUST instruct the LLM to use `--json`, distinguish the core verbs from lifecycle verbs, explain permissive versus strict mode, require remediation-driven recovery on refusal, require harness fulfilment of spawn requests, and recommend `dont suggest-term` before `define`.
