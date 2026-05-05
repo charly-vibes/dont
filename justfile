@@ -3,6 +3,15 @@ set shell := ["bash", "-cu"]
 default:
   @just --list
 
+build:
+  cargo build
+
+test:
+  cargo test
+
+run *args:
+  cargo run -- {{args}}
+
 status:
   wai status
 
@@ -28,6 +37,7 @@ bd-status:
   bd status
 
 lint:
+  cargo clippy --all-targets --all-features -- -D warnings
   prek run --all-files
   typos
   vale README.md AGENTS.md CLAUDE.md llm.txt

@@ -12,6 +12,7 @@
 # Tool caches
 .cache/
 docs/_book/
+target/
 
 # Local notes
 *.tmp

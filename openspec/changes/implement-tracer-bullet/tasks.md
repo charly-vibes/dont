@@ -1,6 +1,6 @@
 ## 1. Project Scaffold
-- [ ] 1.1 Initialize Rust project (`cargo init`), add dependencies: clap (derive), cozo, serde, serde_json, ulid
-- [ ] 1.2 Add `just` recipes: build, test, lint, run
+- [x] 1.1 Initialize Rust project (`cargo init`), add dependencies: clap (derive), cozo, serde, serde_json, ulid
+- [x] 1.2 Add `just` recipes: build, test, lint, run
 
 ## 2. Storage Layer (Red→Green→Tidy)
 - [ ] 2.1 Test + implement: CozoDB database open/create at `.dont/db.cozo` with true datom storage `(entity, attr, value, tx, assert_bit)` (per §4.2); timestamps as RFC 3339 UTC whole-second strings (per §10.3)
