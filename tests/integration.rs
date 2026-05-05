@@ -278,6 +278,63 @@ fn envelope_conformance_error_commands() {
     assert_envelope_conformance(&serde_json::from_slice::<Value>(&out).unwrap(), false);
 }
 
+// --- Refusal loop ---
+
+#[test]
+fn workflow_refusal_loop_dismiss_no_evidence_then_with_evidence() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "vaccines cause immunity");
+
+    // dismiss without evidence → error, exit 1, structured remediation
+    let out = dont()
+        .args(["dismiss", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    let remediation = v["data"]["remediation"].as_array().unwrap();
+    assert!(!remediation.is_empty(), "error must have remediation");
+    for entry in remediation {
+        assert!(entry["command"].is_string(), "remediation entry must have command");
+        assert!(entry["description"].is_string(), "remediation entry must have description");
+    }
+
+    // claim is still unverified after the refusal
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["status"], "unverified", "status unchanged after refusal");
+
+    // dismiss with evidence → verified
+    dont()
+        .args(["dismiss", &id, "--evidence", "https://cdc.gov/vaccines", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["status"], "verified");
+}
+
 // --- Persistence across processes ---
 
 #[test]
