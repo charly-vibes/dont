@@ -41,6 +41,8 @@ The system SHALL let `conclude` introduce a claim with statement content and may
 ### Requirement: Define introduces coined terms
 The system SHALL let `define` introduce a project term with a CURIE and prose definition.
 
+> **Deferred extension**: The `--label` flag and five SK11 shape validators (indefinite noun-phrase enforcement) are specified in the `add-dont-define-label-validators` change and are not part of this implementation slice. Implementations MUST NOT implement `--label` until that change is applied.
+
 #### Scenario: define creates an unverified term
 - **WHEN** an actor invokes `define` with a CURIE and definition
 - **THEN** the tool creates a term entity

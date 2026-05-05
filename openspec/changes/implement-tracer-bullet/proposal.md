@@ -27,6 +27,7 @@ Seven OpenSpec changes decompose the monolith into capability specs, but none ar
 ## What This Defers
 
 - `define` verb (terms) — same lattice, layers on after
+- `--label` flag and SK11 shape validators for `define` (`add-dont-define-label-validators`) — olog discipline layer, deferred until `define` itself is implemented and adopted
 - `stale`, `locked`, `ignored` statuses and cascading
 - Spawn protocol — requires harness integration
 - Datalog rule engine — own work stream

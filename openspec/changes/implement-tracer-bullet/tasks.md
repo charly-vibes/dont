@@ -46,8 +46,14 @@
 - [ ] 9.3 Test: show with nonexistent ID returns error with remediation, exit 1
 
 ## 10. Integration Tests
+See `test-strategy.md` for full acceptance criteria, envelope contract requirements, and required coverage table.
 - [ ] 10.1 End-to-end: init → conclude → trust → show (doubted claim with 2 events: concluded + trusted)
 - [ ] 10.2 End-to-end: init → conclude → dismiss → show (verified claim with 2 events: concluded + dismissed)
 - [ ] 10.3 End-to-end: full cycle — conclude → trust (→doubted) → dismiss with evidence (→verified) — proves both re-transition paths work
 - [ ] 10.4 End-to-end: refusal loop — conclude → dismiss (no evidence) → error with structured remediation[{command, description}] → dismiss (with evidence) → verified
-- [ ] 10.5 Performance: `dont list` completes in <50ms on project with 100 claims
+- [ ] 10.5 Performance: `dont list` completes in <50ms on project with 100 claims (use `DONT_DIR` for seed isolation; seed via `conclude` invocations)
+- [ ] 10.6 Persistence: conclude then separate process `show` returns the same claim
+- [ ] 10.7 Discovery: run command from project subdirectory, confirm `.dont/` found via parent walk
+- [ ] 10.8 Discovery: run command outside any project, confirm `config-missing` exit 3
+- [ ] 10.9 Hedge: `trust --reason "maybe"` returns `reason-not-hedge`, exit 1, non-empty remediation
+- [ ] 10.10 Envelope: assert `envelope_version: "0.2"` on every command's output (parameterised over all 6 commands)

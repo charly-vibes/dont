@@ -11,5 +11,5 @@
 - [ ] 2.3 Add repository documentation hygiene for Markdown link verification if needed
 
 ## 3. Validation
-- [ ] 3.1 Run `openspec validate add-dont-glossary-spec --strict`
-- [ ] 3.2 Fix any structural or wording issues found during validation
+- [x] 3.1 Run `openspec validate add-dont-glossary-spec --strict`
+- [x] 3.2 Fix any structural or wording issues found during validation
