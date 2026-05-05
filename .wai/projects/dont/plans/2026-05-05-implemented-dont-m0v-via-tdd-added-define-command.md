@@ -1,0 +1,1 @@
+Implemented dont-m0v via TDD: added define command tests, term datom persistence with term:<ULID> ids and defined events, TermView output, structured curie/doc refusals, and show support for term ids. just test and clippy are green.

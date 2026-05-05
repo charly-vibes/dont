@@ -59,6 +59,7 @@ impl StoreStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StoreEventKind {
     Concluded,
+    Defined,
     Trusted,
     Dismissed,
 }
@@ -67,6 +68,7 @@ impl StoreEventKind {
     fn as_str(self) -> &'static str {
         match self {
             Self::Concluded => "concluded",
+            Self::Defined => "defined",
             Self::Trusted => "trusted",
             Self::Dismissed => "dismissed",
         }
@@ -75,6 +77,7 @@ impl StoreEventKind {
     fn from_str(value: &str) -> Result<Self, StoreError> {
         match value {
             "concluded" => Ok(Self::Concluded),
+            "defined" => Ok(Self::Defined),
             "trusted" => Ok(Self::Trusted),
             "dismissed" => Ok(Self::Dismissed),
             _ => Err(StoreError::Malformed(format!("unknown event kind {value}"))),
@@ -102,6 +105,16 @@ pub struct Datom {
 pub struct ClaimRecord {
     pub id: String,
     pub statement: String,
+    pub status: StoreStatus,
+    pub created_at: String,
+    pub events: Vec<EventRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TermRecord {
+    pub id: String,
+    pub curie: String,
+    pub definition: String,
     pub status: StoreStatus,
     pub created_at: String,
     pub events: Vec<EventRecord>,
@@ -219,6 +232,7 @@ impl Store {
                     tx,
                 ),
                 Datom::assert(&event_id, "claim_id", Value::String(claim_id.clone()), tx),
+                Datom::assert(&event_id, "entity_id", Value::String(claim_id.clone()), tx),
                 Datom::assert(
                     &event_id,
                     "kind",
@@ -230,6 +244,58 @@ impl Store {
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
                 id: claim_id,
+                event_id,
+                tx,
+                created_at: now,
+            })
+        })
+    }
+
+    pub fn append_term(&self, curie: &str, definition: &str) -> Result<AppendResult, StoreError> {
+        self.with_write_lock(|store| {
+            let tx = store.next_tx()?;
+            let term_id = prefixed_ulid("term");
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            let datoms = vec![
+                Datom::assert(
+                    &term_id,
+                    "entity_type",
+                    Value::String("term".to_string()),
+                    tx,
+                ),
+                Datom::assert(&term_id, "curie", Value::String(curie.to_string()), tx),
+                Datom::assert(
+                    &term_id,
+                    "definition",
+                    Value::String(definition.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &term_id,
+                    "status",
+                    Value::String(StoreStatus::Unverified.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(&term_id, "created_at", Value::String(now.clone()), tx),
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "entity_id", Value::String(term_id.clone()), tx),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String(StoreEventKind::Defined.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ];
+            store.put_datoms(&datoms)?;
+            Ok(AppendResult {
+                id: term_id,
                 event_id,
                 tx,
                 created_at: now,
@@ -270,6 +336,12 @@ impl Store {
                 Datom::assert(
                     &event_id,
                     "claim_id",
+                    Value::String(claim_id.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "entity_id",
                     Value::String(claim_id.to_string()),
                     tx,
                 ),
@@ -321,6 +393,12 @@ impl Store {
                 Datom::assert(
                     &event_id,
                     "claim_id",
+                    Value::String(claim_id.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "entity_id",
                     Value::String(claim_id.to_string()),
                     tx,
                 ),
@@ -461,6 +539,39 @@ impl Store {
         }))
     }
 
+    pub fn term_by_id(&self, term_id: &str) -> Result<Option<TermRecord>, StoreError> {
+        let datoms = self.datoms_for_entity(term_id)?;
+        if datoms.is_empty() {
+            return Ok(None);
+        }
+        let curie = latest_asserted_value(&datoms, "curie")
+            .and_then(Value::as_str)
+            .ok_or_else(|| StoreError::Malformed(format!("term {term_id} has no curie")))?
+            .to_string();
+        let definition = latest_asserted_value(&datoms, "definition")
+            .and_then(Value::as_str)
+            .ok_or_else(|| StoreError::Malformed(format!("term {term_id} has no definition")))?
+            .to_string();
+        let status = latest_asserted_value(&datoms, "status")
+            .and_then(Value::as_str)
+            .ok_or_else(|| StoreError::Malformed(format!("term {term_id} has no status")))
+            .and_then(StoreStatus::from_str)?;
+        let created_at = latest_asserted_value(&datoms, "created_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let mut events = self.events_for_entity(term_id)?;
+        events.sort_by_key(|event| event.tx);
+        Ok(Some(TermRecord {
+            id: term_id.to_string(),
+            curie,
+            definition,
+            status,
+            created_at,
+            events,
+        }))
+    }
+
     pub fn datoms_for_entity(&self, entity: &str) -> Result<Vec<Datom>, StoreError> {
         let script = format!(
             r#"?[entity, attribute, value, tx, assert_bit] := *datoms[{}, attribute, value, tx, assert_bit], entity = {}"#,
@@ -507,9 +618,13 @@ impl Store {
     }
 
     fn events_for_claim(&self, claim_id: &str) -> Result<Vec<EventRecord>, StoreError> {
+        self.events_for_entity(claim_id)
+    }
+
+    fn events_for_entity(&self, entity_id: &str) -> Result<Vec<EventRecord>, StoreError> {
         let script = format!(
-            r#"?[entity, attribute, value, tx, assert_bit] := *datoms[entity, "claim_id", {}, tx, true], *datoms[entity, attribute, value, tx, assert_bit]"#,
-            json_string(claim_id)
+            r#"?[entity, attribute, value, tx, assert_bit] := *datoms[entity, "entity_id", {}, tx, true], *datoms[entity, attribute, value, tx, assert_bit]"#,
+            json_string(entity_id)
         );
         let rows = self.query_rows(&script)?;
         let datoms: Vec<Datom> = rows

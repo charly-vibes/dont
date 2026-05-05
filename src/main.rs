@@ -7,7 +7,9 @@ use serde_json::{Value, json};
 use dont::envelope::{Envelope, ErrorResult, HintEntry, RemediationEntry, Warning};
 use dont::model::{dismiss as model_dismiss, trust as model_trust, Status};
 use dont::project::{Project, ProjectError, ProjectMode};
-use dont::store::{AppendResult, ClaimRecord, StoreError, StoreEvent, StoreEventKind, StoreStatus};
+use dont::store::{
+    AppendResult, ClaimRecord, StoreError, StoreEvent, StoreEventKind, StoreStatus, TermRecord,
+};
 
 #[derive(Debug, Parser)]
 #[command(name = "dont")]
@@ -35,6 +37,16 @@ enum Command {
     Conclude {
         /// Claim statement text.
         statement: String,
+    },
+
+    /// Introduce an unverified coined term.
+    Define {
+        /// Term CURIE, e.g. WB:P001.
+        curie: Option<String>,
+
+        /// Prose definition for the term.
+        #[arg(long)]
+        doc: Option<String>,
     },
 
     /// Register explicit doubt about a claim.
@@ -191,6 +203,7 @@ fn build_claim_view(record: &ClaimRecord) -> Value {
     let evidence = collect_evidence(record);
     json!({
         "id": record.id,
+        "entity_kind": "claim",
         "statement": record.statement,
         "status": format!("{:?}", record.status).to_lowercase(),
         "derived_assessments": [],
@@ -201,6 +214,23 @@ fn build_claim_view(record: &ClaimRecord) -> Value {
         "applicable_rules": {},
         "created_at": record.created_at,
         "updated_at": updated_at(record),
+    })
+}
+
+fn build_term_view(record: &TermRecord) -> Value {
+    json!({
+        "id": record.id,
+        "entity_kind": "term",
+        "curie": record.curie,
+        "definition": record.definition,
+        "kind_of": [],
+        "related_to": [],
+        "status": format!("{:?}", record.status).to_lowercase(),
+        "derived_assessments": [],
+        "confidence": Value::Null,
+        "provenance": Value::Null,
+        "created_at": record.created_at,
+        "applicable_rules": {},
     })
 }
 
@@ -241,6 +271,21 @@ fn emit_claim_view(record: &ClaimRecord, result: &AppendResult) {
         vec![HintEntry {
             command: format!("dont show {}", record.id),
             description: "Inspect the updated claim".to_string(),
+        }],
+        Some(result.tx as u64),
+    );
+    emit_json(&env);
+}
+
+fn emit_term_view(record: &TermRecord, result: &AppendResult) {
+    let payload = build_term_view(record);
+    let env = Envelope::success_with_tx(
+        "term",
+        payload,
+        vec![],
+        vec![HintEntry {
+            command: format!("dont show {}", record.id),
+            description: "Inspect the new term".to_string(),
         }],
         Some(result.tx as u64),
     );
@@ -288,6 +333,7 @@ fn main() {
                 Ok(result) => {
                     let payload = json!({
                         "id": result.id,
+                        "entity_kind": "claim",
                         "statement": statement,
                         "status": "unverified",
                         "derived_assessments": [],
@@ -312,6 +358,56 @@ fn main() {
                 }
                 Err(err) => handle_store_error(err, None),
             }
+        }
+
+        Command::Define { curie, doc } => {
+            let curie = match curie {
+                Some(curie) => curie,
+                None => emit_error_and_exit(
+                    refusal(
+                        "curie-required",
+                        "define requires a CURIE such as proj:TermName",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont define proj:TermName --doc \"<definition>\"".to_string(),
+                            description: "Re-run with the term CURIE as the first argument".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                ),
+            };
+            let doc = match doc {
+                Some(doc) if !doc.trim().is_empty() => doc,
+                _ => emit_error_and_exit(
+                    refusal(
+                        "doc-required",
+                        "define requires --doc with a non-empty prose definition",
+                        None,
+                        vec![RemediationEntry {
+                            command: format!("dont define {curie} --doc \"<definition>\""),
+                            description: "Re-run with a concise prose definition".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                ),
+            };
+
+            let project = open_project_or_exit();
+            let result = match project.store.append_term(&curie, &doc) {
+                Ok(result) => result,
+                Err(err) => handle_store_error(err, None),
+            };
+            let term = match project.store.term_by_id(&result.id) {
+                Ok(Some(term)) => term,
+                Ok(None) => handle_store_error(
+                    StoreError::Malformed(format!("term {} vanished after define", result.id)),
+                    Some(&result.id),
+                ),
+                Err(err) => handle_store_error(err, Some(&result.id)),
+            };
+            emit_term_view(&term, &result);
         }
 
         Command::Trust { id, reason } => {
@@ -506,34 +602,66 @@ fn main() {
 
         Command::Show { id } => {
             let project = open_project_or_exit();
-            match project.store.claim_by_id(&id) {
-                Ok(Some(record)) => {
-                    let payload = build_claim_view(&record);
-                    let env = Envelope::success(
-                        "claim",
-                        payload,
+            if id.starts_with("term:") {
+                match project.store.term_by_id(&id) {
+                    Ok(Some(record)) => {
+                        let payload = build_term_view(&record);
+                        let env = Envelope::success(
+                            "term",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont trust {id} --reason \"...\""),
+                                description: "Register doubt about this term".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                    }
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "term-not-found",
+                            &format!("no term with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont vocab".to_string(),
+                                description: "List terms to find the correct id".to_string(),
+                            }],
+                        ),
                         vec![],
-                        vec![HintEntry {
-                            command: format!("dont trust {id} --reason \"...\""),
-                            description: "Register doubt about this claim".to_string(),
-                        }],
-                    );
-                    emit_json(&env);
-                }
-                Ok(None) => emit_error_and_exit(
-                    refusal(
-                        "claim-not-found",
-                        &format!("no claim with id {id}"),
-                        Some(&id),
-                        vec![RemediationEntry {
-                            command: "dont list".to_string(),
-                            description: "List all claims to find the correct id".to_string(),
-                        }],
+                        1,
                     ),
-                    vec![],
-                    1,
-                ),
-                Err(err) => handle_store_error(err, Some(&id)),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
+            } else {
+                match project.store.claim_by_id(&id) {
+                    Ok(Some(record)) => {
+                        let payload = build_claim_view(&record);
+                        let env = Envelope::success(
+                            "claim",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont trust {id} --reason \"...\""),
+                                description: "Register doubt about this claim".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                    }
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "claim-not-found",
+                            &format!("no claim with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all claims to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
             }
         }
 
