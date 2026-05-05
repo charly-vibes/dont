@@ -199,6 +199,9 @@ impl Project {
         fs::write(dont_dir.join("AGENTS.md"), AGENTS_MD)?;
         fs::write(dont_dir.join("seed/dont-seed.yaml"), SEED_VOCABULARY)?;
         fs::write(dont_dir.join("events.jsonl"), init_event(mode))?;
+        if std::env::var("DONT_DIR").is_err() {
+            ensure_dont_gitignore_entry(cwd)?;
+        }
 
         let store = Store::open_dont_dir(&dont_dir)?;
         Ok(Self { dont_dir, store })
@@ -213,4 +216,18 @@ fn init_event(mode: ProjectMode) -> String {
         "created_at": created_at,
     });
     format!("{}\n", serde_json::to_string(&event).expect("project init event serializes"))
+}
+
+fn ensure_dont_gitignore_entry(project_root: &Path) -> Result<(), ProjectError> {
+    let path = project_root.join(".gitignore");
+    let mut content = fs::read_to_string(&path).unwrap_or_default();
+    if content.lines().any(|line| line.trim() == ".dont/") {
+        return Ok(());
+    }
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str(".dont/\n");
+    fs::write(path, content)?;
+    Ok(())
 }

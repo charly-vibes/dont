@@ -1,0 +1,1 @@
+Added .dont/ gitignore support and local install recipe: dont init appends .dont/ to project .gitignore idempotently, repo .gitignore now ignores .dont/, justfile has install => cargo install --path . --locked. Validation: just test and clippy green.

@@ -143,6 +143,39 @@ fn init_records_initial_mode_project_event() {
 }
 
 #[test]
+fn init_adds_dont_directory_to_gitignore() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join(".gitignore"), "target/\n").unwrap();
+
+    dont()
+        .arg("init")
+        .arg("--json")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+    assert!(gitignore.contains("target/\n"));
+    assert!(gitignore.lines().any(|line| line == ".dont/"));
+}
+
+#[test]
+fn init_does_not_duplicate_dont_gitignore_entry() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join(".gitignore"), ".dont/\n").unwrap();
+
+    dont()
+        .arg("init")
+        .arg("--json")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+    assert_eq!(gitignore.lines().filter(|line| *line == ".dont/").count(), 1);
+}
+
+#[test]
 fn init_outputs_success_envelope() {
     let dir = TempDir::new().unwrap();
     let output = init_in(&dir).success().get_output().stdout.clone();

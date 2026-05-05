@@ -232,7 +232,6 @@ impl Store {
                     tx,
                 ),
                 Datom::assert(&event_id, "claim_id", Value::String(claim_id.clone()), tx),
-                Datom::assert(&event_id, "entity_id", Value::String(claim_id.clone()), tx),
                 Datom::assert(
                     &event_id,
                     "kind",
@@ -341,12 +340,6 @@ impl Store {
                 ),
                 Datom::assert(
                     &event_id,
-                    "entity_id",
-                    Value::String(claim_id.to_string()),
-                    tx,
-                ),
-                Datom::assert(
-                    &event_id,
                     "kind",
                     Value::String(event.kind.as_str().to_string()),
                     tx,
@@ -393,12 +386,6 @@ impl Store {
                 Datom::assert(
                     &event_id,
                     "claim_id",
-                    Value::String(claim_id.to_string()),
-                    tx,
-                ),
-                Datom::assert(
-                    &event_id,
-                    "entity_id",
                     Value::String(claim_id.to_string()),
                     tx,
                 ),
@@ -618,7 +605,11 @@ impl Store {
     }
 
     fn events_for_claim(&self, claim_id: &str) -> Result<Vec<EventRecord>, StoreError> {
-        self.events_for_entity(claim_id)
+        let script = format!(
+            r#"?[entity, attribute, value, tx, assert_bit] := *datoms[entity, "claim_id", {}, tx, true], *datoms[entity, attribute, value, tx, assert_bit]"#,
+            json_string(claim_id)
+        );
+        self.events_from_query(&script)
     }
 
     fn events_for_entity(&self, entity_id: &str) -> Result<Vec<EventRecord>, StoreError> {
@@ -626,7 +617,11 @@ impl Store {
             r#"?[entity, attribute, value, tx, assert_bit] := *datoms[entity, "entity_id", {}, tx, true], *datoms[entity, attribute, value, tx, assert_bit]"#,
             json_string(entity_id)
         );
-        let rows = self.query_rows(&script)?;
+        self.events_from_query(&script)
+    }
+
+    fn events_from_query(&self, script: &str) -> Result<Vec<EventRecord>, StoreError> {
+        let rows = self.query_rows(script)?;
         let datoms: Vec<Datom> = rows
             .into_iter()
             .map(row_to_datom)
