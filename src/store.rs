@@ -352,22 +352,85 @@ impl Store {
     }
 
     /// Return all claims, each with its current state. Order is undefined; callers sort.
+    ///
+    /// Uses two batch queries (all claim datoms + all event datoms) to avoid
+    /// N-per-claim round trips, keeping list latency sub-linear in claim count.
     pub fn list_claims(&self) -> Result<Vec<ClaimRecord>, StoreError> {
-        let rows = self.query_rows(
-            r#"?[entity] := *datoms[entity, "entity_type", "claim", _, true]"#,
+        // 1. All datoms for all claim entities in one query
+        let claim_rows = self.query_rows(
+            r#"?[entity, attribute, value, tx, assert_bit] :=
+                *datoms[entity, "entity_type", "claim", _, true],
+                *datoms[entity, attribute, value, tx, assert_bit]"#,
         )?;
-        rows.into_iter()
-            .map(|row| {
-                let id = row
-                    .into_iter()
-                    .next()
-                    .and_then(|v| v.as_str().map(str::to_string))
-                    .ok_or_else(|| StoreError::Malformed("list_claims row missing entity".to_string()))?;
-                self.claim_by_id(&id)?.ok_or_else(|| {
-                    StoreError::Malformed(format!("claim {id} vanished during list"))
-                })
-            })
-            .collect()
+        let claim_datoms: Vec<Datom> = claim_rows.into_iter().map(row_to_datom).collect::<Result<_, _>>()?;
+
+        // 2. All event datoms for all claim-owned events in one query
+        let event_rows = self.query_rows(
+            r#"?[ev_entity, attribute, value, tx, assert_bit] :=
+                *datoms[_claim, "entity_type", "claim", _, true],
+                *datoms[ev_entity, "claim_id", _claim, _, true],
+                *datoms[ev_entity, attribute, value, tx, assert_bit]"#,
+        )?;
+        let event_datoms: Vec<Datom> = event_rows.into_iter().map(row_to_datom).collect::<Result<_, _>>()?;
+
+        // Group event datoms by event entity
+        let mut events_by_ev: std::collections::HashMap<String, Vec<&Datom>> = std::collections::HashMap::new();
+        for d in &event_datoms {
+            events_by_ev.entry(d.entity.clone()).or_default().push(d);
+        }
+
+        // Resolve claim_id for each event entity so we can group by claim
+        let mut events_by_claim: std::collections::HashMap<String, Vec<EventRecord>> =
+            std::collections::HashMap::new();
+        for (ev_id, datoms) in &events_by_ev {
+            let claim_id = datoms
+                .iter()
+                .filter(|d| d.attribute == "claim_id" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .map(str::to_string);
+            if let Some(cid) = claim_id {
+                let record = event_from_datoms(ev_id.clone(), datoms.iter().copied())?;
+                events_by_claim.entry(cid).or_default().push(record);
+            }
+        }
+
+        // Group claim datoms by entity
+        let mut claim_datoms_by_id: std::collections::HashMap<String, Vec<&Datom>> =
+            std::collections::HashMap::new();
+        for d in &claim_datoms {
+            claim_datoms_by_id.entry(d.entity.clone()).or_default().push(d);
+        }
+
+        // Build ClaimRecord for each entity
+        let mut records = Vec::new();
+        for (id, datoms) in claim_datoms_by_id {
+            let statement = datoms
+                .iter()
+                .filter(|d| d.attribute == "statement" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .ok_or_else(|| StoreError::Malformed(format!("claim {id} has no statement")))?
+                .to_string();
+            let status_str = datoms
+                .iter()
+                .filter(|d| d.attribute == "status" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .ok_or_else(|| StoreError::Malformed(format!("claim {id} has no status")))?;
+            let status = StoreStatus::from_str(status_str)?;
+            let created_at = datoms
+                .iter()
+                .filter(|d| d.attribute == "created_at" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let mut events = events_by_claim.remove(&id).unwrap_or_default();
+            events.sort_by_key(|e| e.tx);
+            records.push(ClaimRecord { id, statement, status, created_at, events });
+        }
+        Ok(records)
     }
 
     pub fn claim_by_id(&self, claim_id: &str) -> Result<Option<ClaimRecord>, StoreError> {
