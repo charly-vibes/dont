@@ -2383,7 +2383,14 @@ fn main() {
             for term in &terms {
                 match term.status {
                     StoreStatus::Unverified => unverified += 1,
-                    StoreStatus::Doubted => doubted += 1,
+                    StoreStatus::Doubted => {
+                        doubted += 1;
+                        blocking.push(json!({
+                            "id": term.id,
+                            "curie": term.curie,
+                            "status": "doubted",
+                        }));
+                    }
                     StoreStatus::Verified => verified += 1,
                     StoreStatus::Ignored => ignored += 1,
                     StoreStatus::Locked => locked += 1,

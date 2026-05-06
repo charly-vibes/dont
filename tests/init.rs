@@ -293,3 +293,44 @@ fn internal_project_errors_do_not_suggest_dont_doctor() {
     let remediation = v["data"]["remediation"].as_array().unwrap();
     assert!(remediation.iter().all(|entry| entry["command"] != "dont doctor"));
 }
+
+#[test]
+fn prime_blocking_includes_doubted_terms() {
+    let dir = TempDir::new().unwrap();
+    init_in(&dir).success();
+
+    // Define a term and doubt it
+    let term_out = dont()
+        .args(["define", "EX:T001", "--doc", "a term", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let term_v: Value = serde_json::from_slice(&term_out).unwrap();
+    let term_id = term_v["data"]["id"].as_str().unwrap();
+
+    dont()
+        .args(["trust", term_id, "--reason", "needs review", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let output = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    let blocking = v["data"]["blocking"].as_array().unwrap();
+    assert!(
+        blocking.iter().any(|b| b["id"] == term_id && b["status"] == "doubted"),
+        "prime blocking[] should include doubted term {term_id}, got: {:?}",
+        blocking
+    );
+}
