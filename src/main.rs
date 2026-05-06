@@ -83,6 +83,22 @@ enum Command {
         /// Evidence URI or reference.
         #[arg(long, short)]
         evidence: Vec<String>,
+
+        /// Repository-relative file path for a structured evidence locator.
+        #[arg(long)]
+        file: Option<String>,
+
+        /// Line span within the file, e.g. "10-18" or "42".
+        #[arg(long)]
+        lines: Option<String>,
+
+        /// Named anchor within the file.
+        #[arg(long)]
+        anchor: Option<String>,
+
+        /// Captured excerpt from the referenced source for later audit.
+        #[arg(long)]
+        excerpt: Option<String>,
     },
 
     /// Promote a verified claim to locked when the lockable gate is met.
@@ -276,21 +292,22 @@ fn parse_list_kind(kind: &str) -> Option<ListKind> {
     }
 }
 
-/// Collect all evidence URIs from all events in event-tx order.
-fn collect_evidence_from_events(events: &[EventRecord]) -> Vec<String> {
-    let mut all: Vec<(i64, String)> = events
+/// Collect all evidence entries from all events in event-tx order.
+/// Each entry is either a plain URI string Value or a structured locator Object Value.
+fn collect_evidence_from_events(events: &[EventRecord]) -> Vec<Value> {
+    let mut all: Vec<(i64, Value)> = events
         .iter()
-        .flat_map(|ev| ev.evidence.iter().map(|uri| (ev.tx, uri.clone())))
+        .flat_map(|ev| ev.evidence.iter().map(|v| (ev.tx, v.clone())))
         .collect();
     all.sort_by_key(|(tx, _)| *tx);
-    all.into_iter().map(|(_, uri)| uri).collect()
+    all.into_iter().map(|(_, v)| v).collect()
 }
 
-fn collect_evidence(record: &ClaimRecord) -> Vec<String> {
+fn collect_evidence(record: &ClaimRecord) -> Vec<Value> {
     collect_evidence_from_events(&record.events)
 }
 
-fn collect_term_evidence(record: &TermRecord) -> Vec<String> {
+fn collect_term_evidence(record: &TermRecord) -> Vec<Value> {
     collect_evidence_from_events(&record.events)
 }
 
@@ -373,12 +390,108 @@ fn evidence_source_key(uri: &str) -> String {
     }
 }
 
+fn evidence_entry_source_key(v: &Value) -> String {
+    if let Some(uri) = v.as_str() {
+        return evidence_source_key(uri);
+    }
+    if let Some(obj) = v.as_object() {
+        if obj.get("kind").and_then(Value::as_str) == Some("repo-file") {
+            if let Some(path) = obj.get("path").and_then(Value::as_str) {
+                return format!("repo-file:{path}");
+            }
+        }
+    }
+    v.to_string()
+}
+
 fn independent_evidence_count(record: &ClaimRecord) -> usize {
     let mut sources = std::collections::BTreeSet::new();
-    for uri in collect_evidence(record) {
-        sources.insert(evidence_source_key(&uri));
+    for entry in collect_evidence(record) {
+        sources.insert(evidence_entry_source_key(&entry));
     }
     sources.len()
+}
+
+/// Normalize a repository-relative path against `project_root`.
+/// Returns the normalized relative path, or an error string describing the violation.
+fn normalize_repo_path(
+    rel_path: &str,
+    project_root: &std::path::Path,
+) -> Result<PathBuf, &'static str> {
+    use std::path::Component;
+    let p = PathBuf::from(rel_path);
+    if p.is_absolute() {
+        return Err("absolute paths are not allowed as repository locators; use a project-relative path");
+    }
+    // Walk components to detect escape via `..`
+    let mut depth: i64 = 0;
+    for component in p.components() {
+        match component {
+            Component::ParentDir => {
+                depth -= 1;
+                if depth < 0 {
+                    return Err("path escapes project root");
+                }
+            }
+            Component::Normal(_) => depth += 1,
+            Component::CurDir => {}
+            Component::RootDir | Component::Prefix(_) => {
+                return Err("absolute paths are not allowed as repository locators");
+            }
+        }
+    }
+    // Build the full path and strip back to relative
+    let mut full = project_root.to_path_buf();
+    for component in p.components() {
+        match component {
+            Component::ParentDir => { full.pop(); }
+            Component::Normal(c) => full.push(c),
+            Component::CurDir => {}
+            _ => {}
+        }
+    }
+    Ok(full.strip_prefix(project_root).unwrap_or(&full).to_path_buf())
+}
+
+/// Parse a line span string like "10-18" or "42" into (start, end).
+fn parse_line_span(s: &str) -> Result<(u32, u32), String> {
+    if let Some((a, b)) = s.split_once('-') {
+        let start: u32 = a.trim().parse().map_err(|_| format!("invalid line span: {s}"))?;
+        let end: u32 = b.trim().parse().map_err(|_| format!("invalid line span: {s}"))?;
+        if start > end {
+            return Err(format!("line span start {start} is greater than end {end}"));
+        }
+        Ok((start, end))
+    } else {
+        let line: u32 = s.trim().parse().map_err(|_| format!("invalid line number: {s}"))?;
+        Ok((line, line))
+    }
+}
+
+/// Build a structured repo-file locator as a JSON Value for storage in the evidence field.
+fn build_repo_locator(
+    path: &std::path::Path,
+    line_span: Option<(u32, u32)>,
+    anchor: Option<&str>,
+    excerpt: Option<&str>,
+) -> Value {
+    let mut obj = serde_json::Map::new();
+    obj.insert("kind".to_string(), Value::String("repo-file".to_string()));
+    obj.insert(
+        "path".to_string(),
+        Value::String(path.to_string_lossy().into_owned()),
+    );
+    if let Some((start, end)) = line_span {
+        obj.insert("line_start".to_string(), Value::Number(start.into()));
+        obj.insert("line_end".to_string(), Value::Number(end.into()));
+    }
+    if let Some(a) = anchor {
+        obj.insert("anchor".to_string(), Value::String(a.to_string()));
+    }
+    if let Some(e) = excerpt {
+        obj.insert("excerpt".to_string(), Value::String(e.to_string()));
+    }
+    Value::Object(obj)
 }
 
 fn derived_assessments_for_claim(record: &ClaimRecord) -> Vec<String> {
@@ -1661,12 +1774,12 @@ fn main() {
             }
         }
 
-        Command::Dismiss { id, evidence } => {
-            if evidence.is_empty() {
+        Command::Dismiss { id, evidence, file, lines, anchor, excerpt } => {
+            if evidence.is_empty() && file.is_none() {
                 emit_error_and_exit(
                     refusal(
                         "no-evidence",
-                        "dismiss requires at least one --evidence URI",
+                        "dismiss requires at least one --evidence URI or --file locator",
                         Some(&id),
                         vec![RemediationEntry {
                             command: format!("dont dismiss {id} --evidence <uri>"),
@@ -1679,6 +1792,67 @@ fn main() {
             }
 
             let project = open_project_or_exit();
+            let project_root = project.dont_dir.parent().unwrap_or(&project.dont_dir).to_path_buf();
+
+            // Build the full evidence list, appending structured locator if --file was given.
+            let mut all_evidence: Vec<Value> =
+                evidence.into_iter().map(Value::String).collect();
+            if let Some(ref file_path) = file {
+                if PathBuf::from(file_path).is_absolute() {
+                    emit_error_and_exit(
+                        refusal(
+                            "path-not-relative",
+                            "repository evidence locators must be project-relative paths, not absolute",
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont dismiss {id} --file <relative-path>"),
+                                description: "Use a path relative to the project root".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    );
+                }
+                let normalized = match normalize_repo_path(file_path, &project_root) {
+                    Ok(p) => p,
+                    Err(msg) => emit_error_and_exit(
+                        refusal(
+                            "path-escapes-root",
+                            &format!("evidence locator path is invalid: {msg}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont dismiss {id} --file <relative-path>"),
+                                description: "Use a path that stays within the project root".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                };
+                let line_span = match lines.as_deref().map(parse_line_span) {
+                    Some(Ok(span)) => Some(span),
+                    Some(Err(msg)) => emit_error_and_exit(
+                        refusal(
+                            "invalid-line-span",
+                            &format!("invalid --lines value: {msg}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont dismiss {id} --file {file_path} --lines <start-end>"),
+                                description: "Use a format like \"10-18\" or \"42\"".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    None => None,
+                };
+                all_evidence.push(build_repo_locator(
+                    &normalized,
+                    line_span,
+                    anchor.as_deref(),
+                    excerpt.as_deref(),
+                ));
+            }
             if id.starts_with("term:") {
                 let record = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
@@ -1702,7 +1876,7 @@ fn main() {
                 let event = StoreEvent {
                     kind: StoreEventKind::Dismissed,
                     note: None,
-                    evidence: evidence.clone(),
+                    evidence: all_evidence.clone(),
                 };
 
                 let result = match model_dismiss(current) {
@@ -1785,7 +1959,7 @@ fn main() {
             let event = StoreEvent {
                 kind: StoreEventKind::Dismissed,
                 note: None,
-                evidence: evidence.clone(),
+                evidence: all_evidence,
             };
 
             let result = match model_dismiss(current) {
@@ -1978,7 +2152,13 @@ fn main() {
             }
 
             let mocks = mocked_evidence_outcomes();
-            let results: Vec<EvidenceCheckResult> = evidence
+            // Only URI-based entries participate in liveness checks; structured locators
+            // are skipped here (drift detection belongs to dont-8bu).
+            let uri_evidence: Vec<&str> = evidence
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect();
+            let results: Vec<EvidenceCheckResult> = uri_evidence
                 .iter()
                 .map(|uri| check_evidence_uri(uri, mocks.as_ref(), timeout_seconds))
                 .collect();

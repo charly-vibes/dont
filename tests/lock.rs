@@ -62,7 +62,7 @@ fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[
             StoreEvent {
                 kind: StoreEventKind::Dismissed,
                 note: None,
-                evidence: vec![(*first).to_string()],
+                evidence: vec![serde_json::Value::String((*first).to_string())],
             },
         )
         .unwrap();
@@ -73,7 +73,7 @@ fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[
                 StoreEvent {
                     kind: StoreEventKind::Dismissed,
                     note: None,
-                    evidence: vec![(*uri).to_string()],
+                    evidence: vec![serde_json::Value::String((*uri).to_string())],
                 },
             )
             .unwrap();

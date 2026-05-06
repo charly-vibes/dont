@@ -121,6 +121,22 @@ dont dismiss <id> --evidence ... # verify with evidence
 dont show <id>               # inspect a claim
 dont list                    # list all claims
 ```
+
+## Grounding claims in repository evidence
+
+Prefer repository-relative file locators over opaque `file://` URIs when the evidence lives inside the current project:
+
+```
+# Preferred: repository-relative locator
+dont dismiss <id> --file README.md
+dont dismiss <id> --file src/lib.rs --lines 42-55 --anchor "MyTrait"
+dont dismiss <id> --file docs/spec.md --excerpt "The system SHALL..."
+
+# Supported for compatibility: plain URI
+dont dismiss <id> --evidence https://external-source.example/ref
+```
+
+Repository-relative locators resolve against the project root regardless of the caller's working directory. Paths that escape the project root (via `..` traversal) are refused.
 "#;
 
 /// Resolves the `.dont` directory for a command invocation.

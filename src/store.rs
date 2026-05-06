@@ -100,11 +100,11 @@ impl StoreEventKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StoreEvent {
     pub kind: StoreEventKind,
     pub note: Option<String>,
-    pub evidence: Vec<String>,
+    pub evidence: Vec<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -156,7 +156,7 @@ pub struct EventRecord {
     pub id: String,
     pub kind: StoreEventKind,
     pub note: Option<String>,
-    pub evidence: Vec<String>,
+    pub evidence: Vec<Value>,
     pub tx: i64,
     pub created_at: String,
 }
@@ -422,10 +422,12 @@ impl Store {
                 datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
             }
             if !event.evidence.is_empty() {
-                let arr = Value::Array(
-                    event.evidence.iter().map(|u| Value::String(u.clone())).collect(),
-                );
-                datoms.push(Datom::assert(&event_id, "evidence", arr, tx));
+                datoms.push(Datom::assert(
+                    &event_id,
+                    "evidence",
+                    Value::Array(event.evidence.clone()),
+                    tx,
+                ));
             }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
@@ -476,10 +478,12 @@ impl Store {
                 datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
             }
             if !event.evidence.is_empty() {
-                let arr = Value::Array(
-                    event.evidence.iter().map(|u| Value::String(u.clone())).collect(),
-                );
-                datoms.push(Datom::assert(&event_id, "evidence", arr, tx));
+                datoms.push(Datom::assert(
+                    &event_id,
+                    "evidence",
+                    Value::Array(event.evidence.clone()),
+                    tx,
+                ));
             }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
@@ -527,10 +531,12 @@ impl Store {
                 datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
             }
             if !event.evidence.is_empty() {
-                let arr = Value::Array(
-                    event.evidence.iter().map(|u| Value::String(u.clone())).collect(),
-                );
-                datoms.push(Datom::assert(&event_id, "evidence", arr, tx));
+                datoms.push(Datom::assert(
+                    &event_id,
+                    "evidence",
+                    Value::Array(event.evidence.clone()),
+                    tx,
+                ));
             }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
@@ -959,9 +965,9 @@ fn event_from_datoms<'a>(
     let note = latest_asserted_ref(&datoms, "note")
         .and_then(Value::as_str)
         .map(ToString::to_string);
-    let evidence: Vec<String> = latest_asserted_ref(&datoms, "evidence")
+    let evidence: Vec<Value> = latest_asserted_ref(&datoms, "evidence")
         .and_then(Value::as_array)
-        .map(|arr| arr.iter().filter_map(|e| e.as_str().map(str::to_string)).collect())
+        .cloned()
         .unwrap_or_default();
     Ok(EventRecord {
         id,
