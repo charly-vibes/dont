@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -170,6 +171,12 @@ enum Command {
     Trace {
         /// Entity identifier (claim:... or term:...).
         id: String,
+    },
+
+    /// Generate shell completion scripts.
+    Completions {
+        /// Shell to generate completions for (bash, zsh, fish, powershell, elvish).
+        shell: Shell,
     },
 
     /// Atomically ground a claim with its supporting evidence.
@@ -2849,6 +2856,11 @@ fn main() {
             }
         }
 
+        Command::Completions { shell } => {
+            let mut cmd = Cli::command();
+            clap_complete::generate(shell, &mut cmd, "dont", &mut std::io::stdout());
+        }
+
         Command::Ground {
             statement,
             evidence,
@@ -2859,6 +2871,21 @@ fn main() {
         } => {
             // Pre-validate all inputs before writing any state. This ensures that
             // bad evidence or an empty statement leaves no partial claim behind.
+            if statement == "-" {
+                emit_error_and_exit(
+                    refusal(
+                        "stdin-not-supported",
+                        "ground does not read entity IDs from stdin; provide the statement as an argument",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont ground \"<claim text>\" --evidence <uri>".to_string(),
+                            description: "Provide the statement directly as an argument".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    2,
+                );
+            }
             if statement.trim().is_empty() {
                 emit_error_and_exit(
                     refusal(

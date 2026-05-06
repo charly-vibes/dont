@@ -234,6 +234,25 @@ fn ground_with_only_empty_evidence_uris_is_refused() {
 }
 
 #[test]
+fn ground_rejects_stdin_bulk_mode() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["ground", "-", "--evidence", "https://example.com/proof", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "stdin-not-supported");
+}
+
+#[test]
 fn ground_with_path_traversal_file_is_refused() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);

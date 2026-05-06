@@ -17,6 +17,36 @@ fn help_lists_tracer_bullet_commands() {
 }
 
 #[test]
+fn help_lists_ground_as_standard_subcommand() {
+    Command::cargo_bin("dont")
+        .expect("binary exists")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ground"));
+}
+
+#[test]
+fn completions_bash_includes_ground() {
+    Command::cargo_bin("dont")
+        .expect("binary exists")
+        .args(["completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ground"));
+}
+
+#[test]
+fn completions_zsh_includes_ground() {
+    Command::cargo_bin("dont")
+        .expect("binary exists")
+        .args(["completions", "zsh"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ground"));
+}
+
+#[test]
 fn help_flags_reflect_required_reason() {
     let mut trust = Command::cargo_bin("dont").expect("binary exists");
     trust
