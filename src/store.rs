@@ -114,6 +114,7 @@ pub struct ClaimRecord {
 pub struct TermRecord {
     pub id: String,
     pub curie: String,
+    pub label: Option<String>,
     pub definition: String,
     pub status: StoreStatus,
     pub created_at: String,
@@ -250,13 +251,18 @@ impl Store {
         })
     }
 
-    pub fn append_term(&self, curie: &str, definition: &str) -> Result<AppendResult, StoreError> {
+    pub fn append_term(
+        &self,
+        curie: &str,
+        definition: &str,
+        label: Option<&str>,
+    ) -> Result<AppendResult, StoreError> {
         self.with_write_lock(|store| {
             let tx = store.next_tx()?;
             let term_id = prefixed_ulid("term");
             let event_id = prefixed_ulid("event");
             let now = now_rfc3339_seconds();
-            let datoms = vec![
+            let mut datoms = vec![
                 Datom::assert(
                     &term_id,
                     "entity_type",
@@ -292,6 +298,9 @@ impl Store {
                 ),
                 Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
             ];
+            if let Some(lbl) = label {
+                datoms.push(Datom::assert(&term_id, "label", Value::String(lbl.to_string()), tx));
+            }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
                 id: term_id,
@@ -547,11 +556,15 @@ impl Store {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
+        let label = latest_asserted_value(&datoms, "label")
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
         let mut events = self.events_for_entity(term_id)?;
         events.sort_by_key(|event| event.tx);
         Ok(Some(TermRecord {
             id: term_id.to_string(),
             curie,
+            label,
             definition,
             status,
             created_at,

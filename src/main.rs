@@ -47,6 +47,10 @@ enum Command {
         /// Prose definition for the term.
         #[arg(long)]
         doc: Option<String>,
+
+        /// SK11 type-text: singular indefinite noun phrase for the term box in an olog.
+        #[arg(long)]
+        label: Option<String>,
     },
 
     /// Register explicit doubt about a claim.
@@ -222,6 +226,7 @@ fn build_term_view(record: &TermRecord) -> Value {
         "id": record.id,
         "entity_kind": "term",
         "curie": record.curie,
+        "label": record.label,
         "definition": record.definition,
         "kind_of": [],
         "related_to": [],
@@ -277,12 +282,12 @@ fn emit_claim_view(record: &ClaimRecord, result: &AppendResult) {
     emit_json(&env);
 }
 
-fn emit_term_view(record: &TermRecord, result: &AppendResult) {
+fn emit_term_view(record: &TermRecord, result: &AppendResult, warnings: Vec<Warning>) {
     let payload = build_term_view(record);
     let env = Envelope::success_with_tx(
         "term",
         payload,
-        vec![],
+        warnings,
         vec![HintEntry {
             command: format!("dont show {}", record.id),
             description: "Inspect the new term".to_string(),
@@ -290,6 +295,217 @@ fn emit_term_view(record: &TermRecord, result: &AppendResult) {
         Some(result.tx as u64),
     );
     emit_json(&env);
+}
+
+fn best_article_for(noun: &str) -> &'static str {
+    match noun
+        .split_whitespace()
+        .next()
+        .and_then(|w| w.chars().next())
+        .map(|c| c.to_ascii_lowercase())
+    {
+        Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
+        _ => "a",
+    }
+}
+
+fn label_has_indefinite_article(label: &str) -> bool {
+    let mut words = label.split_whitespace();
+    matches!(
+        words.next().map(|w| w.to_ascii_lowercase()).as_deref(),
+        Some("a") | Some("an")
+    ) && words.next().is_some()
+}
+
+fn label_ends_with_sentence_punctuation(label: &str) -> bool {
+    let trimmed = label.trim_end_matches(|c: char| c.is_ascii_whitespace());
+    matches!(trimmed.chars().last(), Some('.' | '?' | '!' | ';' | ':'))
+}
+
+fn label_compound_undeclared(label: &str) -> bool {
+    const MARKERS: &[(&str, Option<usize>)] = &[
+        ("a pair", Some(2)),
+        ("a triple", Some(3)),
+        ("a quadruple", Some(4)),
+        ("a sequence", None),
+        ("a tuple", None),
+        ("a set of", None),
+        ("a list of", None),
+    ];
+    let lower = label.to_ascii_lowercase();
+    for &(prefix, required) in MARKERS {
+        if !lower.starts_with(prefix) {
+            continue;
+        }
+        let after = &lower[prefix.len()..];
+        if !after.is_empty() && !after.starts_with(|c: char| c.is_ascii_whitespace() || c == '(') {
+            continue;
+        }
+        if let Some(open_rel) = label[prefix.len()..].find('(') {
+            let open = prefix.len() + open_rel;
+            if let Some(close_rel) = label[open..].find(')') {
+                let close = open + close_rel;
+                let var_count = label[open + 1..close]
+                    .split(',')
+                    .filter(|s| !s.trim().is_empty())
+                    .count();
+                return match required {
+                    Some(n) => var_count != n,
+                    None => var_count == 0,
+                };
+            }
+        }
+        return true;
+    }
+    false
+}
+
+fn words_contain(set: &[&str], text: &str) -> bool {
+    text.split_whitespace()
+        .any(|w| set.iter().any(|&s| s == w.to_ascii_lowercase()))
+}
+
+fn label_contains_sentence_verb(label: &str) -> bool {
+    const VERBS: &[&str] = &["is", "are", "has", "have", "does", "do", "was", "were"];
+    let parens = label
+        .find('(')
+        .and_then(|open| label[open..].find(')').map(|rel| (open, open + rel + 1)));
+    if let Some((open, close)) = parens {
+        if words_contain(VERBS, &label[..open]) {
+            return true;
+        }
+        let after = &label[close..];
+        let after_words: Vec<&str> = after.split_whitespace().collect();
+        let stop = after_words
+            .iter()
+            .position(|w| w.eq_ignore_ascii_case("where"))
+            .unwrap_or(after_words.len());
+        after_words[..stop]
+            .iter()
+            .any(|w| VERBS.iter().any(|&v| v == w.to_ascii_lowercase()))
+    } else {
+        words_contain(VERBS, label)
+    }
+}
+
+fn validate_label(label: &str, curie: &str) -> Option<ErrorResult> {
+    if label.trim().is_empty() {
+        return Some(refusal(
+            "term-label-empty",
+            "label must be a non-empty noun phrase",
+            Some(curie),
+            vec![RemediationEntry {
+                command: format!("dont define {curie} --label \"a <noun phrase>\" --doc \"...\""),
+                description: "Supply a non-empty singular indefinite noun phrase".to_string(),
+            }],
+        ));
+    }
+    if !label_has_indefinite_article(label) {
+        let article = best_article_for(label);
+        return Some(refusal(
+            "term-shape-indefinite",
+            "label must begin with 'a' or 'an' followed by a noun phrase (SK11 §2.1.1(i))",
+            Some(curie),
+            vec![RemediationEntry {
+                command: format!("dont define {curie} --label \"{article} {label}\" --doc \"...\""),
+                description: format!("Prepend '{article}' to form a singular indefinite noun phrase"),
+            }],
+        ));
+    }
+    if label_ends_with_sentence_punctuation(label) {
+        let clean: String = label
+            .chars()
+            .rev()
+            .skip_while(|c| matches!(c, '.' | '?' | '!' | ';' | ':') || c.is_ascii_whitespace())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        return Some(refusal(
+            "term-shape-punctuated",
+            "label must not end with sentence-closing punctuation (SK11 §2.1.1(iv))",
+            Some(curie),
+            vec![RemediationEntry {
+                command: format!("dont define {curie} --label \"{clean}\" --doc \"...\""),
+                description: "Remove the trailing punctuation from the label".to_string(),
+            }],
+        ));
+    }
+    if label_compound_undeclared(label) {
+        return Some(refusal(
+            "term-compound-undeclared",
+            "compound label requires a parenthesised variable list (SK11 §2.1.1(v))",
+            Some(curie),
+            vec![RemediationEntry {
+                command: format!(
+                    "dont define {curie} --label \"a pair (x, y) where x and y are integers\" --doc \"...\""
+                ),
+                description: "Add a parenthesised variable list after the compound marker"
+                    .to_string(),
+            }],
+        ));
+    }
+    if label_contains_sentence_verb(label) {
+        return Some(refusal(
+            "term-label-sentence",
+            "label contains a verb token outside a variable list or where-clause — rephrase as a noun phrase (SK11 §2.1)",
+            Some(curie),
+            vec![RemediationEntry {
+                command: format!("dont define {curie} --label \"a <noun phrase>\" --doc \"...\""),
+                description:
+                    "Remove verb tokens (is, are, has, have, does, do, was, were) from the label"
+                        .to_string(),
+            }],
+        ));
+    }
+    None
+}
+
+fn extract_doc_leading_phrase(doc: &str) -> String {
+    let end = doc
+        .find(['.', '?', '!', ';'])
+        .unwrap_or(doc.len());
+    let phrase = doc[..end].trim();
+    let token_capped: String = phrase.split_whitespace().take(15).collect::<Vec<_>>().join(" ");
+    token_capped.chars().take(80).collect()
+}
+
+fn doc_shape_warnings(doc: &str) -> Vec<Warning> {
+    let phrase = extract_doc_leading_phrase(doc);
+    if phrase.trim().is_empty() {
+        return vec![];
+    }
+    if !label_has_indefinite_article(&phrase) {
+        return vec![Warning {
+            rule_name: "term-doc-shape-indefinite".to_string(),
+            entity_id: None,
+            message: "leading phrase of --doc does not begin with 'a' or 'an'; supply --label for a precise type-text".to_string(),
+            suggested_remediation: Some(
+                "Prepend 'a' or 'an' to the noun phrase or supply --label".to_string(),
+            ),
+        }];
+    }
+    if label_ends_with_sentence_punctuation(&phrase) {
+        return vec![Warning {
+            rule_name: "term-doc-shape-punctuated".to_string(),
+            entity_id: None,
+            message: "leading phrase of --doc ends with sentence punctuation; supply --label for a clean type-text".to_string(),
+            suggested_remediation: Some(
+                "Remove trailing punctuation or supply --label".to_string(),
+            ),
+        }];
+    }
+    if label_contains_sentence_verb(&phrase) {
+        return vec![Warning {
+            rule_name: "term-doc-shape-sentence".to_string(),
+            entity_id: None,
+            message: "leading phrase of --doc contains a verb token; supply --label for a precise noun phrase type-text".to_string(),
+            suggested_remediation: Some(
+                "Remove verb tokens from the phrase or supply --label".to_string(),
+            ),
+        }];
+    }
+    vec![]
 }
 
 fn main() {
@@ -360,7 +576,7 @@ fn main() {
             }
         }
 
-        Command::Define { curie, doc } => {
+        Command::Define { curie, doc, label } => {
             let curie = match curie {
                 Some(curie) => curie,
                 None => emit_error_and_exit(
@@ -394,8 +610,18 @@ fn main() {
                 ),
             };
 
+            let warnings = match &label {
+                Some(lbl) => {
+                    if let Some(err) = validate_label(lbl, &curie) {
+                        emit_error_and_exit(err, vec![], 1);
+                    }
+                    vec![]
+                }
+                None => doc_shape_warnings(&doc),
+            };
+
             let project = open_project_or_exit();
-            let result = match project.store.append_term(&curie, &doc) {
+            let result = match project.store.append_term(&curie, &doc, label.as_deref()) {
                 Ok(result) => result,
                 Err(err) => handle_store_error(err, None),
             };
@@ -407,7 +633,7 @@ fn main() {
                 ),
                 Err(err) => handle_store_error(err, Some(&result.id)),
             };
-            emit_term_view(&term, &result);
+            emit_term_view(&term, &result, warnings);
         }
 
         Command::Trust { id, reason } => {
