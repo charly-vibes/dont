@@ -274,7 +274,7 @@ fn lock_claim_with_unverified_term_dependency_is_refused_by_lockable_gate() {
         .as_array()
         .unwrap()
         .iter()
-        .any(|c| c["clause"].as_str().unwrap().contains("unresolved-term")));
+        .any(|c| c["clause"].as_str().unwrap().contains("stale")));
 }
 
 #[test]

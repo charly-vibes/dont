@@ -152,6 +152,12 @@ enum Command {
         #[arg(long)]
         kind: Option<String>,
     },
+
+    /// Explain the blocker-path for a claim or term.
+    Trace {
+        /// Entity identifier (claim:... or term:...).
+        id: String,
+    },
 }
 
 const DEFAULT_HEDGES: &[&str] = &["i think", "maybe", "not sure", "probably"];
@@ -505,7 +511,12 @@ fn derived_assessments_for_claim(record: &ClaimRecord) -> Vec<String> {
     };
 
     for dep in &record.depends_on {
-        match project.store.term_by_curie(dep) {
+        let lookup = if dep.starts_with("term:") {
+            project.store.term_by_id(dep)
+        } else {
+            project.store.term_by_curie(dep)
+        };
+        match lookup {
             Ok(Some(term)) => match term.status {
                 StoreStatus::Verified => {}
                 StoreStatus::Ignored | StoreStatus::Locked => {
@@ -533,6 +544,114 @@ fn derived_assessments_for_claim(record: &ClaimRecord) -> Vec<String> {
     }
 
     derived
+}
+
+#[derive(Debug)]
+struct BlockerPath {
+    kind: String,
+    path: Vec<String>,
+    blocking_node: String,
+    remediation: Vec<RemediationEntry>,
+}
+
+fn blocker_path_for_dep(
+    start_id: &str,
+    dep: &str,
+    term_result: Result<Option<TermRecord>, StoreError>,
+) -> Option<BlockerPath> {
+    let path = vec![start_id.to_string(), dep.to_string()];
+    match term_result {
+        Ok(Some(term)) => {
+            let (kind, remediation) = match term.status {
+                StoreStatus::Unverified | StoreStatus::Doubted => (
+                    "stale",
+                    vec![RemediationEntry {
+                        command: format!("dont dismiss {}", term.id),
+                        description: format!("Verify the blocking term {}", term.id),
+                    }],
+                ),
+                StoreStatus::Ignored | StoreStatus::Locked => (
+                    "compromised-support",
+                    vec![RemediationEntry {
+                        command: format!("dont show {}", term.id),
+                        description: format!(
+                            "Inspect the compromised supporting term {}",
+                            term.id
+                        ),
+                    }],
+                ),
+                StoreStatus::Verified => return None,
+            };
+            Some(BlockerPath {
+                kind: kind.to_string(),
+                path: vec![start_id.to_string(), term.id.clone()],
+                blocking_node: term.id,
+                remediation,
+            })
+        }
+        Ok(None) => Some(BlockerPath {
+            kind: "unresolved-term".to_string(),
+            path,
+            blocking_node: dep.to_string(),
+            remediation: vec![RemediationEntry {
+                command: format!("dont define {dep} --doc \"<definition>\""),
+                description: format!("Define the missing term {dep}"),
+            }],
+        }),
+        Err(_) => Some(BlockerPath {
+            kind: "dangling-dependency".to_string(),
+            path,
+            blocking_node: dep.to_string(),
+            remediation: vec![RemediationEntry {
+                command: "dont list --kind=term".to_string(),
+                description: "List terms to diagnose the missing dependency".to_string(),
+            }],
+        }),
+    }
+}
+
+fn trace_claim(record: &ClaimRecord) -> Vec<BlockerPath> {
+    use std::collections::HashSet;
+    let mut paths: Vec<BlockerPath> = Vec::new();
+    // visited prevents duplicate blocker entries and guards against future cyclic deps
+    let mut visited: HashSet<String> = HashSet::new();
+    visited.insert(record.id.clone());
+
+    let project = match Project::open(&cwd()) {
+        Ok(p) => p,
+        Err(_) => return paths,
+    };
+
+    for dep in &record.depends_on {
+        if visited.contains(dep) {
+            continue;
+        }
+        visited.insert(dep.clone());
+
+        let result = if dep.starts_with("term:") {
+            project.store.term_by_id(dep)
+        } else {
+            project.store.term_by_curie(dep)
+        };
+
+        if let Some(bp) = blocker_path_for_dep(&record.id, dep, result) {
+            paths.push(bp);
+        }
+    }
+
+    paths
+}
+
+fn blocker_path_to_value(bp: BlockerPath) -> Value {
+    json!({
+        "kind": bp.kind,
+        "path": bp.path,
+        "blocking_node": bp.blocking_node,
+        "remediation": bp.remediation.iter().map(|r| json!({
+            "command": r.command,
+            "description": r.description,
+        })).collect::<Vec<_>>(),
+    })
 }
 
 fn lockable_unmet_clauses(record: &ClaimRecord) -> Vec<UnmetClause> {
@@ -1107,7 +1226,12 @@ fn main() {
                 })
                 .collect();
 
-            match project.store.append_claim(&statement, &resolved_depends_on) {
+            let all_depends_on: Vec<String> = resolved_depends_on
+                .iter()
+                .chain(unresolved.iter())
+                .cloned()
+                .collect();
+            match project.store.append_claim(&statement, &all_depends_on) {
                 Ok(result) => {
                     let payload = json!({
                         "id": result.id,
@@ -1118,7 +1242,7 @@ fn main() {
                         "atoms": [],
                         "hypotheses": [],
                         "evidence": [],
-                        "depends_on": resolved_depends_on,
+                        "depends_on": all_depends_on,
                         "applicable_rules": {},
                         "created_at": result.created_at,
                     });
@@ -2347,6 +2471,73 @@ fn main() {
                     let views: Vec<Value> = terms.iter().map(build_term_view).collect();
                     let env = Envelope::success("terms", views, vec![], vec![]);
                     emit_json(&env);
+                }
+            }
+        }
+
+        Command::Trace { id } => {
+            let project = open_project_or_exit();
+            if id.starts_with("term:") {
+                match project.store.term_by_id(&id) {
+                    Ok(Some(_)) => {
+                        let payload = json!({
+                            "entity_id": id,
+                            "blocker_paths": [],
+                        });
+                        let env = Envelope::success("trace", payload, vec![], vec![]);
+                        emit_json(&env);
+                    }
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "term-not-found",
+                            &format!("no term with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list --kind=term".to_string(),
+                                description: "List terms to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
+            } else {
+                match project.store.claim_by_id(&id) {
+                    Ok(Some(record)) => {
+                        let blocker_paths: Vec<Value> = trace_claim(&record)
+                            .into_iter()
+                            .map(blocker_path_to_value)
+                            .collect();
+                        let payload = json!({
+                            "entity_id": id,
+                            "blocker_paths": blocker_paths,
+                        });
+                        let hints = if blocker_paths.is_empty() {
+                            vec![]
+                        } else {
+                            vec![HintEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the entity details".to_string(),
+                            }]
+                        };
+                        let env = Envelope::success("trace", payload, vec![], hints);
+                        emit_json(&env);
+                    }
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "claim-not-found",
+                            &format!("no claim with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all claims to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
                 }
             }
         }
