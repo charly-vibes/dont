@@ -1,6 +1,6 @@
 use std::cell::Cell;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -139,6 +139,12 @@ enum Command {
 
     /// Show a claim or term.
     Show {
+        /// Claim or term identifier (claim:ID, term:ID, or CURIE like WB:P001).
+        id: String,
+    },
+
+    /// Explain why a claim or term has its current status.
+    Why {
         /// Claim or term identifier (claim:ID, term:ID, or CURIE like WB:P001).
         id: String,
     },
@@ -615,8 +621,96 @@ fn collect_evidence_from_events(events: &[EventRecord]) -> Vec<Value> {
     all.into_iter().map(|(_, v)| v).collect()
 }
 
+fn project_root_from_store(store: &Store) -> PathBuf {
+    store
+        .path()
+        .parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn fingerprint_text(text: &str) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in text.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fnv1a64:{hash:016x}")
+}
+
+fn locator_line_span(locator: &Value) -> Option<(usize, usize)> {
+    let start = locator.get("line_start")?.as_u64()? as usize;
+    let end = locator.get("line_end")?.as_u64()? as usize;
+    Some((start, end))
+}
+
+fn current_locator_text(locator: &Value, project_root: &Path) -> Result<String, String> {
+    let path = locator
+        .get("path")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "locator is missing path".to_string())?;
+    let full_path = project_root.join(path);
+    let text = std::fs::read_to_string(&full_path)
+        .map_err(|err| format!("could not read {}: {err}", full_path.display()))?;
+    if let Some((start, end)) = locator_line_span(locator) {
+        let lines: Vec<&str> = text.lines().collect();
+        if start == 0 || end < start || end > lines.len() {
+            return Err(format!(
+                "line span {start}-{end} is unavailable in current file with {} lines",
+                lines.len()
+            ));
+        }
+        Ok(lines[start - 1..end].join("\n"))
+    } else {
+        Ok(text)
+    }
+}
+
+fn locator_audit(locator: &Value, project_root: &Path) -> Value {
+    match current_locator_text(locator, project_root) {
+        Ok(current_text) => {
+            if let Some(stored) = locator.get("fingerprint").and_then(Value::as_str) {
+                let current = fingerprint_text(&current_text);
+                if current == stored {
+                    json!({"status": "current"})
+                } else {
+                    json!({"status": "drifted", "detail": "stored fingerprint does not match current source slice"})
+                }
+            } else {
+                json!({"status": "current"})
+            }
+        }
+        Err(detail) => json!({"status": "unresolved", "detail": detail}),
+    }
+}
+
+fn project_evidence_entry(entry: &Value, project_root: &Path) -> Value {
+    let Some(obj) = entry.as_object() else {
+        return entry.clone();
+    };
+    if obj.get("kind").and_then(Value::as_str) != Some("repo-file") {
+        return entry.clone();
+    }
+    let mut projected = obj.clone();
+    projected.insert("audit".to_string(), locator_audit(entry, project_root));
+    Value::Object(projected)
+}
+
+fn project_evidence(entries: Vec<Value>, project_root: &Path) -> Vec<Value> {
+    entries
+        .iter()
+        .map(|entry| project_evidence_entry(entry, project_root))
+        .collect()
+}
+
 fn collect_evidence(record: &ClaimRecord) -> Vec<Value> {
     collect_evidence_from_events(&record.events)
+}
+
+fn collect_projected_evidence(record: &ClaimRecord, store: &Store) -> Vec<Value> {
+    let project_root = project_root_from_store(store);
+    project_evidence(collect_evidence(record), &project_root)
 }
 
 fn collect_term_evidence(record: &TermRecord) -> Vec<Value> {
@@ -634,7 +728,7 @@ fn updated_at(record: &ClaimRecord) -> String {
 }
 
 fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
-    let evidence = collect_evidence(record);
+    let evidence = collect_projected_evidence(record, store);
     let events: Vec<Value> = record
         .events
         .iter()
@@ -690,6 +784,44 @@ fn build_term_view(record: &TermRecord) -> Value {
         "created_at": record.created_at,
         "updated_at": updated_at,
         "applicable_rules": {},
+    })
+}
+
+fn build_event_history(events: &[EventRecord]) -> Vec<Value> {
+    events
+        .iter()
+        .map(|event| {
+            json!({
+                "entity_id": Value::Null,
+                "tx": event.tx,
+                "event_kind": format!("{:?}", event.kind).to_lowercase(),
+                "at": event.created_at,
+                "author": Value::Null,
+                "reason": event.note,
+                "evidence_uri": Value::Null,
+                "spawn_request_id": Value::Null,
+            })
+        })
+        .collect()
+}
+
+fn build_claim_why_view(record: &ClaimRecord, store: &Store) -> Value {
+    let entity = build_claim_view(record, store);
+    json!({
+        "entity": entity,
+        "history": build_event_history(&record.events),
+        "applicable_rules": entity["applicable_rules"].clone(),
+        "remediation": [],
+    })
+}
+
+fn build_term_why_view(record: &TermRecord) -> Value {
+    let entity = build_term_view(record);
+    json!({
+        "entity": entity,
+        "history": build_event_history(&record.events),
+        "applicable_rules": entity["applicable_rules"].clone(),
+        "remediation": [],
     })
 }
 
@@ -1160,7 +1292,15 @@ fn resolve_file_locator(
         ),
         None => None,
     };
-    build_repo_locator(&normalized, line_span, anchor, excerpt)
+    let source_text = line_span
+        .and_then(|_| current_locator_text(&build_repo_locator(&normalized, line_span, anchor, None), project_root).ok());
+    let stored_excerpt = excerpt.map(str::to_string).or_else(|| source_text.clone());
+    let mut locator = build_repo_locator(&normalized, line_span, anchor, stored_excerpt.as_deref());
+    let fingerprint_source = source_text.as_deref().or(excerpt);
+    if let (Value::Object(obj), Some(text)) = (&mut locator, fingerprint_source) {
+        obj.insert("fingerprint".to_string(), Value::String(fingerprint_text(text)));
+    }
+    locator
 }
 
 fn refusal(
@@ -2570,6 +2710,101 @@ fn main() {
             }
         }
 
+        Command::Why { id } => {
+            let project = open_project_or_exit();
+            if id.starts_with("term:") {
+                match project.store.term_by_id(&id) {
+                    Ok(Some(record)) => {
+                        let payload = build_term_why_view(&record);
+                        let env = Envelope::success(
+                            "why",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current term view".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                    }
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "term-not-found",
+                            &format!("no term with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont vocab".to_string(),
+                                description: "List terms to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
+            } else if !id.starts_with("claim:") && id.contains(':') {
+                match project.store.term_by_curie(&id) {
+                    Ok(Some(record)) => {
+                        let payload = build_term_why_view(&record);
+                        let env = Envelope::success(
+                            "why",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont show {}", record.id),
+                                description: "Inspect the current term view".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                    }
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "term-not-found",
+                            &format!("no term with curie {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont vocab".to_string(),
+                                description: "List terms to find the correct curie".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
+            } else {
+                match project.store.claim_by_id(&id) {
+                    Ok(Some(record)) => {
+                        let payload = build_claim_why_view(&record, &project.store);
+                        let env = Envelope::success(
+                            "why",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current claim view".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                    }
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "claim-not-found",
+                            &format!("no claim with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all claims to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
+            }
+        }
+
         Command::VerifyEvidence {
             id,
             timeout_seconds,
@@ -2648,20 +2883,40 @@ fn main() {
             }
 
             let mocks = mocked_evidence_outcomes();
-            // Only URI-based entries participate in liveness checks; structured locators
-            // are skipped here (drift detection belongs to dont-8bu).
-            let uri_evidence: Vec<&str> = evidence
+            let project_root = project_root_from_store(&project.store);
+            let uri_results: Vec<EvidenceCheckResult> = evidence
                 .iter()
                 .filter_map(|v| v.as_str())
-                .collect();
-            let results: Vec<EvidenceCheckResult> = uri_evidence
-                .iter()
                 .map(|uri| check_evidence_uri(uri, mocks.as_ref(), timeout_seconds))
                 .collect();
-            let warnings: Vec<Warning> = results
+            let warnings: Vec<Warning> = uri_results
                 .iter()
                 .filter_map(|result| evidence_check_warning(&id, result))
                 .collect();
+            let mut results: Vec<Value> = uri_results
+                .iter()
+                .map(|result| serde_json::to_value(result).expect("evidence check result serializes"))
+                .collect();
+            for locator in evidence.iter().filter(|v| {
+                v.as_object()
+                    .and_then(|obj| obj.get("kind"))
+                    .and_then(Value::as_str)
+                    == Some("repo-file")
+            }) {
+                let audit = locator_audit(locator, &project_root);
+                let outcome = audit
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unchecked");
+                let mut result = json!({
+                    "locator": project_evidence_entry(locator, &project_root),
+                    "outcome": outcome,
+                });
+                if let Some(detail) = audit.get("detail").and_then(Value::as_str) {
+                    result["detail"] = Value::String(detail.to_string());
+                }
+                results.push(result);
+            }
             let payload = json!({
                 "entity_id": id,
                 "entity_kind": entity_kind,
