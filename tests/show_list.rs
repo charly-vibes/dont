@@ -167,6 +167,52 @@ fn show_nonexistent_id_returns_claim_not_found_exit_1() {
     assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
 }
 
+// --- show: CURIE resolution ---
+
+#[test]
+fn show_by_curie_resolves_to_term() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    define_term(&dir, "WB:P001", "a process by which X becomes Y");
+
+    let out = dont()
+        .args(["show", "WB:P001", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "term");
+    assert_eq!(v["data"]["curie"], "WB:P001");
+    assert_eq!(v["data"]["entity_kind"], "term");
+}
+
+#[test]
+fn show_unknown_curie_returns_term_not_found_exit_1() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["show", "WB:ZZZZ", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "term-not-found");
+    let msg = v["data"]["message"].as_str().unwrap_or("");
+    assert!(msg.contains("WB:ZZZZ"), "expected curie in error: {msg}");
+    assert!(msg.contains("no term with curie"), "expected curie phrasing: {msg}");
+}
+
 // --- list ---
 
 #[test]

@@ -136,9 +136,9 @@ enum Command {
         reason: Option<String>,
     },
 
-    /// Show a claim.
+    /// Show a claim or term.
     Show {
-        /// Claim identifier.
+        /// Claim or term identifier (claim:ID, term:ID, or CURIE like WB:P001).
         id: String,
     },
 
@@ -2428,6 +2428,36 @@ fn main() {
                             vec![RemediationEntry {
                                 command: "dont vocab".to_string(),
                                 description: "List terms to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
+            } else if !id.starts_with("claim:") && id.contains(':') {
+                match project.store.term_by_curie(&id) {
+                    Ok(Some(record)) => {
+                        let payload = build_term_view(&record);
+                        let env = Envelope::success(
+                            "term",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont trust {} --reason \"...\"", record.id),
+                                description: "Register doubt about this term".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                    }
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "term-not-found",
+                            &format!("no term with curie {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont vocab".to_string(),
+                                description: "List terms to find the correct curie".to_string(),
                             }],
                         ),
                         vec![],
