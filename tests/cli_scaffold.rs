@@ -15,3 +15,22 @@ fn help_lists_tracer_bullet_commands() {
         .stdout(predicate::str::contains("show"))
         .stdout(predicate::str::contains("list"));
 }
+
+#[test]
+fn help_flags_reflect_required_reason() {
+    let mut trust = Command::cargo_bin("dont").expect("binary exists");
+    trust
+        .args(["trust", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Reason for doubt (required)"));
+
+    let mut ignore = Command::cargo_bin("dont").expect("binary exists");
+    ignore
+        .args(["ignore", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Substantive reason for ignoring (required; hedge-only reasons are refused)",
+        ));
+}

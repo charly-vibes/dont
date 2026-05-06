@@ -70,7 +70,7 @@ enum Command {
         /// Claim identifier.
         id: String,
 
-        /// Reason for doubt.
+        /// Reason for doubt (required).
         #[arg(long, short)]
         reason: Option<String>,
     },
@@ -102,7 +102,7 @@ enum Command {
         /// Entity identifier (claim:... or term:...).
         id: String,
 
-        /// Substantive reason for ignoring (hedge-only reasons are refused).
+        /// Substantive reason for ignoring (required; hedge-only reasons are refused).
         #[arg(long, short)]
         reason: Option<String>,
     },
