@@ -193,7 +193,7 @@ fn dismiss_refuses_claims_with_unverified_term_dependencies() {
     let v: Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "rule-not-met");
-    assert_eq!(v["data"]["rule_name"], "stale-cascade");
+    assert_eq!(v["data"]["rule_name"], "unresolved-terms");
 
     let shown = dont()
         .args(["show", &id, "--json"])

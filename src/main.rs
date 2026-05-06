@@ -876,12 +876,21 @@ fn main() {
         } => {
             let project = open_project_or_exit();
 
+            let mut resolved_depends_on: Vec<String> = vec![];
             let mut unresolved: Vec<String> = vec![];
-            for curie in &depends_on {
-                match project.store.term_curie_exists(curie) {
-                    Ok(true) => {}
-                    Ok(false) => unresolved.push(curie.clone()),
-                    Err(err) => handle_store_error(err, None),
+            for dep in &depends_on {
+                if dep.starts_with("term:") {
+                    match project.store.term_by_id(dep) {
+                        Ok(Some(_)) => resolved_depends_on.push(dep.clone()),
+                        Ok(None) => unresolved.push(dep.clone()),
+                        Err(err) => handle_store_error(err, None),
+                    }
+                } else {
+                    match project.store.term_by_curie(dep) {
+                        Ok(Some(term)) => resolved_depends_on.push(term.id),
+                        Ok(None) => unresolved.push(dep.clone()),
+                        Err(err) => handle_store_error(err, None),
+                    }
                 }
             }
 
@@ -896,8 +905,16 @@ fn main() {
                         unresolved
                             .iter()
                             .map(|c| RemediationEntry {
-                                command: format!("dont define {c} --doc \"<definition>\""),
-                                description: format!("Define the term {c} before concluding"),
+                                command: if c.starts_with("term:") {
+                                    "dont vocab".to_string()
+                                } else {
+                                    format!("dont define {c} --doc \"<definition>\"")
+                                },
+                                description: if c.starts_with("term:") {
+                                    format!("List terms and confirm whether {c} exists")
+                                } else {
+                                    format!("Define the term {c} before concluding")
+                                },
                             })
                             .collect(),
                     ),
@@ -914,11 +931,15 @@ fn main() {
                     message: format!(
                         "term reference {c} is not yet defined; verification blocked until resolved"
                     ),
-                    suggested_remediation: Some(format!("dont define {c} --doc \"<definition>\"")),
+                    suggested_remediation: Some(if c.starts_with("term:") {
+                        "dont vocab".to_string()
+                    } else {
+                        format!("dont define {c} --doc \"<definition>\"")
+                    }),
                 })
                 .collect();
 
-            match project.store.append_claim(&statement, &depends_on) {
+            match project.store.append_claim(&statement, &resolved_depends_on) {
                 Ok(result) => {
                     let payload = json!({
                         "id": result.id,
@@ -929,7 +950,7 @@ fn main() {
                         "atoms": [],
                         "hypotheses": [],
                         "evidence": [],
-                        "depends_on": depends_on,
+                        "depends_on": resolved_depends_on,
                         "applicable_rules": {},
                         "created_at": result.created_at,
                     });

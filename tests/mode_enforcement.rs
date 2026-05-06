@@ -34,7 +34,17 @@ fn define_term(dir: &TempDir, curie: &str) {
 fn conclude_with_resolved_depends_on_succeeds_in_permissive_mode() {
     let dir = TempDir::new().unwrap();
     init_permissive(&dir);
-    define_term(&dir, "WB:P001");
+
+    let defined = dont()
+        .args(["define", "WB:P001", "--doc", "a valid definition", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let defined_v: Value = serde_json::from_slice(&defined).unwrap();
+    let term_id = defined_v["data"]["id"].as_str().unwrap().to_string();
 
     let output = dont()
         .args(["conclude", "The system uses WB:P001", "--depends-on", "WB:P001", "--json"])
@@ -49,7 +59,8 @@ fn conclude_with_resolved_depends_on_succeeds_in_permissive_mode() {
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["status"], "unverified");
     let deps = v["data"]["depends_on"].as_array().unwrap();
-    assert!(deps.iter().any(|d| d.as_str().unwrap_or("").contains("WB:P001") || d == "WB:P001"));
+    assert_eq!(deps, &vec![Value::String(term_id)]);
+    assert!(v["warnings"].as_array().unwrap().is_empty());
 }
 
 #[test]
@@ -159,13 +170,23 @@ fn conclude_multiple_depends_on_one_unresolved_is_refused_in_strict_mode() {
 }
 
 #[test]
-fn conclude_carries_depends_on_in_view() {
+fn conclude_with_existing_term_id_depends_on_emits_no_unresolved_warning() {
     let dir = TempDir::new().unwrap();
     init_permissive(&dir);
-    define_term(&dir, "WB:P001");
+
+    let defined = dont()
+        .args(["define", "WB:P001", "--doc", "a valid definition", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let defined_v: Value = serde_json::from_slice(&defined).unwrap();
+    let term_id = defined_v["data"]["id"].as_str().unwrap().to_string();
 
     let output = dont()
-        .args(["conclude", "Uses WB:P001", "--depends-on", "WB:P001", "--json"])
+        .args(["conclude", "Uses an existing term id", "--depends-on", &term_id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -175,6 +196,7 @@ fn conclude_carries_depends_on_in_view() {
 
     let v: Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(v["ok"], true);
+    assert!(v["warnings"].as_array().unwrap().is_empty());
     let deps = v["data"]["depends_on"].as_array().unwrap();
-    assert!(!deps.is_empty(), "expected depends_on to be populated");
+    assert_eq!(deps, &vec![Value::String(term_id)]);
 }
