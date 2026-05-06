@@ -1,5 +1,7 @@
 use assert_cmd::Command;
-use dont::store::{HypothesisAssessment, HypothesisRecord, Store};
+use dont::store::{
+    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, StoreStatus,
+};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -47,6 +49,35 @@ fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
+}
+
+fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[&str]) {
+    let store = Store::open_dont_dir(dir.path()).unwrap();
+    let first = evidence.first().expect("at least one evidence item");
+    store
+        .append_status_change(
+            claim_id,
+            StoreStatus::Unverified,
+            StoreStatus::Verified,
+            StoreEvent {
+                kind: StoreEventKind::Dismissed,
+                note: None,
+                evidence: vec![(*first).to_string()],
+            },
+        )
+        .unwrap();
+    for uri in &evidence[1..] {
+        store
+            .append_evidence_event(
+                claim_id,
+                StoreEvent {
+                    kind: StoreEventKind::Dismissed,
+                    note: None,
+                    evidence: vec![(*uri).to_string()],
+                },
+            )
+            .unwrap();
+    }
 }
 
 fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
@@ -216,8 +247,14 @@ fn lock_claim_with_unverified_term_dependency_is_refused_by_lockable_gate() {
         .clone();
     let v: Value = serde_json::from_slice(&out).unwrap();
     let id = v["data"]["id"].as_str().unwrap().to_string();
-    dismiss_claim(&dir, &id, "https://source-one.example/evidence");
-    dismiss_claim(&dir, &id, "https://source-two.example/evidence");
+    seed_verified_claim_with_evidence(
+        &dir,
+        &id,
+        &[
+            "https://source-one.example/evidence",
+            "https://source-two.example/evidence",
+        ],
+    );
     seed_assessed_hypotheses(&dir, &id, 3);
 
     let output = dont()

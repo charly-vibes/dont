@@ -422,6 +422,28 @@ fn lockable_rule_view(record: &ClaimRecord) -> Value {
     })
 }
 
+fn dependency_gate_unmet_clauses(record: &ClaimRecord) -> Vec<UnmetClause> {
+    derived_assessments_for_claim(record)
+        .into_iter()
+        .map(|assessment| UnmetClause {
+            clause: format!("derived assessment {assessment} blocks verification"),
+            fix: "resolve dependency integrity issues before dismissing this claim"
+                .to_string(),
+        })
+        .collect()
+}
+
+fn dependency_gate_rule_name(unmet_clauses: &[UnmetClause]) -> &'static str {
+    if unmet_clauses
+        .iter()
+        .any(|clause| clause.clause.contains("unresolved-term"))
+    {
+        "unresolved-terms"
+    } else {
+        "stale-cascade"
+    }
+}
+
 fn evidence_check_warning(entity_id: &str, result: &EvidenceCheckResult) -> Option<Warning> {
     let (rule_name, default_detail, remediation) = match result.outcome.as_str() {
         "timeout" => (
@@ -1496,6 +1518,25 @@ fn main() {
             };
 
             let current = model_status_from_store(record.status);
+            let dependency_unmet = dependency_gate_unmet_clauses(&record);
+            if !dependency_unmet.is_empty() {
+                let rule_name = dependency_gate_rule_name(&dependency_unmet);
+                let err_result = ErrorResult::new(
+                    "rule-not-met",
+                    "dependency integrity blocks verification",
+                    Some(rule_name),
+                    None,
+                    Some(&id),
+                    dependency_unmet,
+                    vec![RemediationEntry {
+                        command: format!("dont show {id}"),
+                        description: "Inspect the blocking dependency assessments"
+                            .to_string(),
+                    }],
+                )
+                .expect("dependency gate refusal must include remediation");
+                emit_error_and_exit(err_result, vec![], 1);
+            }
             let event = StoreEvent {
                 kind: StoreEventKind::Dismissed,
                 note: None,

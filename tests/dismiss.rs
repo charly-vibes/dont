@@ -38,6 +38,19 @@ fn dismiss(dir: &TempDir, id: &str, evidence: &str) -> Vec<u8> {
         .clone()
 }
 
+fn define_term(dir: &TempDir, curie: &str) -> String {
+    let out = dont()
+        .args(["define", curie, "--doc", "a valid definition", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    v["data"]["id"].as_str().unwrap().to_string()
+}
+
 // --- Valid transitions ---
 
 #[test]
@@ -131,6 +144,55 @@ fn dismiss_without_evidence_returns_no_evidence_exit_1() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "no-evidence");
     assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn dismiss_refuses_claims_with_unverified_term_dependencies() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    define_term(&dir, "WB:P001");
+
+    let out = dont()
+        .args([
+            "conclude",
+            "Uses WB:P001",
+            "--depends-on",
+            "WB:P001",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let id = v["data"]["id"].as_str().unwrap().to_string();
+
+    let output = dont()
+        .args(["dismiss", &id, "--evidence", "https://example.test/proof", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "rule-not-met");
+    assert_eq!(v["data"]["rule_name"], "stale-cascade");
+
+    let shown = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown_v: Value = serde_json::from_slice(&shown).unwrap();
+    assert_eq!(shown_v["data"]["status"], "unverified");
 }
 
 #[test]
