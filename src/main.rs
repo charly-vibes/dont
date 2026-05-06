@@ -158,6 +158,32 @@ enum Command {
         /// Entity identifier (claim:... or term:...).
         id: String,
     },
+
+    /// Atomically ground a claim with its supporting evidence.
+    Ground {
+        /// Claim statement text.
+        statement: String,
+
+        /// Evidence URI or reference.
+        #[arg(long, short)]
+        evidence: Vec<String>,
+
+        /// Repository-relative file path for a structured evidence locator.
+        #[arg(long)]
+        file: Option<String>,
+
+        /// Line span within the file, e.g. "10-18" or "42".
+        #[arg(long)]
+        lines: Option<String>,
+
+        /// Named anchor within the file.
+        #[arg(long)]
+        anchor: Option<String>,
+
+        /// Captured excerpt from the referenced source.
+        #[arg(long)]
+        excerpt: Option<String>,
+    },
 }
 
 const DEFAULT_HEDGES: &[&str] = &["i think", "maybe", "not sure", "probably"];
@@ -329,6 +355,17 @@ fn updated_at(record: &ClaimRecord) -> String {
 
 fn build_claim_view(record: &ClaimRecord) -> Value {
     let evidence = collect_evidence(record);
+    let events: Vec<Value> = record
+        .events
+        .iter()
+        .map(|e| {
+            json!({
+                "kind": format!("{:?}", e.kind).to_lowercase(),
+                "tx": e.tx,
+                "created_at": e.created_at,
+            })
+        })
+        .collect();
     json!({
         "id": record.id,
         "entity_kind": "claim",
@@ -339,6 +376,7 @@ fn build_claim_view(record: &ClaimRecord) -> Value {
         "hypotheses": record.hypotheses,
         "evidence": evidence,
         "depends_on": record.depends_on,
+        "events": events,
         "applicable_rules": {
             "lockable": lockable_rule_view(record),
         },
@@ -2540,6 +2578,148 @@ fn main() {
                     Err(err) => handle_store_error(err, Some(&id)),
                 }
             }
+        }
+
+        Command::Ground {
+            statement,
+            evidence,
+            file,
+            lines,
+            anchor,
+            excerpt,
+        } => {
+            // Pre-validate all inputs before writing any state. This ensures that
+            // bad evidence or an empty statement leaves no partial claim behind.
+            if statement.trim().is_empty() {
+                emit_error_and_exit(
+                    refusal(
+                        "empty-statement",
+                        "ground requires a non-empty claim statement",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont ground \"<claim text>\" --evidence <uri>".to_string(),
+                            description: "Provide a non-empty statement".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+
+            let evidence: Vec<String> = evidence
+                .into_iter()
+                .filter(|e| !e.trim().is_empty())
+                .collect();
+
+            if evidence.is_empty() && file.is_none() {
+                emit_error_and_exit(
+                    refusal(
+                        "no-evidence",
+                        "ground requires at least one --evidence URI or --file locator",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont ground \"<statement>\" --evidence <uri>".to_string(),
+                            description: "Re-run with at least one evidence reference".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+
+            let project = open_project_or_exit();
+            let project_root = project.dont_dir.parent().unwrap_or(&project.dont_dir).to_path_buf();
+
+            let mut all_evidence: Vec<Value> =
+                evidence.into_iter().map(Value::String).collect();
+            if let Some(ref file_path) = file {
+                if PathBuf::from(file_path).is_absolute() {
+                    emit_error_and_exit(
+                        refusal(
+                            "path-not-relative",
+                            "repository evidence locators must be project-relative paths, not absolute",
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont ground \"<statement>\" --file <relative-path>".to_string(),
+                                description: "Use a path relative to the project root".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    );
+                }
+                let normalized = match normalize_repo_path(file_path, &project_root) {
+                    Ok(p) => p,
+                    Err(msg) => emit_error_and_exit(
+                        refusal(
+                            "path-escapes-root",
+                            &format!("evidence locator path is invalid: {msg}"),
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont ground \"<statement>\" --file <relative-path>".to_string(),
+                                description: "Use a path that stays within the project root".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                };
+                let line_span = match lines.as_deref().map(parse_line_span) {
+                    Some(Ok(span)) => Some(span),
+                    Some(Err(msg)) => emit_error_and_exit(
+                        refusal(
+                            "invalid-line-span",
+                            &format!("invalid --lines value: {msg}"),
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont ground \"<statement>\" --file <path> --lines <start-end>".to_string(),
+                                description: "Use a format like \"10-18\" or \"42\"".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    None => None,
+                };
+                all_evidence.push(build_repo_locator(
+                    &normalized,
+                    line_span,
+                    anchor.as_deref(),
+                    excerpt.as_deref(),
+                ));
+            }
+
+            // Write claim then immediately verify — both or neither.
+            let conclude_result = match project.store.append_claim(&statement, &[]) {
+                Ok(r) => r,
+                Err(err) => handle_store_error(err, None),
+            };
+            let claim_id = conclude_result.id.clone();
+
+            let dismiss_event = StoreEvent {
+                kind: StoreEventKind::Dismissed,
+                note: None,
+                evidence: all_evidence,
+            };
+            let dismiss_result = match project.store.append_status_change(
+                &claim_id,
+                StoreStatus::Unverified,
+                StoreStatus::Verified,
+                dismiss_event,
+            ) {
+                Ok(r) => r,
+                Err(err) => handle_store_error(err, Some(&claim_id)),
+            };
+
+            let updated = match project.store.claim_by_id(&claim_id) {
+                Ok(Some(r)) => r,
+                Ok(None) => handle_store_error(
+                    StoreError::Malformed(format!("claim {claim_id} vanished after ground")),
+                    Some(&claim_id),
+                ),
+                Err(err) => handle_store_error(err, Some(&claim_id)),
+            };
+            emit_claim_view(&updated, &dismiss_result);
         }
     }
 }
