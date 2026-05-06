@@ -30,6 +30,20 @@ pub fn trust(from: Status) -> Result<Status, TransitionError> {
     }
 }
 
+pub fn reopen(from: Status) -> Result<Status, TransitionError> {
+    match from {
+        Status::Ignored => Ok(Status::Unverified),
+        Status::Unverified | Status::Verified | Status::Doubted | Status::Locked => {
+            Err(TransitionError {
+                code: "invalid-transition".to_string(),
+                message: format!("cannot reopen a {from:?} entity — only ignored entities can be reopened"),
+                from_status: from,
+                entity_id: None,
+            })
+        }
+    }
+}
+
 pub fn ignore(from: Status) -> Result<Status, TransitionError> {
     match from {
         Status::Unverified | Status::Verified | Status::Doubted => Ok(Status::Ignored),

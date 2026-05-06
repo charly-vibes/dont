@@ -5,7 +5,10 @@ use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 
 use dont::envelope::{Envelope, ErrorResult, HintEntry, RemediationEntry, Warning};
-use dont::model::{dismiss as model_dismiss, ignore as model_ignore, trust as model_trust, Status};
+use dont::model::{
+    dismiss as model_dismiss, ignore as model_ignore, reopen as model_reopen, trust as model_trust,
+    Status,
+};
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
     AppendResult, ClaimRecord, StoreError, StoreEvent, StoreEventKind, StoreStatus, TermRecord,
@@ -71,6 +74,12 @@ enum Command {
         /// Evidence URI or reference.
         #[arg(long, short)]
         evidence: Vec<String>,
+    },
+
+    /// Restore an ignored claim or term to unverified status.
+    Reopen {
+        /// Entity identifier (claim:... or term:...).
+        id: String,
     },
 
     /// Move a claim or term to ignored state.
@@ -751,6 +760,130 @@ fn main() {
                         Err(err) => handle_store_error(err, Some(&id)),
                     };
                     emit_claim_view(&updated, &result);
+                }
+            }
+        }
+
+        Command::Reopen { id } => {
+            let project = open_project_or_exit();
+
+            if id.starts_with("term:") {
+                let record = match project.store.term_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "entity-not-found",
+                            &format!("no entity with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all entities to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+                let current = model_status_from_store(record.status);
+                match model_reopen(current) {
+                    Err(transition_err) => emit_error_and_exit(
+                        refusal(
+                            &transition_err.code,
+                            &transition_err.message,
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current entity status".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Ok(new_model_status) => {
+                        let event = StoreEvent {
+                            kind: StoreEventKind::Reopened,
+                            note: None,
+                            evidence: vec![],
+                        };
+                        let result = match project.store.append_term_status_change(
+                            &id,
+                            store_status_from_model(current),
+                            store_status_from_model(new_model_status),
+                            event,
+                        ) {
+                            Ok(r) => r,
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        let updated = match project.store.term_by_id(&id) {
+                            Ok(Some(r)) => r,
+                            Ok(None) => handle_store_error(
+                                StoreError::Malformed(format!("term {id} vanished after reopen")),
+                                Some(&id),
+                            ),
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        emit_term_view(&updated, &result, vec![]);
+                    }
+                }
+            } else {
+                let record = match project.store.claim_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "entity-not-found",
+                            &format!("no entity with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all entities to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+                let current = model_status_from_store(record.status);
+                match model_reopen(current) {
+                    Err(transition_err) => emit_error_and_exit(
+                        refusal(
+                            &transition_err.code,
+                            &transition_err.message,
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current entity status".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Ok(new_model_status) => {
+                        let event = StoreEvent {
+                            kind: StoreEventKind::Reopened,
+                            note: None,
+                            evidence: vec![],
+                        };
+                        let result = match project.store.append_status_change(
+                            &id,
+                            store_status_from_model(current),
+                            store_status_from_model(new_model_status),
+                            event,
+                        ) {
+                            Ok(r) => r,
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        let updated = match project.store.claim_by_id(&id) {
+                            Ok(Some(r)) => r,
+                            Ok(None) => handle_store_error(
+                                StoreError::Malformed(format!("claim {id} vanished after reopen")),
+                                Some(&id),
+                            ),
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        emit_claim_view(&updated, &result);
+                    }
                 }
             }
         }

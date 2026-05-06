@@ -69,6 +69,7 @@ pub enum StoreEventKind {
     Trusted,
     Dismissed,
     Ignored,
+    Reopened,
 }
 
 impl StoreEventKind {
@@ -79,6 +80,7 @@ impl StoreEventKind {
             Self::Trusted => "trusted",
             Self::Dismissed => "dismissed",
             Self::Ignored => "ignored",
+            Self::Reopened => "reopened",
         }
     }
 
@@ -89,6 +91,7 @@ impl StoreEventKind {
             "trusted" => Ok(Self::Trusted),
             "dismissed" => Ok(Self::Dismissed),
             "ignored" => Ok(Self::Ignored),
+            "reopened" => Ok(Self::Reopened),
             _ => Err(StoreError::Malformed(format!("unknown event kind {value}"))),
         }
     }
