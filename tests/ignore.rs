@@ -236,3 +236,37 @@ fn ignore_carries_tx_in_meta() {
     let v: Value = serde_json::from_slice(&output).unwrap();
     assert!(v["meta"]["tx"].as_i64().unwrap() > 0);
 }
+
+#[test]
+fn prime_status_counts_includes_ignored() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let claim_id = conclude_claim(&dir, "The sky is blue");
+    let term_id = define_term(&dir, "proj:Concept");
+
+    dont()
+        .args(["ignore", &claim_id, "--reason", "out of scope", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    dont()
+        .args(["ignore", &term_id, "--reason", "deprecated concept", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let output = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["data"]["status_counts"]["ignored"], 2);
+    assert_eq!(v["data"]["status_counts"]["unverified"], 0);
+    assert_eq!(v["data"]["status_counts"]["locked"], 0);
+}

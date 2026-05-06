@@ -2012,9 +2012,15 @@ fn main() {
                 Ok(c) => c,
                 Err(err) => handle_store_error(err, None),
             };
+            let terms = match project.store.list_terms() {
+                Ok(t) => t,
+                Err(err) => handle_store_error(err, None),
+            };
             let mut unverified = 0;
             let mut doubted = 0;
             let mut verified = 0;
+            let mut ignored = 0;
+            let mut locked = 0;
             let mut blocking = Vec::new();
             for claim in &claims {
                 match claim.status {
@@ -2028,7 +2034,17 @@ fn main() {
                         }));
                     }
                     StoreStatus::Verified => verified += 1,
-                    StoreStatus::Ignored | StoreStatus::Locked => {}
+                    StoreStatus::Ignored => ignored += 1,
+                    StoreStatus::Locked => locked += 1,
+                }
+            }
+            for term in &terms {
+                match term.status {
+                    StoreStatus::Unverified => unverified += 1,
+                    StoreStatus::Doubted => doubted += 1,
+                    StoreStatus::Verified => verified += 1,
+                    StoreStatus::Ignored => ignored += 1,
+                    StoreStatus::Locked => locked += 1,
                 }
             }
             let payload = json!({
@@ -2038,8 +2054,8 @@ fn main() {
                     "unverified": unverified,
                     "doubted": doubted,
                     "verified": verified,
-                    "locked": 0,
-                    "ignored": 0,
+                    "locked": locked,
+                    "ignored": ignored,
                 },
                 "assessment_counts": {
                     "stale": 0,
