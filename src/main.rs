@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process;
@@ -19,6 +20,14 @@ use dont::store::{
     StoreEventKind, StoreStatus, TermRecord,
 };
 
+thread_local! {
+    static HUMAN_MODE: Cell<bool> = const { Cell::new(false) };
+}
+
+fn human_mode() -> bool {
+    HUMAN_MODE.with(|m| m.get())
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "dont")]
 #[command(version)]
@@ -27,6 +36,10 @@ struct Cli {
     /// Output JSON envelope on stdout.
     #[arg(long, global = true)]
     json: bool,
+
+    /// Output human-readable text instead of JSON (--json takes precedence).
+    #[arg(long, global = true)]
+    human: bool,
 
     #[command(subcommand)]
     command: Command,
@@ -212,13 +225,228 @@ fn cwd() -> PathBuf {
 }
 
 fn emit_json<T: serde::Serialize>(envelope: &T) {
-    println!("{}", serde_json::to_string(envelope).unwrap());
+    if human_mode() {
+        let v = serde_json::to_value(envelope).unwrap();
+        println!("{}", format_human(&v));
+        if let Some(warnings) = v["warnings"].as_array() {
+            for w in warnings {
+                if let Some(msg) = w["message"].as_str() {
+                    eprintln!("warning: {msg}");
+                }
+            }
+        }
+    } else {
+        println!("{}", serde_json::to_string(envelope).unwrap());
+    }
 }
 
 fn emit_error_and_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> ! {
-    let envelope = Envelope::error(err, warnings);
-    emit_json(&envelope);
+    if human_mode() {
+        eprintln!("error: {}", err.message);
+        for w in &warnings {
+            eprintln!("warning: {}", w.message);
+        }
+        for r in &err.remediation {
+            eprintln!("  run: {}", r.command);
+        }
+    } else {
+        let envelope = Envelope::error(err, warnings);
+        emit_json(&envelope);
+    }
     process::exit(code);
+}
+
+fn format_human(v: &Value) -> String {
+    let kind = v.get("envelope_kind").and_then(Value::as_str).unwrap_or("");
+    let data = &v["data"];
+    match kind {
+        "empty" => {
+            let mode = data["mode"].as_str().unwrap_or("unknown");
+            format!("initialized  {mode} mode")
+        }
+        "claim" => {
+            let id = data["id"].as_str().unwrap_or("?");
+            let status = data["status"].as_str().unwrap_or("?");
+            let statement = data["statement"].as_str().unwrap_or("?");
+            let has_tx = v["meta"]["tx"].is_number();
+            if has_tx {
+                format!("{status}  {id}\n  {statement}")
+            } else {
+                format_claim_detail(data)
+            }
+        }
+        "claims" => format_claims_list(data),
+        "term" => {
+            let id = data["id"].as_str().unwrap_or("?");
+            let status = data["status"].as_str().unwrap_or("?");
+            let curie = data["curie"].as_str().unwrap_or("?");
+            let has_tx = v["meta"]["tx"].is_number();
+            if has_tx {
+                format!("{status}  {id}  {curie}")
+            } else {
+                format_term_detail(data)
+            }
+        }
+        "terms" => format_terms_list(data),
+        "prime" => format_prime(data),
+        "trace" => format_trace(data),
+        "evidence_check" => format_evidence_check(data),
+        _ => format!("ok  {kind}"),
+    }
+}
+
+fn format_claims_list(data: &Value) -> String {
+    let items = match data.as_array() {
+        Some(arr) => arr,
+        None => return "(no claims)".to_string(),
+    };
+    if items.is_empty() {
+        return "(no claims)".to_string();
+    }
+    items
+        .iter()
+        .map(|item| {
+            let id = item["id"].as_str().unwrap_or("?");
+            let status = item["status"].as_str().unwrap_or("?");
+            let stmt = item["statement"].as_str().unwrap_or("?");
+            let truncated = if stmt.len() > 70 { &stmt[..70] } else { stmt };
+            format!("{status:<12}  {id}  {truncated}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn format_terms_list(data: &Value) -> String {
+    let items = match data.as_array() {
+        Some(arr) => arr,
+        None => return "(no terms)".to_string(),
+    };
+    if items.is_empty() {
+        return "(no terms)".to_string();
+    }
+    items
+        .iter()
+        .map(|item| {
+            let id = item["id"].as_str().unwrap_or("?");
+            let status = item["status"].as_str().unwrap_or("?");
+            let curie = item["curie"].as_str().unwrap_or("?");
+            format!("{status:<12}  {id}  {curie}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn format_claim_detail(data: &Value) -> String {
+    let id = data["id"].as_str().unwrap_or("?");
+    let status = data["status"].as_str().unwrap_or("?");
+    let statement = data["statement"].as_str().unwrap_or("?");
+    let created = data["created_at"].as_str().unwrap_or("?");
+    let evidence = data["evidence"].as_array();
+    let evidence_str = match evidence {
+        Some(e) if !e.is_empty() => e
+            .iter()
+            .map(|ev| {
+                if let Some(s) = ev.as_str() {
+                    format!("    {s}")
+                } else if ev.get("kind").and_then(Value::as_str) == Some("repo-file") {
+                    let path = ev["path"].as_str().unwrap_or("?");
+                    format!("    repo:{path}")
+                } else {
+                    format!("    {ev}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => "    (none)".to_string(),
+    };
+    let depends = data["depends_on"].as_array();
+    let mut out = format!(
+        "{id}\n  status:     {status}\n  statement:  {statement}\n  evidence:\n{evidence_str}\n  created:    {created}"
+    );
+    if let Some(deps) = depends {
+        if !deps.is_empty() {
+            let dep_list: Vec<&str> = deps.iter().filter_map(Value::as_str).collect();
+            out.push_str(&format!("\n  depends_on: {}", dep_list.join(", ")));
+        }
+    }
+    out
+}
+
+fn format_term_detail(data: &Value) -> String {
+    let id = data["id"].as_str().unwrap_or("?");
+    let status = data["status"].as_str().unwrap_or("?");
+    let curie = data["curie"].as_str().unwrap_or("?");
+    let definition = data["definition"].as_str().unwrap_or("(none)");
+    let mut out = format!("{id}  {curie}\n  status:      {status}\n  definition:  {definition}");
+    if let Some(label) = data["label"].as_str() {
+        if !label.is_empty() {
+            out.push_str(&format!("\n  label:       {label}"));
+        }
+    }
+    out
+}
+
+fn format_prime(data: &Value) -> String {
+    let mode = data["mode"].as_str().unwrap_or("?");
+    let counts = &data["status_counts"];
+    let unverified = counts["unverified"].as_u64().unwrap_or(0);
+    let doubted = counts["doubted"].as_u64().unwrap_or(0);
+    let verified = counts["verified"].as_u64().unwrap_or(0);
+    let locked = counts["locked"].as_u64().unwrap_or(0);
+    let ignored = counts["ignored"].as_u64().unwrap_or(0);
+    let mut out = format!(
+        "dont project  {mode} mode\n  unverified: {unverified}  doubted: {doubted}  verified: {verified}  locked: {locked}  ignored: {ignored}"
+    );
+    if let Some(blocking) = data["blocking"].as_array() {
+        if !blocking.is_empty() {
+            out.push_str("\n\nblocking:");
+            for item in blocking {
+                let id = item["id"].as_str().unwrap_or("?");
+                if let Some(stmt) = item["statement"].as_str() {
+                    let truncated = if stmt.len() > 60 { &stmt[..60] } else { stmt };
+                    out.push_str(&format!("\n  {id}  [doubted]  {truncated}"));
+                } else if let Some(curie) = item["curie"].as_str() {
+                    out.push_str(&format!("\n  {id}  [doubted]  {curie}"));
+                } else {
+                    out.push_str(&format!("\n  {id}  [doubted]"));
+                }
+            }
+        }
+    }
+    out
+}
+
+fn format_trace(data: &Value) -> String {
+    let id = data["entity_id"].as_str().unwrap_or("?");
+    match data["blocker_paths"].as_array() {
+        Some(p) if p.is_empty() => format!("{id}  no blockers"),
+        Some(p) => {
+            let mut out = format!("{id} is blocked by:");
+            for path in p {
+                out.push_str(&format!("\n  {path}"));
+            }
+            out
+        }
+        None => format!("{id}  (trace unavailable)"),
+    }
+}
+
+fn format_evidence_check(data: &Value) -> String {
+    let id = data["entity_id"].as_str().unwrap_or("?");
+    let status = data["status"].as_str().unwrap_or("?");
+    let mut out = format!("{id} ({status})");
+    if let Some(results) = data["results"].as_array() {
+        for r in results {
+            let uri = r["uri"].as_str().unwrap_or("?");
+            let outcome = r["outcome"].as_str().unwrap_or("?");
+            let check = if outcome == "ok" { "ok" } else { "fail" };
+            out.push_str(&format!("\n  [{check}] {uri}"));
+            if let Some(detail) = r["detail"].as_str() {
+                out.push_str(&format!(" ({detail})"));
+            }
+        }
+    }
+    out
 }
 
 fn project_error_to_exit(err: &ProjectError) -> (String, String, i32) {
@@ -1140,6 +1368,10 @@ fn doc_shape_warnings(doc: &str) -> Vec<Warning> {
 
 fn main() {
     let cli = Cli::parse();
+
+    if cli.human && !cli.json {
+        HUMAN_MODE.with(|m| m.set(true));
+    }
 
     match cli.command {
         Command::Init { strict } => {
