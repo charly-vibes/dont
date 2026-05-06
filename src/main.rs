@@ -6,15 +6,17 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use dont::envelope::{Envelope, ErrorResult, HintEntry, RemediationEntry, Warning};
+use dont::envelope::{
+    Envelope, ErrorResult, HintEntry, RemediationEntry, UnmetClause, Warning,
+};
 use dont::model::{
-    Status, dismiss as model_dismiss, ignore as model_ignore, reopen as model_reopen,
-    trust as model_trust,
+    Status, dismiss as model_dismiss, ignore as model_ignore, lock as model_lock,
+    reopen as model_reopen, trust as model_trust,
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
-    AppendResult, ClaimRecord, EventRecord, StoreError, StoreEvent, StoreEventKind, StoreStatus,
-    TermRecord,
+    AppendResult, ClaimRecord, EventRecord, HypothesisRecord, StoreError, StoreEvent,
+    StoreEventKind, StoreStatus, TermRecord,
 };
 
 #[derive(Debug, Parser)]
@@ -81,6 +83,12 @@ enum Command {
         /// Evidence URI or reference.
         #[arg(long, short)]
         evidence: Vec<String>,
+    },
+
+    /// Promote a verified claim to locked when the lockable gate is met.
+    Lock {
+        /// Claim identifier.
+        id: String,
     },
 
     /// Restore an ignored claim or term to unverified status.
@@ -271,12 +279,14 @@ fn build_claim_view(record: &ClaimRecord) -> Value {
         "entity_kind": "claim",
         "statement": record.statement,
         "status": format!("{:?}", record.status).to_lowercase(),
-        "derived_assessments": [],
+        "derived_assessments": derived_assessments_for_claim(record),
         "atoms": [],
-        "hypotheses": [],
+        "hypotheses": record.hypotheses,
         "evidence": evidence,
         "depends_on": record.depends_on,
-        "applicable_rules": {},
+        "applicable_rules": {
+            "lockable": lockable_rule_view(record),
+        },
         "created_at": record.created_at,
         "updated_at": updated_at(record),
     })
@@ -297,6 +307,118 @@ fn build_term_view(record: &TermRecord) -> Value {
         "provenance": Value::Null,
         "created_at": record.created_at,
         "applicable_rules": {},
+    })
+}
+
+fn assessed_hypothesis_count(hypotheses: &[HypothesisRecord]) -> usize {
+    hypotheses
+        .iter()
+        .filter(|h| !h.assessment.supporting.is_empty() || !h.assessment.refuting.is_empty())
+        .count()
+}
+
+fn evidence_source_key(uri: &str) -> String {
+    let without_scheme = uri.split_once("://").map(|(_, rest)| rest).unwrap_or(uri);
+    let host = without_scheme
+        .split(&['/', '?', '#'][..])
+        .next()
+        .unwrap_or(without_scheme)
+        .trim();
+    if host.is_empty() {
+        uri.to_string()
+    } else {
+        host.to_lowercase()
+    }
+}
+
+fn independent_evidence_count(record: &ClaimRecord) -> usize {
+    let mut sources = std::collections::BTreeSet::new();
+    for uri in collect_evidence(record) {
+        sources.insert(evidence_source_key(&uri));
+    }
+    sources.len()
+}
+
+fn derived_assessments_for_claim(record: &ClaimRecord) -> Vec<String> {
+    let mut derived = Vec::new();
+    if record.depends_on.is_empty() {
+        return derived;
+    }
+    let project = match Project::open(&cwd()) {
+        Ok(project) => project,
+        Err(_) => return derived,
+    };
+
+    for dep in &record.depends_on {
+        match project.store.term_by_curie(dep) {
+            Ok(Some(term)) => match term.status {
+                StoreStatus::Verified => {}
+                StoreStatus::Ignored | StoreStatus::Locked => {
+                    if !derived.iter().any(|d| d == "compromised-support") {
+                        derived.push("compromised-support".to_string());
+                    }
+                }
+                StoreStatus::Unverified | StoreStatus::Doubted => {
+                    if !derived.iter().any(|d| d == "stale") {
+                        derived.push("stale".to_string());
+                    }
+                }
+            },
+            Ok(None) => {
+                if !derived.iter().any(|d| d == "unresolved-term") {
+                    derived.push("unresolved-term".to_string());
+                }
+            }
+            Err(_) => {
+                if !derived.iter().any(|d| d == "dangling-dependency") {
+                    derived.push("dangling-dependency".to_string());
+                }
+            }
+        }
+    }
+
+    derived
+}
+
+fn lockable_unmet_clauses(record: &ClaimRecord) -> Vec<UnmetClause> {
+    let mut unmet = Vec::new();
+    let hypothesis_count = assessed_hypothesis_count(&record.hypotheses);
+    if hypothesis_count < 3 {
+        unmet.push(UnmetClause {
+            clause: format!("needs >=3 assessed hypotheses; has {hypothesis_count}"),
+            fix: "record and assess at least three competing hypotheses before locking"
+                .to_string(),
+        });
+    }
+
+    let evidence_count = independent_evidence_count(record);
+    if evidence_count < 2 {
+        unmet.push(UnmetClause {
+            clause: format!("needs >=2 independent supporting evidence items; has {evidence_count}"),
+            fix: "attach evidence from at least two independent sources before locking"
+                .to_string(),
+        });
+    }
+
+    for assessment in derived_assessments_for_claim(record) {
+        unmet.push(UnmetClause {
+            clause: format!("derived assessment {assessment} blocks locking"),
+            fix: "resolve dependency integrity issues before locking".to_string(),
+        });
+    }
+
+    unmet
+}
+
+fn lockable_rule_view(record: &ClaimRecord) -> Value {
+    let unmet: Vec<String> = lockable_unmet_clauses(record)
+        .into_iter()
+        .map(|clause| clause.clause)
+        .collect();
+    json!({
+        "rule_kind": "gate",
+        "met": unmet.is_empty(),
+        "unmet": unmet,
     })
 }
 
@@ -926,6 +1048,134 @@ fn main() {
                     emit_claim_view(&updated, &result);
                 }
             }
+        }
+
+        Command::Lock { id } => {
+            if id.starts_with("term:") {
+                emit_error_and_exit(
+                    refusal(
+                        "wrong-entity-kind",
+                        "lock applies to claims only in this version",
+                        Some(&id),
+                        vec![RemediationEntry {
+                            command: format!("dont show {id}"),
+                            description: "Inspect the term instead of trying to lock it"
+                                .to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+
+            let project = open_project_or_exit();
+            let record = match project.store.claim_by_id(&id) {
+                Ok(Some(r)) => r,
+                Ok(None) => emit_error_and_exit(
+                    refusal(
+                        "claim-not-found",
+                        &format!("no claim with id {id}"),
+                        Some(&id),
+                        vec![RemediationEntry {
+                            command: "dont list".to_string(),
+                            description: "List all claims to find the correct id".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                ),
+                Err(err) => handle_store_error(err, Some(&id)),
+            };
+
+            let current = model_status_from_store(record.status);
+            match current {
+                Status::Locked => emit_error_and_exit(
+                    refusal(
+                        "claim-locked",
+                        "claim is already locked",
+                        Some(&id),
+                        vec![RemediationEntry {
+                            command: format!("dont show {id}"),
+                            description: "Inspect the locked claim".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                ),
+                Status::Verified => {}
+                _ => emit_error_and_exit(
+                    refusal(
+                        "claim-not-verified",
+                        "claim must be verified before it can be locked",
+                        Some(&id),
+                        vec![RemediationEntry {
+                            command: format!("dont dismiss {id} --evidence <uri>"),
+                            description: "Attach evidence until the claim reaches verified"
+                                .to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                ),
+            }
+
+            let unmet_clauses = lockable_unmet_clauses(&record);
+            if !unmet_clauses.is_empty() {
+                let err_result = ErrorResult::new(
+                    "rule-not-met",
+                    "lockable gate is not met",
+                    Some("lockable"),
+                    None,
+                    Some(&id),
+                    unmet_clauses,
+                    vec![RemediationEntry {
+                        command: format!("dont show {id}"),
+                        description: "Inspect the claim and satisfy the unmet lock gates"
+                            .to_string(),
+                    }],
+                )
+                .expect("lock refusal must include remediation");
+                emit_error_and_exit(err_result, vec![], 1);
+            }
+
+            let result = match model_lock(current) {
+                Ok(new_model_status) => match project.store.append_status_change(
+                    &id,
+                    store_status_from_model(current),
+                    store_status_from_model(new_model_status),
+                    StoreEvent {
+                        kind: StoreEventKind::Locked,
+                        note: None,
+                        evidence: vec![],
+                    },
+                ) {
+                    Ok(r) => r,
+                    Err(err) => handle_store_error(err, Some(&id)),
+                },
+                Err(err) => emit_error_and_exit(
+                    refusal(
+                        &err.code,
+                        &err.message,
+                        Some(&id),
+                        vec![RemediationEntry {
+                            command: format!("dont show {id}"),
+                            description: "Inspect the current claim status".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                ),
+            };
+
+            let updated = match project.store.claim_by_id(&id) {
+                Ok(Some(r)) => r,
+                Ok(None) => handle_store_error(
+                    StoreError::Malformed(format!("claim {id} vanished after lock")),
+                    Some(&id),
+                ),
+                Err(err) => handle_store_error(err, Some(&id)),
+            };
+            emit_claim_view(&updated, &result);
         }
 
         Command::Reopen { id } => {

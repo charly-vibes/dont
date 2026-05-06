@@ -68,6 +68,7 @@ pub enum StoreEventKind {
     Defined,
     Trusted,
     Dismissed,
+    Locked,
     Ignored,
     Reopened,
 }
@@ -79,6 +80,7 @@ impl StoreEventKind {
             Self::Defined => "defined",
             Self::Trusted => "trusted",
             Self::Dismissed => "dismissed",
+            Self::Locked => "locked",
             Self::Ignored => "ignored",
             Self::Reopened => "reopened",
         }
@@ -90,6 +92,7 @@ impl StoreEventKind {
             "defined" => Ok(Self::Defined),
             "trusted" => Ok(Self::Trusted),
             "dismissed" => Ok(Self::Dismissed),
+            "locked" => Ok(Self::Locked),
             "ignored" => Ok(Self::Ignored),
             "reopened" => Ok(Self::Reopened),
             _ => Err(StoreError::Malformed(format!("unknown event kind {value}"))),
@@ -113,12 +116,26 @@ pub struct Datom {
     pub assert_bit: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct HypothesisAssessment {
+    pub supporting: Vec<String>,
+    pub refuting: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct HypothesisRecord {
+    pub idx: usize,
+    pub text: String,
+    pub assessment: HypothesisAssessment,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaimRecord {
     pub id: String,
     pub statement: String,
     pub status: StoreStatus,
     pub depends_on: Vec<String>,
+    pub hypotheses: Vec<HypothesisRecord>,
     pub created_at: String,
     pub events: Vec<EventRecord>,
 }
@@ -210,6 +227,19 @@ impl Store {
                 r#"?[key, value] <- [["schema_version", {}]] :put metadata {{key => value}}"#,
                 version
             ))
+        })
+    }
+
+    #[doc(hidden)]
+    pub fn set_claim_hypotheses_for_test(
+        &self,
+        claim_id: &str,
+        hypotheses: &[HypothesisRecord],
+    ) -> Result<(), StoreError> {
+        self.with_write_lock(|store| {
+            let tx = store.next_tx()?;
+            let value = serde_json::to_value(hypotheses).map_err(StoreError::from_err)?;
+            store.put_datoms(&[Datom::assert(claim_id, "hypotheses", value, tx)])
         })
     }
 
@@ -573,7 +603,25 @@ impl Store {
                 .to_string();
             let mut events = events_by_claim.remove(&id).unwrap_or_default();
             events.sort_by_key(|e| e.tx);
-            records.push(ClaimRecord { id, statement, status, depends_on: vec![], created_at, events });
+            let depends_on = datoms
+                .iter()
+                .filter(|d| d.attribute == "depends_on" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(ToString::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let hypotheses = datoms
+                .iter()
+                .filter(|d| d.attribute == "hypotheses" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .map(|d| hypotheses_from_value(&d.value))
+                .transpose()?
+                .unwrap_or_default();
+            records.push(ClaimRecord { id, statement, status, depends_on, hypotheses, created_at, events });
         }
         Ok(records)
     }
@@ -612,6 +660,10 @@ impl Store {
                     .collect()
             })
             .unwrap_or_default();
+        let hypotheses = latest_asserted_value(&datoms, "hypotheses")
+            .map(hypotheses_from_value)
+            .transpose()?
+            .unwrap_or_default();
         let mut events = self.events_for_claim(claim_id)?;
         events.sort_by_key(|event| event.tx);
         Ok(Some(ClaimRecord {
@@ -619,6 +671,7 @@ impl Store {
             statement,
             status,
             depends_on,
+            hypotheses,
             created_at,
             events,
         }))
@@ -659,6 +712,22 @@ impl Store {
             created_at,
             events,
         }))
+    }
+
+    pub fn term_by_curie(&self, curie: &str) -> Result<Option<TermRecord>, StoreError> {
+        let script = format!(
+            r#"?[entity] := *datoms[entity, "curie", {}, _, true], *datoms[entity, "entity_type", "term", _, true]"#,
+            json_string(curie)
+        );
+        let rows = self.query_rows(&script)?;
+        let Some(term_id) = rows
+            .first()
+            .and_then(|row| row.first())
+            .and_then(Value::as_str)
+        else {
+            return Ok(None);
+        };
+        self.term_by_id(term_id)
     }
 
     pub fn datoms_for_entity(&self, entity: &str) -> Result<Vec<Datom>, StoreError> {
@@ -909,6 +978,10 @@ fn prefixed_ulid(prefix: &str) -> String {
 
 fn now_rfc3339_seconds() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+fn hypotheses_from_value(value: &Value) -> Result<Vec<HypothesisRecord>, StoreError> {
+    serde_json::from_value(value.clone()).map_err(StoreError::from_err)
 }
 
 fn json_string(value: &str) -> String {

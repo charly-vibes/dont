@@ -73,3 +73,17 @@ pub fn dismiss(from: Status) -> Result<Status, TransitionError> {
         }),
     }
 }
+
+pub fn lock(from: Status) -> Result<Status, TransitionError> {
+    match from {
+        Status::Verified => Ok(Status::Locked),
+        Status::Unverified | Status::Doubted | Status::Ignored | Status::Locked => {
+            Err(TransitionError {
+                code: "invalid-transition".to_string(),
+                message: format!("cannot lock a {from:?} entity"),
+                from_status: from,
+                entity_id: None,
+            })
+        }
+    }
+}

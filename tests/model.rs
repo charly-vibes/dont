@@ -1,4 +1,4 @@
-use dont::model::{Status, TransitionError, trust, dismiss};
+use dont::model::{Status, TransitionError, dismiss, lock, trust};
 
 // --- Valid transitions ---
 
@@ -22,6 +22,11 @@ fn dismiss_doubted_produces_verified() {
     assert_eq!(dismiss(Status::Doubted).unwrap(), Status::Verified);
 }
 
+#[test]
+fn lock_verified_produces_locked() {
+    assert_eq!(lock(Status::Verified).unwrap(), Status::Locked);
+}
+
 // --- Invalid transitions (typed refusal) ---
 
 #[test]
@@ -36,6 +41,13 @@ fn dismiss_verified_is_refused() {
     // Already-verified dismiss is evidence append, not a status transition (Phase 8).
     // For now it must return a typed refusal.
     let err = dismiss(Status::Verified).unwrap_err();
+    assert_eq!(err.code, "invalid-transition");
+    assert!(!err.message.is_empty());
+}
+
+#[test]
+fn lock_unverified_is_refused() {
+    let err = lock(Status::Unverified).unwrap_err();
     assert_eq!(err.code, "invalid-transition");
     assert!(!err.message.is_empty());
 }
