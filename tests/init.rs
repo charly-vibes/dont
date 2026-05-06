@@ -96,6 +96,11 @@ fn init_strict_mode_is_visible_in_prime() {
     assert_eq!(v["data"]["mode"], "strict");
     assert_eq!(v["data"]["status_counts"]["unverified"], 0);
     assert_eq!(v["data"]["blocking"].as_array().unwrap().len(), 0);
+    assert!(v["hints"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|hint| hint["command"] != "dont help --tutorial"));
 }
 
 #[test]

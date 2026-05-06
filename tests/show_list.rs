@@ -243,3 +243,72 @@ fn list_empty_project_returns_empty_array() {
     assert_eq!(v["envelope_kind"], "claims");
     assert_eq!(v["data"].as_array().unwrap().len(), 0);
 }
+
+#[test]
+fn list_status_filter_returns_only_matching_claims() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let unverified = conclude_claim(&dir, "still unverified");
+    let doubted = conclude_claim(&dir, "will be doubted");
+    let verified = conclude_claim(&dir, "will be verified");
+    let ignored = conclude_claim(&dir, "will be ignored");
+
+    dont()
+        .args(["trust", &doubted, "--reason", "Conflicts with source evidence", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+    dont()
+        .args(["dismiss", &verified, "--evidence", "https://example.test/proof", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+    dont()
+        .args(["ignore", &ignored, "--reason", "Out of scope for this project", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    for (status, expected_id) in [
+        ("unverified", unverified.as_str()),
+        ("doubted", doubted.as_str()),
+        ("verified", verified.as_str()),
+        ("ignored", ignored.as_str()),
+    ] {
+        let out = dont()
+            .args(["list", "--status", status, "--json"])
+            .env("DONT_DIR", dir.path())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        let claims = v["data"].as_array().unwrap();
+        assert_eq!(claims.len(), 1, "status={status}");
+        assert_eq!(claims[0]["id"], expected_id, "status={status}");
+        assert_eq!(claims[0]["status"], status, "status={status}");
+    }
+}
+
+#[test]
+fn list_invalid_status_returns_validation_error_exit_1() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["list", "--status", "pending", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "invalid-status");
+    assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
+}

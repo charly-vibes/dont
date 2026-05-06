@@ -127,7 +127,11 @@ enum Command {
     Prime,
 
     /// List claims.
-    List,
+    List {
+        /// Filter claims by status.
+        #[arg(long)]
+        status: Option<String>,
+    },
 }
 
 const DEFAULT_HEDGES: &[&str] = &["i think", "maybe", "not sure", "probably"];
@@ -241,6 +245,16 @@ fn model_status_from_store(s: StoreStatus) -> Status {
         StoreStatus::Doubted => Status::Doubted,
         StoreStatus::Ignored => Status::Ignored,
         StoreStatus::Locked => Status::Locked,
+    }
+}
+
+fn parse_claim_status_filter(status: &str) -> Option<StoreStatus> {
+    match status.trim().to_ascii_lowercase().as_str() {
+        "unverified" => Some(StoreStatus::Unverified),
+        "verified" => Some(StoreStatus::Verified),
+        "doubted" => Some(StoreStatus::Doubted),
+        "ignored" => Some(StoreStatus::Ignored),
+        _ => None,
     }
 }
 
@@ -875,6 +889,23 @@ fn main() {
             depends_on,
         } => {
             let project = open_project_or_exit();
+
+            if statement.trim().is_empty() {
+                emit_error_and_exit(
+                    refusal(
+                        "empty-statement",
+                        "conclude requires a non-empty claim statement",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont conclude \"<claim text>\"".to_string(),
+                            description: "Provide a non-empty statement that can be grounded"
+                                .to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
 
             let mut resolved_depends_on: Vec<String> = vec![];
             let mut unresolved: Vec<String> = vec![];
@@ -2002,25 +2033,42 @@ fn main() {
                     "Verified entities must not depend on unresolved terms"
                 ],
             });
-            let env = Envelope::success(
-                "prime",
-                payload,
-                vec![],
-                vec![HintEntry {
-                    command: "dont help --tutorial".to_string(),
-                    description: "Read the first-session tutorial for the full workflow"
-                        .to_string(),
-                }],
-            );
+            let env = Envelope::success("prime", payload, vec![], vec![]);
             emit_json(&env);
         }
 
-        Command::List => {
+        Command::List { status } => {
             let project = open_project_or_exit();
+            let status_filter = match status {
+                Some(raw) => match parse_claim_status_filter(&raw) {
+                    Some(status) => Some(status),
+                    None => emit_error_and_exit(
+                        refusal(
+                            "invalid-status",
+                            &format!(
+                                "unsupported claim status '{raw}'; expected one of: unverified, verified, doubted, ignored"
+                            ),
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont list --status unverified".to_string(),
+                                description:
+                                    "Use one of: unverified, verified, doubted, ignored"
+                                        .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                },
+                None => None,
+            };
             let mut claims = match project.store.list_claims() {
                 Ok(c) => c,
                 Err(err) => handle_store_error(err, None),
             };
+            if let Some(status_filter) = status_filter {
+                claims.retain(|claim| claim.status == status_filter);
+            }
             // Sort by created_at descending; use id (ULID) as tiebreaker within same second
             claims.sort_by(|a, b| {
                 b.created_at

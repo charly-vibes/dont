@@ -106,6 +106,27 @@ fn conclude_persists_claim_across_invocations() {
     assert_ne!(id, id2, "each conclude creates a distinct claim");
 }
 
+// --- Refusals ---
+
+#[test]
+fn conclude_empty_statement_returns_validation_error_exit_1() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args(["conclude", "", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "empty-statement");
+    assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
+}
+
 // --- Conclude outside project ---
 
 #[test]
