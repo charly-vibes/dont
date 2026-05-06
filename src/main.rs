@@ -1,17 +1,20 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process;
 
 use clap::{Parser, Subcommand};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use dont::envelope::{Envelope, ErrorResult, HintEntry, RemediationEntry, Warning};
 use dont::model::{
-    dismiss as model_dismiss, ignore as model_ignore, reopen as model_reopen, trust as model_trust,
-    Status,
+    Status, dismiss as model_dismiss, ignore as model_ignore, reopen as model_reopen,
+    trust as model_trust,
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
-    AppendResult, ClaimRecord, StoreError, StoreEvent, StoreEventKind, StoreStatus, TermRecord,
+    AppendResult, ClaimRecord, EventRecord, StoreError, StoreEvent, StoreEventKind, StoreStatus,
+    TermRecord,
 };
 
 #[derive(Debug, Parser)]
@@ -102,6 +105,16 @@ enum Command {
         id: String,
     },
 
+    /// Check liveness of attached evidence references without changing status.
+    VerifyEvidence {
+        /// Entity identifier (claim:... or term:...).
+        id: String,
+
+        /// Per-reference timeout in seconds.
+        #[arg(long)]
+        timeout_seconds: Option<u64>,
+    },
+
     /// Return session-start orientation and project state summary.
     Prime,
 
@@ -110,6 +123,20 @@ enum Command {
 }
 
 const DEFAULT_HEDGES: &[&str] = &["i think", "maybe", "not sure", "probably"];
+
+#[derive(Debug, Clone, Serialize)]
+struct EvidenceCheckResult {
+    uri: String,
+    outcome: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MockEvidenceCheckResult {
+    outcome: String,
+    detail: Option<String>,
+}
 
 fn contains_hedge(reason: &str) -> bool {
     let lower = reason.to_lowercase();
@@ -209,15 +236,22 @@ fn model_status_from_store(s: StoreStatus) -> Status {
     }
 }
 
-/// Collect all evidence URIs from all events on the claim, in event-tx order.
-fn collect_evidence(record: &ClaimRecord) -> Vec<String> {
-    let mut all: Vec<(i64, String)> = record
-        .events
+/// Collect all evidence URIs from all events in event-tx order.
+fn collect_evidence_from_events(events: &[EventRecord]) -> Vec<String> {
+    let mut all: Vec<(i64, String)> = events
         .iter()
         .flat_map(|ev| ev.evidence.iter().map(|uri| (ev.tx, uri.clone())))
         .collect();
     all.sort_by_key(|(tx, _)| *tx);
     all.into_iter().map(|(_, uri)| uri).collect()
+}
+
+fn collect_evidence(record: &ClaimRecord) -> Vec<String> {
+    collect_evidence_from_events(&record.events)
+}
+
+fn collect_term_evidence(record: &TermRecord) -> Vec<String> {
+    collect_evidence_from_events(&record.events)
 }
 
 fn updated_at(record: &ClaimRecord) -> String {
@@ -266,7 +300,76 @@ fn build_term_view(record: &TermRecord) -> Value {
     })
 }
 
-fn refusal(code: &str, message: &str, entity_id: Option<&str>, remediation: Vec<RemediationEntry>) -> ErrorResult {
+fn evidence_check_warning(entity_id: &str, result: &EvidenceCheckResult) -> Option<Warning> {
+    let (rule_name, default_detail, remediation) = match result.outcome.as_str() {
+        "timeout" => (
+            "evidence-timeout",
+            "evidence check timed out",
+            "Retry with a larger --timeout-seconds value or re-check the cited host later",
+        ),
+        "malformed" => (
+            "evidence-malformed",
+            "evidence reference is malformed",
+            "Replace the malformed evidence reference with a valid URI",
+        ),
+        "unreachable" => (
+            "evidence-unreachable",
+            "evidence reference could not be reached",
+            "Confirm the cited host is available or replace the evidence reference",
+        ),
+        _ => return None,
+    };
+    Some(Warning {
+        rule_name: rule_name.to_string(),
+        entity_id: Some(entity_id.to_string()),
+        message: format!(
+            "{}: {}",
+            result.uri,
+            result.detail.as_deref().unwrap_or(default_detail)
+        ),
+        suggested_remediation: Some(remediation.to_string()),
+    })
+}
+
+fn mocked_evidence_outcomes() -> Option<HashMap<String, MockEvidenceCheckResult>> {
+    let raw = std::env::var("DONT_VERIFY_EVIDENCE_MOCK").ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
+fn check_evidence_uri(
+    uri: &str,
+    mocks: Option<&HashMap<String, MockEvidenceCheckResult>>,
+    _timeout_seconds: Option<u64>,
+) -> EvidenceCheckResult {
+    if let Some(mock) = mocks.and_then(|m| m.get(uri)) {
+        return EvidenceCheckResult {
+            uri: uri.to_string(),
+            outcome: mock.outcome.clone(),
+            detail: mock.detail.clone(),
+        };
+    }
+
+    if !(uri.starts_with("http://") || uri.starts_with("https://")) {
+        return EvidenceCheckResult {
+            uri: uri.to_string(),
+            outcome: "malformed".to_string(),
+            detail: Some("missing URI scheme".to_string()),
+        };
+    }
+
+    EvidenceCheckResult {
+        uri: uri.to_string(),
+        outcome: "reachable".to_string(),
+        detail: None,
+    }
+}
+
+fn refusal(
+    code: &str,
+    message: &str,
+    entity_id: Option<&str>,
+    remediation: Vec<RemediationEntry>,
+) -> ErrorResult {
     ErrorResult {
         code: code.to_string(),
         message: message.to_string(),
@@ -440,7 +543,9 @@ fn validate_label(label: &str, curie: &str) -> Option<ErrorResult> {
             Some(curie),
             vec![RemediationEntry {
                 command: format!("dont define {curie} --label \"{article} {label}\" --doc \"...\""),
-                description: format!("Prepend '{article}' to form a singular indefinite noun phrase"),
+                description: format!(
+                    "Prepend '{article}' to form a singular indefinite noun phrase"
+                ),
             }],
         ));
     }
@@ -494,11 +599,13 @@ fn validate_label(label: &str, curie: &str) -> Option<ErrorResult> {
 }
 
 fn extract_doc_leading_phrase(doc: &str) -> String {
-    let end = doc
-        .find(['.', '?', '!', ';'])
-        .unwrap_or(doc.len());
+    let end = doc.find(['.', '?', '!', ';']).unwrap_or(doc.len());
     let phrase = doc[..end].trim();
-    let token_capped: String = phrase.split_whitespace().take(15).collect::<Vec<_>>().join(" ");
+    let token_capped: String = phrase
+        .split_whitespace()
+        .take(15)
+        .collect::<Vec<_>>()
+        .join(" ");
     token_capped.chars().take(80).collect()
 }
 
@@ -552,10 +659,15 @@ fn main() {
             };
             match Project::init(&cwd(), mode) {
                 Ok(_) => {
-                    let env = Envelope::success("empty", json!({ "mode": mode.as_str() }), vec![], vec![HintEntry {
-                        command: "dont conclude \"claim text\"".to_string(),
-                        description: "Introduce your first claim".to_string(),
-                    }]);
+                    let env = Envelope::success(
+                        "empty",
+                        json!({ "mode": mode.as_str() }),
+                        vec![],
+                        vec![HintEntry {
+                            command: "dont conclude \"claim text\"".to_string(),
+                            description: "Introduce your first claim".to_string(),
+                        }],
+                    );
                     emit_json(&env);
                 }
                 Err(err) => {
@@ -575,7 +687,10 @@ fn main() {
             }
         }
 
-        Command::Conclude { statement, depends_on } => {
+        Command::Conclude {
+            statement,
+            depends_on,
+        } => {
             let project = open_project_or_exit();
 
             let mut unresolved: Vec<String> = vec![];
@@ -595,22 +710,30 @@ fn main() {
                         "unresolved-term-ref",
                         &format!("strict mode: unresolved term references: {list}"),
                         None,
-                        unresolved.iter().map(|c| RemediationEntry {
-                            command: format!("dont define {c} --doc \"<definition>\""),
-                            description: format!("Define the term {c} before concluding"),
-                        }).collect(),
+                        unresolved
+                            .iter()
+                            .map(|c| RemediationEntry {
+                                command: format!("dont define {c} --doc \"<definition>\""),
+                                description: format!("Define the term {c} before concluding"),
+                            })
+                            .collect(),
                     ),
                     vec![],
                     1,
                 );
             }
 
-            let warnings: Vec<Warning> = unresolved.iter().map(|c| Warning {
-                rule_name: "unresolved-term-ref".to_string(),
-                entity_id: None,
-                message: format!("term reference {c} is not yet defined; verification blocked until resolved"),
-                suggested_remediation: Some(format!("dont define {c} --doc \"<definition>\"")),
-            }).collect();
+            let warnings: Vec<Warning> = unresolved
+                .iter()
+                .map(|c| Warning {
+                    rule_name: "unresolved-term-ref".to_string(),
+                    entity_id: None,
+                    message: format!(
+                        "term reference {c} is not yet defined; verification blocked until resolved"
+                    ),
+                    suggested_remediation: Some(format!("dont define {c} --doc \"<definition>\"")),
+                })
+                .collect();
 
             match project.store.append_claim(&statement, &depends_on) {
                 Ok(result) => {
@@ -653,7 +776,8 @@ fn main() {
                         None,
                         vec![RemediationEntry {
                             command: "dont define proj:TermName --doc \"<definition>\"".to_string(),
-                            description: "Re-run with the term CURIE as the first argument".to_string(),
+                            description: "Re-run with the term CURIE as the first argument"
+                                .to_string(),
                         }],
                     ),
                     vec![],
@@ -713,7 +837,8 @@ fn main() {
                             Some(&id),
                             vec![RemediationEntry {
                                 command: format!("dont trust {id} --reason \"<specific grounds>\""),
-                                description: "Re-run with a concrete, non-hedged reason".to_string(),
+                                description: "Re-run with a concrete, non-hedged reason"
+                                    .to_string(),
                             }],
                         ),
                         vec![],
@@ -1239,6 +1364,112 @@ fn main() {
             }
         }
 
+        Command::VerifyEvidence {
+            id,
+            timeout_seconds,
+        } => {
+            let project = open_project_or_exit();
+
+            let (entity_kind, status, evidence) = if id.starts_with("term:") {
+                match project.store.term_by_id(&id) {
+                    Ok(Some(record)) => (
+                        "term",
+                        format!("{:?}", record.status).to_lowercase(),
+                        collect_term_evidence(&record),
+                    ),
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "entity-not-found",
+                            &format!("no entity with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont vocab".to_string(),
+                                description: "List terms to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
+            } else {
+                match project.store.claim_by_id(&id) {
+                    Ok(Some(record)) => (
+                        "claim",
+                        format!("{:?}", record.status).to_lowercase(),
+                        collect_evidence(&record),
+                    ),
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "entity-not-found",
+                            &format!("no entity with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List claims to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                }
+            };
+
+            if evidence.is_empty() {
+                let remediation = if entity_kind == "claim" {
+                    RemediationEntry {
+                        command: format!("dont dismiss {id} --evidence <uri>"),
+                        description: "Attach evidence to the claim before verifying liveness"
+                            .to_string(),
+                    }
+                } else {
+                    RemediationEntry {
+                        command: format!("dont show {id}"),
+                        description: "Inspect the term and confirm evidence has been attached before verifying liveness".to_string(),
+                    }
+                };
+                emit_error_and_exit(
+                    refusal(
+                        "no-evidence",
+                        "verify-evidence requires at least one attached evidence reference",
+                        Some(&id),
+                        vec![remediation],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+
+            let mocks = mocked_evidence_outcomes();
+            let results: Vec<EvidenceCheckResult> = evidence
+                .iter()
+                .map(|uri| check_evidence_uri(uri, mocks.as_ref(), timeout_seconds))
+                .collect();
+            let warnings: Vec<Warning> = results
+                .iter()
+                .filter_map(|result| evidence_check_warning(&id, result))
+                .collect();
+            let payload = json!({
+                "entity_id": id,
+                "entity_kind": entity_kind,
+                "status": status,
+                "timeout_seconds": timeout_seconds,
+                "results": results,
+            });
+            let env = Envelope::success(
+                "evidence_check",
+                payload,
+                warnings,
+                vec![HintEntry {
+                    command: format!("dont show {id}"),
+                    description: "Inspect the unchanged entity status and attached evidence"
+                        .to_string(),
+                }],
+            );
+            emit_json(&env);
+        }
+
         Command::Prime => {
             let project = open_project_or_exit();
             let claims = match project.store.list_claims() {
@@ -1290,10 +1521,16 @@ fn main() {
                     "Verified entities must not depend on unresolved terms"
                 ],
             });
-            let env = Envelope::success("prime", payload, vec![], vec![HintEntry {
-                command: "dont help --tutorial".to_string(),
-                description: "Read the first-session tutorial for the full workflow".to_string(),
-            }]);
+            let env = Envelope::success(
+                "prime",
+                payload,
+                vec![],
+                vec![HintEntry {
+                    command: "dont help --tutorial".to_string(),
+                    description: "Read the first-session tutorial for the full workflow"
+                        .to_string(),
+                }],
+            );
             emit_json(&env);
         }
 
