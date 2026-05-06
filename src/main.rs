@@ -293,6 +293,14 @@ fn build_claim_view(record: &ClaimRecord) -> Value {
 }
 
 fn build_term_view(record: &TermRecord) -> Value {
+    let evidence = collect_term_evidence(record);
+    let updated_at = record
+        .events
+        .iter()
+        .map(|e| &e.created_at)
+        .max()
+        .cloned()
+        .unwrap_or_else(|| record.created_at.clone());
     json!({
         "id": record.id,
         "entity_kind": "term",
@@ -305,7 +313,9 @@ fn build_term_view(record: &TermRecord) -> Value {
         "derived_assessments": [],
         "confidence": Value::Null,
         "provenance": Value::Null,
+        "evidence": evidence,
         "created_at": record.created_at,
+        "updated_at": updated_at,
         "applicable_rules": {},
     })
 }
@@ -1038,6 +1048,71 @@ fn main() {
             }
 
             let project = open_project_or_exit();
+            if id.starts_with("term:") {
+                let record = match project.store.term_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "term-not-found",
+                            &format!("no term with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont vocab".to_string(),
+                                description: "List terms to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+
+                let current = model_status_from_store(record.status);
+                match model_trust(current) {
+                    Err(transition_err) => {
+                        emit_error_and_exit(
+                            refusal(
+                                &transition_err.code,
+                                &transition_err.message,
+                                Some(&id),
+                                vec![RemediationEntry {
+                                    command: format!("dont show {id}"),
+                                    description: "Inspect the current term status".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+                    Ok(new_model_status) => {
+                        let event = StoreEvent {
+                            kind: StoreEventKind::Trusted,
+                            note: Some(reason),
+                            evidence: vec![],
+                        };
+                        let result = match project.store.append_term_status_change(
+                            &id,
+                            store_status_from_model(current),
+                            store_status_from_model(new_model_status),
+                            event,
+                        ) {
+                            Ok(r) => r,
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        let updated = match project.store.term_by_id(&id) {
+                            Ok(Some(r)) => r,
+                            Ok(None) => handle_store_error(
+                                StoreError::Malformed(format!("term {id} vanished after trust")),
+                                Some(&id),
+                            ),
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        emit_term_view(&updated, &result, vec![]);
+                        return;
+                    }
+                }
+            }
+
             let record = match project.store.claim_by_id(&id) {
                 Ok(Some(r)) => r,
                 Ok(None) => emit_error_and_exit(
@@ -1528,6 +1603,71 @@ fn main() {
             }
 
             let project = open_project_or_exit();
+            if id.starts_with("term:") {
+                let record = match project.store.term_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "term-not-found",
+                            &format!("no term with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont vocab".to_string(),
+                                description: "List terms to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+
+                let current = model_status_from_store(record.status);
+                let event = StoreEvent {
+                    kind: StoreEventKind::Dismissed,
+                    note: None,
+                    evidence: evidence.clone(),
+                };
+
+                let result = match model_dismiss(current) {
+                    Ok(new_model_status) => match project.store.append_term_status_change(
+                        &id,
+                        store_status_from_model(current),
+                        store_status_from_model(new_model_status),
+                        event,
+                    ) {
+                        Ok(r) => r,
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    },
+                    Err(transition_err) => {
+                        emit_error_and_exit(
+                            refusal(
+                                &transition_err.code,
+                                &transition_err.message,
+                                Some(&id),
+                                vec![RemediationEntry {
+                                    command: format!("dont show {id}"),
+                                    description: "Inspect the current term status".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+                };
+
+                let updated = match project.store.term_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => handle_store_error(
+                        StoreError::Malformed(format!("term {id} vanished after dismiss")),
+                        Some(&id),
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+                emit_term_view(&updated, &result, vec![]);
+                return;
+            }
+
             let record = match project.store.claim_by_id(&id) {
                 Ok(Some(r)) => r,
                 Ok(None) => emit_error_and_exit(

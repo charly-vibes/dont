@@ -81,6 +81,18 @@ fn dismiss_doubted_claim_produces_verified_status() {
 }
 
 #[test]
+fn dismiss_unverified_term_produces_verified_status() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = define_term(&dir, "WB:P001");
+    let out = dismiss(&dir, &id, "https://example.test/term-evidence");
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "term");
+    assert_eq!(v["data"]["status"], "verified");
+}
+
+#[test]
 fn dismiss_carries_tx_in_meta() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);

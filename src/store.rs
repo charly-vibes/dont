@@ -475,6 +475,12 @@ impl Store {
             if let Some(note) = event.note {
                 datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
             }
+            if !event.evidence.is_empty() {
+                let arr = Value::Array(
+                    event.evidence.iter().map(|u| Value::String(u.clone())).collect(),
+                );
+                datoms.push(Datom::assert(&event_id, "evidence", arr, tx));
+            }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
                 id: term_id.to_string(),

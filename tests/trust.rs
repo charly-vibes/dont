@@ -27,6 +27,19 @@ fn conclude_claim(dir: &TempDir, statement: &str) -> String {
     v["data"]["id"].as_str().unwrap().to_string()
 }
 
+fn define_term(dir: &TempDir, curie: &str) -> String {
+    let out = dont()
+        .args(["define", curie, "--doc", "a valid definition", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    v["data"]["id"].as_str().unwrap().to_string()
+}
+
 fn trust(dir: &TempDir, id: &str, reason: &str) -> Vec<u8> {
     dont()
         .args(["trust", id, "--reason", reason, "--json"])
@@ -76,6 +89,18 @@ fn trust_verified_claim_produces_doubted_status() {
     // Now trust the verified claim
     let out = trust(&dir, &id, "altitude matters — needs qualification");
     let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["status"], "doubted");
+}
+
+#[test]
+fn trust_unverified_term_produces_doubted_status() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = define_term(&dir, "WB:P001");
+    let out = trust(&dir, &id, "definition conflicts with observed usage");
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "term");
     assert_eq!(v["data"]["status"], "doubted");
 }
 
