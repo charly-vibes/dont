@@ -35,6 +35,8 @@ pub enum StoreStatus {
     Unverified,
     Verified,
     Doubted,
+    Ignored,
+    Locked,
 }
 
 impl StoreStatus {
@@ -43,6 +45,8 @@ impl StoreStatus {
             Self::Unverified => "unverified",
             Self::Verified => "verified",
             Self::Doubted => "doubted",
+            Self::Ignored => "ignored",
+            Self::Locked => "locked",
         }
     }
 
@@ -51,6 +55,8 @@ impl StoreStatus {
             "unverified" => Ok(Self::Unverified),
             "verified" => Ok(Self::Verified),
             "doubted" => Ok(Self::Doubted),
+            "ignored" => Ok(Self::Ignored),
+            "locked" => Ok(Self::Locked),
             _ => Err(StoreError::Malformed(format!("unknown status {value}"))),
         }
     }
@@ -62,6 +68,7 @@ pub enum StoreEventKind {
     Defined,
     Trusted,
     Dismissed,
+    Ignored,
 }
 
 impl StoreEventKind {
@@ -71,6 +78,7 @@ impl StoreEventKind {
             Self::Defined => "defined",
             Self::Trusted => "trusted",
             Self::Dismissed => "dismissed",
+            Self::Ignored => "ignored",
         }
     }
 
@@ -80,6 +88,7 @@ impl StoreEventKind {
             "defined" => Ok(Self::Defined),
             "trusted" => Ok(Self::Trusted),
             "dismissed" => Ok(Self::Dismissed),
+            "ignored" => Ok(Self::Ignored),
             _ => Err(StoreError::Malformed(format!("unknown event kind {value}"))),
         }
     }
@@ -367,6 +376,54 @@ impl Store {
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
                 id: claim_id.to_string(),
+                event_id,
+                tx,
+                created_at: now,
+            })
+        })
+    }
+
+    /// Status change for terms — links the event via `entity_id` instead of `claim_id`.
+    pub fn append_term_status_change(
+        &self,
+        term_id: &str,
+        from_status: StoreStatus,
+        to_status: StoreStatus,
+        event: StoreEvent,
+    ) -> Result<AppendResult, StoreError> {
+        self.with_write_lock(|store| {
+            let tx = store.next_tx()?;
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            let mut datoms = vec![
+                Datom::retract(
+                    term_id,
+                    "status",
+                    Value::String(from_status.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    term_id,
+                    "status",
+                    Value::String(to_status.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "entity_type", Value::String("event".to_string()), tx),
+                Datom::assert(&event_id, "entity_id", Value::String(term_id.to_string()), tx),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String(event.kind.as_str().to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ];
+            if let Some(note) = event.note {
+                datoms.push(Datom::assert(&event_id, "note", Value::String(note), tx));
+            }
+            store.put_datoms(&datoms)?;
+            Ok(AppendResult {
+                id: term_id.to_string(),
                 event_id,
                 tx,
                 created_at: now,

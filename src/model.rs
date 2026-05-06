@@ -6,6 +6,8 @@ pub enum Status {
     Unverified,
     Verified,
     Doubted,
+    Ignored,
+    Locked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,11 +21,27 @@ pub struct TransitionError {
 pub fn trust(from: Status) -> Result<Status, TransitionError> {
     match from {
         Status::Unverified | Status::Verified => Ok(Status::Doubted),
-        Status::Doubted => Err(TransitionError {
+        Status::Doubted | Status::Ignored | Status::Locked => Err(TransitionError {
             code: "invalid-transition".to_string(),
-            message: format!(
-                "cannot trust a {from:?} entity — it is already doubted"
-            ),
+            message: format!("cannot trust a {from:?} entity"),
+            from_status: from,
+            entity_id: None,
+        }),
+    }
+}
+
+pub fn ignore(from: Status) -> Result<Status, TransitionError> {
+    match from {
+        Status::Unverified | Status::Verified | Status::Doubted => Ok(Status::Ignored),
+        Status::Ignored => Err(TransitionError {
+            code: "invalid-transition".to_string(),
+            message: "cannot ignore an already-ignored entity".to_string(),
+            from_status: from,
+            entity_id: None,
+        }),
+        Status::Locked => Err(TransitionError {
+            code: "invalid-transition".to_string(),
+            message: "cannot ignore a locked entity".to_string(),
             from_status: from,
             entity_id: None,
         }),
@@ -33,11 +51,9 @@ pub fn trust(from: Status) -> Result<Status, TransitionError> {
 pub fn dismiss(from: Status) -> Result<Status, TransitionError> {
     match from {
         Status::Unverified | Status::Doubted => Ok(Status::Verified),
-        Status::Verified => Err(TransitionError {
+        Status::Verified | Status::Ignored | Status::Locked => Err(TransitionError {
             code: "invalid-transition".to_string(),
-            message: "cannot dismiss a verified entity as a status transition — \
-                      use evidence append (Phase 8)"
-                .to_string(),
+            message: format!("cannot dismiss a {from:?} entity as a status transition"),
             from_status: from,
             entity_id: None,
         }),

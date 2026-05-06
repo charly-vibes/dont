@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 
 use dont::envelope::{Envelope, ErrorResult, HintEntry, RemediationEntry, Warning};
-use dont::model::{dismiss as model_dismiss, trust as model_trust, Status};
+use dont::model::{dismiss as model_dismiss, ignore as model_ignore, trust as model_trust, Status};
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
     AppendResult, ClaimRecord, StoreError, StoreEvent, StoreEventKind, StoreStatus, TermRecord,
@@ -71,6 +71,16 @@ enum Command {
         /// Evidence URI or reference.
         #[arg(long, short)]
         evidence: Vec<String>,
+    },
+
+    /// Move a claim or term to ignored state.
+    Ignore {
+        /// Entity identifier (claim:... or term:...).
+        id: String,
+
+        /// Substantive reason for ignoring (hedge-only reasons are refused).
+        #[arg(long, short)]
+        reason: Option<String>,
     },
 
     /// Show a claim.
@@ -171,6 +181,8 @@ fn store_status_from_model(s: Status) -> StoreStatus {
         Status::Unverified => StoreStatus::Unverified,
         Status::Verified => StoreStatus::Verified,
         Status::Doubted => StoreStatus::Doubted,
+        Status::Ignored => StoreStatus::Ignored,
+        Status::Locked => StoreStatus::Locked,
     }
 }
 
@@ -179,6 +191,8 @@ fn model_status_from_store(s: StoreStatus) -> Status {
         StoreStatus::Unverified => Status::Unverified,
         StoreStatus::Verified => Status::Verified,
         StoreStatus::Doubted => Status::Doubted,
+        StoreStatus::Ignored => Status::Ignored,
+        StoreStatus::Locked => Status::Locked,
     }
 }
 
@@ -297,6 +311,8 @@ fn emit_term_view(record: &TermRecord, result: &AppendResult, warnings: Vec<Warn
     emit_json(&env);
 }
 
+// Vowel-letter heuristic only — "uniform" → "an uniform" (wrong). Acceptable because
+// call sites pass controlled strings from validated label input, not arbitrary nouns.
 fn best_article_for(noun: &str) -> &'static str {
     match noun
         .split_whitespace()
@@ -375,14 +391,17 @@ fn label_contains_sentence_verb(label: &str) -> bool {
             return true;
         }
         let after = &label[close..];
-        let after_words: Vec<&str> = after.split_whitespace().collect();
-        let stop = after_words
-            .iter()
-            .position(|w| w.eq_ignore_ascii_case("where"))
-            .unwrap_or(after_words.len());
-        after_words[..stop]
-            .iter()
-            .any(|w| VERBS.iter().any(|&v| v == w.to_ascii_lowercase()))
+        let mut found_verb = false;
+        for w in after.split_whitespace() {
+            if w.eq_ignore_ascii_case("where") {
+                break;
+            }
+            if VERBS.iter().any(|&v| v == w.to_ascii_lowercase()) {
+                found_verb = true;
+                break;
+            }
+        }
+        found_verb
     } else {
         words_contain(VERBS, label)
     }
@@ -736,6 +755,163 @@ fn main() {
             }
         }
 
+        Command::Ignore { id, reason } => {
+            let reason = match reason {
+                None => emit_error_and_exit(
+                    refusal(
+                        "reason-required",
+                        "ignore requires --reason: state why this entity is being set aside",
+                        Some(&id),
+                        vec![RemediationEntry {
+                            command: format!("dont ignore {id} --reason \"<substantive reason>\""),
+                            description: "Re-run with a concrete, non-hedged reason".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                ),
+                Some(r) => r,
+            };
+
+            if contains_hedge(&reason) {
+                emit_error_and_exit(
+                    refusal(
+                        "reason-not-hedge",
+                        "reason contains an epistemic hedge — state the specific grounds for ignoring",
+                        Some(&id),
+                        vec![RemediationEntry {
+                            command: format!("dont ignore {id} --reason \"<substantive reason>\""),
+                            description: "Replace the hedge with a concrete reason".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+
+            let project = open_project_or_exit();
+
+            if id.starts_with("term:") {
+                let record = match project.store.term_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "entity-not-found",
+                            &format!("no entity with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all entities to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+                let current = model_status_from_store(record.status);
+                match model_ignore(current) {
+                    Err(transition_err) => emit_error_and_exit(
+                        refusal(
+                            &transition_err.code,
+                            &transition_err.message,
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current entity status".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Ok(new_model_status) => {
+                        let event = StoreEvent {
+                            kind: StoreEventKind::Ignored,
+                            note: Some(reason),
+                            evidence: vec![],
+                        };
+                        let result = match project.store.append_term_status_change(
+                            &id,
+                            store_status_from_model(current),
+                            store_status_from_model(new_model_status),
+                            event,
+                        ) {
+                            Ok(r) => r,
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        let updated = match project.store.term_by_id(&id) {
+                            Ok(Some(r)) => r,
+                            Ok(None) => handle_store_error(
+                                StoreError::Malformed(format!("term {id} vanished after ignore")),
+                                Some(&id),
+                            ),
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        emit_term_view(&updated, &result, vec![]);
+                    }
+                }
+            } else {
+                let record = match project.store.claim_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "entity-not-found",
+                            &format!("no entity with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all entities to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+                let current = model_status_from_store(record.status);
+                match model_ignore(current) {
+                    Err(transition_err) => emit_error_and_exit(
+                        refusal(
+                            &transition_err.code,
+                            &transition_err.message,
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current entity status".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Ok(new_model_status) => {
+                        let event = StoreEvent {
+                            kind: StoreEventKind::Ignored,
+                            note: Some(reason),
+                            evidence: vec![],
+                        };
+                        let result = match project.store.append_status_change(
+                            &id,
+                            store_status_from_model(current),
+                            store_status_from_model(new_model_status),
+                            event,
+                        ) {
+                            Ok(r) => r,
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        let updated = match project.store.claim_by_id(&id) {
+                            Ok(Some(r)) => r,
+                            Ok(None) => handle_store_error(
+                                StoreError::Malformed(format!("claim {id} vanished after ignore")),
+                                Some(&id),
+                            ),
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        emit_claim_view(&updated, &result);
+                    }
+                }
+            }
+        }
+
         Command::Dismiss { id, evidence } => {
             if evidence.is_empty() {
                 emit_error_and_exit(
@@ -913,6 +1089,7 @@ fn main() {
                         }));
                     }
                     StoreStatus::Verified => verified += 1,
+                    StoreStatus::Ignored | StoreStatus::Locked => {}
                 }
             }
             let payload = json!({
