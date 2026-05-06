@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build *)",
+      "Bash(./target/debug/dont conclude *)",
+      "Bash(./target/debug/dont define *)",
+      "Bash(./target/debug/dont trust *)",
+      "Bash(./target/debug/dont dismiss *)",
+      "Bash(./target/debug/dont ignore *)",
+      "Bash(./target/debug/dont reopen *)",
+      "Bash(./target/debug/dont list *)",
+      "Bash(./target/debug/dont show *)",
+      "Bash(./target/debug/dont prime *)",
+      "Bash(./target/debug/dont help *)",
+      "Bash(./target/debug/dont init *)",
+      "Read(//tmp/**)",
+      "Bash(./var/home/sasha/para/areas/dev/gh/charly/dont/target/debug/dont list *)",
+      "Bash(/var/home/sasha/para/areas/dev/gh/charly/dont/target/debug/dont list *)",
+      "Bash(mkdir -p /tmp/dont-qa-test)",
+      "Bash(/var/home/sasha/para/areas/dev/gh/charly/dont/target/debug/dont init *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Prime counts:', d['data']['status_counts']\\)\")",
+      "Bash(bd create *)",
+      "Bash(bd list *)",
+      "Bash(bd show *)",
+      "Bash(openspec spec *)",
+      "Bash(openspec list *)",
+      "Bash(openspec show *)",
+      "Bash(bd dep *)",
+      "Bash(bd update *)"
+    ]
+  }
+}
