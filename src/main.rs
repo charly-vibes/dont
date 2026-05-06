@@ -526,6 +526,28 @@ fn refusal(
 }
 
 fn handle_store_error(err: StoreError, entity_id: Option<&str>) -> ! {
+    if let StoreError::CurieConflict { curie, existing_id } = err {
+        emit_error_and_exit(
+            refusal(
+                "curie-conflict",
+                &format!("CURIE {curie} is already defined by {existing_id}"),
+                Some(&existing_id),
+                vec![
+                    RemediationEntry {
+                        command: format!("dont show {existing_id}"),
+                        description: "Inspect the existing term before redefining it".to_string(),
+                    },
+                    RemediationEntry {
+                        command: format!("dont define {} --doc \"<definition>\"", suggest_alternative_curie(&curie)),
+                        description: "Use a different CURIE for a distinct term".to_string(),
+                    },
+                ],
+            ),
+            vec![],
+            1,
+        );
+    }
+
     let err_result = ErrorResult {
         code: "internal".to_string(),
         message: err.to_string(),
@@ -539,6 +561,13 @@ fn handle_store_error(err: StoreError, entity_id: Option<&str>) -> ! {
         }],
     };
     emit_error_and_exit(err_result, vec![], 4);
+}
+
+fn suggest_alternative_curie(curie: &str) -> String {
+    match curie.rsplit_once(':') {
+        Some((prefix, local)) => format!("{prefix}:{}_2", local),
+        None => format!("{curie}_2"),
+    }
 }
 
 fn emit_claim_view(record: &ClaimRecord, result: &AppendResult) {

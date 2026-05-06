@@ -117,6 +117,48 @@ fn defined_term_can_be_shown_after_reopen() {
 }
 
 #[test]
+fn define_duplicate_curie_is_refused_without_mutating_existing_term() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let first_output = dont()
+        .args(["define", "WB:P001", "--doc", "first definition", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let first: Value = serde_json::from_slice(&first_output).unwrap();
+    let first_id = first["data"]["id"].as_str().unwrap().to_string();
+
+    let second_output = dont()
+        .args(["define", "WB:P001", "--doc", "second definition", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let second: Value = serde_json::from_slice(&second_output).unwrap();
+    assert_eq!(second["ok"], false);
+    assert_eq!(second["data"]["code"], "curie-conflict");
+    assert_eq!(second["data"]["entity_id"], first_id.as_str());
+
+    let show_output = dont()
+        .args(["show", &first_id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&show_output).unwrap();
+    assert_eq!(shown["data"]["curie"], "WB:P001");
+    assert_eq!(shown["data"]["definition"], "first definition");
+}
+
+#[test]
 fn define_with_empty_label_is_refused() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);

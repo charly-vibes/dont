@@ -166,6 +166,7 @@ pub enum StoreError {
     Io(std::io::Error),
     Cozo(String),
     SchemaMismatch { found: i64, expected: i64 },
+    CurieConflict { curie: String, existing_id: String },
     Malformed(String),
 }
 
@@ -176,6 +177,9 @@ impl fmt::Display for StoreError {
             Self::Cozo(message) => write!(f, "Cozo error: {message}"),
             Self::SchemaMismatch { found, expected } => {
                 write!(f, "unsupported schema_version {found}; expected {expected}")
+            }
+            Self::CurieConflict { curie, existing_id } => {
+                write!(f, "CURIE {curie} is already defined by {existing_id}")
             }
             Self::Malformed(message) => f.write_str(message),
         }
@@ -311,6 +315,12 @@ impl Store {
         label: Option<&str>,
     ) -> Result<AppendResult, StoreError> {
         self.with_write_lock(|store| {
+            if let Some(existing) = store.term_by_curie(curie)? {
+                return Err(StoreError::CurieConflict {
+                    curie: curie.to_string(),
+                    existing_id: existing.id,
+                });
+            }
             let tx = store.next_tx()?;
             let term_id = prefixed_ulid("term");
             let event_id = prefixed_ulid("event");
@@ -986,4 +996,33 @@ fn hypotheses_from_value(value: &Value) -> Result<Vec<HypothesisRecord>, StoreEr
 
 fn json_string(value: &str) -> String {
     serde_json::to_string(value).expect("serializing string literal cannot fail")
+}
+
+#[cfg(test)]
+mod data_model {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn curie_uniqueness() {
+        let dir = TempDir::new().unwrap();
+        let store = Store::open_dont_dir(dir.path()).unwrap();
+
+        let first = store.append_term("WB:P001", "a first definition", None).unwrap();
+        let err = store
+            .append_term("WB:P001", "a second definition", None)
+            .unwrap_err();
+
+        match err {
+            StoreError::CurieConflict { curie, existing_id } => {
+                assert_eq!(curie, "WB:P001");
+                assert_eq!(existing_id, first.id);
+            }
+            other => panic!("expected CurieConflict, got {other:?}"),
+        }
+
+        let term = store.term_by_curie("WB:P001").unwrap().unwrap();
+        assert_eq!(term.id, first.id);
+        assert_eq!(term.definition, "a first definition");
+    }
 }
