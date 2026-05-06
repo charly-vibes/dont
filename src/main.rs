@@ -201,12 +201,12 @@ fn remediation_for_project_error(err: &ProjectError) -> Vec<RemediationEntry> {
         }],
         _ => vec![
             RemediationEntry {
-                command: "dont doctor".to_string(),
-                description: "Run dont doctor to diagnose the issue".to_string(),
+                command: "ls ${DONT_DIR:-.dont}".to_string(),
+                description: "Inspect the project state directory for obvious corruption or missing files".to_string(),
             },
             RemediationEntry {
                 command: "https://github.com/charly-vibes/dont/issues".to_string(),
-                description: "Report the issue if dont doctor finds nothing".to_string(),
+                description: "Report the issue if the project state looks intact".to_string(),
             },
         ],
     }
@@ -597,10 +597,16 @@ fn handle_store_error(err: StoreError, entity_id: Option<&str>) -> ! {
         spec_ref: None,
         entity_id: entity_id.map(str::to_string),
         unmet_clauses: vec![],
-        remediation: vec![RemediationEntry {
-            command: "dont doctor".to_string(),
-            description: "Run dont doctor to diagnose the issue".to_string(),
-        }],
+        remediation: vec![
+            RemediationEntry {
+                command: "ls ${DONT_DIR:-.dont}".to_string(),
+                description: "Inspect the project state directory for obvious corruption or missing files".to_string(),
+            },
+            RemediationEntry {
+                command: "https://github.com/charly-vibes/dont/issues".to_string(),
+                description: "Report the issue if the project state looks intact".to_string(),
+            },
+        ],
     };
     emit_error_and_exit(err_result, vec![], 4);
 }

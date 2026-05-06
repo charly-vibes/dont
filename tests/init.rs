@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use dont::store::Store;
 use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
@@ -267,4 +268,28 @@ fn conclude_outside_project_returns_config_missing_and_exits_3() {
     assert_eq!(v["data"]["code"], "config-missing");
     let remediation = v["data"]["remediation"].as_array().unwrap();
     assert!(!remediation.is_empty());
+}
+
+#[test]
+fn internal_project_errors_do_not_suggest_dont_doctor() {
+    let dir = TempDir::new().unwrap();
+    init_in(&dir).success();
+
+    let store = Store::open_dont_dir(dir.path()).unwrap();
+    store.set_schema_version_for_test(999).unwrap();
+    drop(store);
+
+    let output = dont()
+        .arg("prime")
+        .arg("--json")
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(4)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    let remediation = v["data"]["remediation"].as_array().unwrap();
+    assert!(remediation.iter().all(|entry| entry["command"] != "dont doctor"));
 }
