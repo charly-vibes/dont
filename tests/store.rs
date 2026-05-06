@@ -30,10 +30,10 @@ fn append_event_persists_claim_datoms_with_monotonic_transactions() {
     let store = Store::open_project(root.path()).expect("store opens");
 
     let first = store
-        .append_claim("unsupported assertions need grounding")
+        .append_claim("unsupported assertions need grounding", &[])
         .expect("first claim appends");
     let second = store
-        .append_claim("sources should be explicit")
+        .append_claim("sources should be explicit", &[])
         .expect("second claim appends");
 
     assert!(first.id.starts_with("claim:"));
@@ -61,7 +61,7 @@ fn claims_persist_after_reopening_the_store() {
     let claim_id = {
         let store = Store::open_project(root.path()).expect("store opens");
         store
-            .append_claim("memory survives process boundaries")
+            .append_claim("memory survives process boundaries", &[])
             .expect("claim appends")
             .id
     };
@@ -81,7 +81,7 @@ fn status_changes_are_stored_as_retraction_and_assertion_datoms() {
     let root = tempfile::tempdir().expect("temp root");
     let store = Store::open_project(root.path()).expect("store opens");
 
-    let claim = store.append_claim("truth needs pressure").expect("claim");
+    let claim = store.append_claim("truth needs pressure", &[]).expect("claim");
     let event = StoreEvent {
         kind: StoreEventKind::Trusted,
         note: Some("source is ambiguous".to_string()),

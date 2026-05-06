@@ -40,6 +40,10 @@ enum Command {
     Conclude {
         /// Claim statement text.
         statement: String,
+
+        /// CURIE of a term this claim depends on. May be repeated.
+        #[arg(long)]
+        depends_on: Vec<String>,
     },
 
     /// Introduce an unverified coined term.
@@ -237,7 +241,7 @@ fn build_claim_view(record: &ClaimRecord) -> Value {
         "atoms": [],
         "hypotheses": [],
         "evidence": evidence,
-        "depends_on": [],
+        "depends_on": record.depends_on,
         "applicable_rules": {},
         "created_at": record.created_at,
         "updated_at": updated_at(record),
@@ -571,9 +575,44 @@ fn main() {
             }
         }
 
-        Command::Conclude { statement } => {
+        Command::Conclude { statement, depends_on } => {
             let project = open_project_or_exit();
-            match project.store.append_claim(&statement) {
+
+            let mut unresolved: Vec<String> = vec![];
+            for curie in &depends_on {
+                match project.store.term_curie_exists(curie) {
+                    Ok(true) => {}
+                    Ok(false) => unresolved.push(curie.clone()),
+                    Err(err) => handle_store_error(err, None),
+                }
+            }
+
+            let is_strict = project.mode() == "strict";
+            if is_strict && !unresolved.is_empty() {
+                let list = unresolved.join(", ");
+                emit_error_and_exit(
+                    refusal(
+                        "unresolved-term-ref",
+                        &format!("strict mode: unresolved term references: {list}"),
+                        None,
+                        unresolved.iter().map(|c| RemediationEntry {
+                            command: format!("dont define {c} --doc \"<definition>\""),
+                            description: format!("Define the term {c} before concluding"),
+                        }).collect(),
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+
+            let warnings: Vec<Warning> = unresolved.iter().map(|c| Warning {
+                rule_name: "unresolved-term-ref".to_string(),
+                entity_id: None,
+                message: format!("term reference {c} is not yet defined; verification blocked until resolved"),
+                suggested_remediation: Some(format!("dont define {c} --doc \"<definition>\"")),
+            }).collect();
+
+            match project.store.append_claim(&statement, &depends_on) {
                 Ok(result) => {
                     let payload = json!({
                         "id": result.id,
@@ -584,14 +623,14 @@ fn main() {
                         "atoms": [],
                         "hypotheses": [],
                         "evidence": [],
-                        "depends_on": [],
+                        "depends_on": depends_on,
                         "applicable_rules": {},
                         "created_at": result.created_at,
                     });
                     let env = Envelope::success_with_tx(
                         "claim",
                         payload,
-                        vec![],
+                        warnings,
                         vec![HintEntry {
                             command: format!("dont show {}", result.id),
                             description: "Inspect the new claim".to_string(),

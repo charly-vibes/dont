@@ -118,6 +118,7 @@ pub struct ClaimRecord {
     pub id: String,
     pub statement: String,
     pub status: StoreStatus,
+    pub depends_on: Vec<String>,
     pub created_at: String,
     pub events: Vec<EventRecord>,
 }
@@ -212,13 +213,17 @@ impl Store {
         })
     }
 
-    pub fn append_claim(&self, statement: &str) -> Result<AppendResult, StoreError> {
+    pub fn append_claim(
+        &self,
+        statement: &str,
+        depends_on: &[String],
+    ) -> Result<AppendResult, StoreError> {
         self.with_write_lock(|store| {
             let tx = store.next_tx()?;
             let claim_id = prefixed_ulid("claim");
             let event_id = prefixed_ulid("event");
             let now = now_rfc3339_seconds();
-            let datoms = vec![
+            let mut datoms = vec![
                 Datom::assert(
                     &claim_id,
                     "entity_type",
@@ -253,6 +258,12 @@ impl Store {
                 ),
                 Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
             ];
+            if !depends_on.is_empty() {
+                let arr = Value::Array(
+                    depends_on.iter().map(|c| Value::String(c.clone())).collect(),
+                );
+                datoms.push(Datom::assert(&claim_id, "depends_on", arr, tx));
+            }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
                 id: claim_id,
@@ -562,9 +573,18 @@ impl Store {
                 .to_string();
             let mut events = events_by_claim.remove(&id).unwrap_or_default();
             events.sort_by_key(|e| e.tx);
-            records.push(ClaimRecord { id, statement, status, created_at, events });
+            records.push(ClaimRecord { id, statement, status, depends_on: vec![], created_at, events });
         }
         Ok(records)
+    }
+
+    pub fn term_curie_exists(&self, curie: &str) -> Result<bool, StoreError> {
+        let script = format!(
+            r#"?[entity] := *datoms[entity, "curie", {}, _, true], *datoms[entity, "entity_type", "term", _, true]"#,
+            json_string(curie)
+        );
+        let rows = self.query_rows(&script)?;
+        Ok(!rows.is_empty())
     }
 
     pub fn claim_by_id(&self, claim_id: &str) -> Result<Option<ClaimRecord>, StoreError> {
@@ -584,12 +604,21 @@ impl Store {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
+        let depends_on = latest_asserted_value(&datoms, "depends_on")
+            .and_then(Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(ToString::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
         let mut events = self.events_for_claim(claim_id)?;
         events.sort_by_key(|event| event.tx);
         Ok(Some(ClaimRecord {
             id: claim_id.to_string(),
             statement,
             status,
+            depends_on,
             created_at,
             events,
         }))
