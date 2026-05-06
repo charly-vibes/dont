@@ -71,6 +71,8 @@ pub enum StoreEventKind {
     Locked,
     Ignored,
     Reopened,
+    HypothesisAdded,
+    HypothesisAssessed,
 }
 
 impl StoreEventKind {
@@ -83,6 +85,8 @@ impl StoreEventKind {
             Self::Locked => "locked",
             Self::Ignored => "ignored",
             Self::Reopened => "reopened",
+            Self::HypothesisAdded => "hypothesis-added",
+            Self::HypothesisAssessed => "hypothesis-assessed",
         }
     }
 
@@ -95,6 +99,8 @@ impl StoreEventKind {
             "locked" => Ok(Self::Locked),
             "ignored" => Ok(Self::Ignored),
             "reopened" => Ok(Self::Reopened),
+            "hypothesis-added" => Ok(Self::HypothesisAdded),
+            "hypothesis-assessed" => Ok(Self::HypothesisAssessed),
             _ => Err(StoreError::Malformed(format!("unknown event kind {value}"))),
         }
     }
@@ -244,6 +250,115 @@ impl Store {
             let tx = store.next_tx()?;
             let value = serde_json::to_value(hypotheses).map_err(StoreError::from_err)?;
             store.put_datoms(&[Datom::assert(claim_id, "hypotheses", value, tx)])
+        })
+    }
+
+    pub fn add_hypothesis(
+        &self,
+        claim_id: &str,
+        text: &str,
+    ) -> Result<(AppendResult, usize), StoreError> {
+        self.with_write_lock(|store| {
+            let record = store
+                .claim_by_id(claim_id)?
+                .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} not found")))?;
+            let tx = store.next_tx()?;
+            let mut hypotheses = record.hypotheses;
+            let idx = hypotheses.len();
+            hypotheses.push(HypothesisRecord {
+                idx,
+                text: text.to_string(),
+                assessment: HypothesisAssessment {
+                    supporting: vec![],
+                    refuting: vec![],
+                },
+            });
+            let value = serde_json::to_value(&hypotheses).map_err(StoreError::from_err)?;
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            store.put_datoms(&[
+                Datom::assert(claim_id, "hypotheses", value, tx),
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "claim_id",
+                    Value::String(claim_id.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String("hypothesis-added".to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ])?;
+            Ok((
+                AppendResult {
+                    id: claim_id.to_string(),
+                    event_id,
+                    tx,
+                    created_at: now,
+                },
+                idx,
+            ))
+        })
+    }
+
+    pub fn assess_hypothesis(
+        &self,
+        claim_id: &str,
+        idx: usize,
+        supporting: &[String],
+        refuting: &[String],
+    ) -> Result<AppendResult, StoreError> {
+        self.with_write_lock(|store| {
+            let record = store
+                .claim_by_id(claim_id)?
+                .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} not found")))?;
+            let tx = store.next_tx()?;
+            let mut hypotheses = record.hypotheses;
+            let h = hypotheses
+                .get_mut(idx)
+                .ok_or_else(|| StoreError::Malformed(format!("hypothesis index {idx} out of range")))?;
+            h.assessment.supporting.extend_from_slice(supporting);
+            h.assessment.refuting.extend_from_slice(refuting);
+            let value = serde_json::to_value(&hypotheses).map_err(StoreError::from_err)?;
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            store.put_datoms(&[
+                Datom::assert(claim_id, "hypotheses", value, tx),
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "claim_id",
+                    Value::String(claim_id.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String("hypothesis-assessed".to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ])?;
+            Ok(AppendResult {
+                id: claim_id.to_string(),
+                event_id,
+                tx,
+                created_at: now,
+            })
         })
     }
 

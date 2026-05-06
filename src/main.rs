@@ -204,6 +204,42 @@ enum Command {
         #[arg(long)]
         excerpt: Option<String>,
     },
+
+    /// Manage competing hypotheses for a claim.
+    Hypothesis {
+        #[command(subcommand)]
+        action: HypothesisAction,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum HypothesisAction {
+    /// Record a competing hypothesis for a claim.
+    Add {
+        /// Claim identifier.
+        id: String,
+
+        /// Hypothesis text.
+        #[arg(long)]
+        text: String,
+    },
+
+    /// Assess a hypothesis with supporting or refuting evidence.
+    Assess {
+        /// Claim identifier.
+        id: String,
+
+        /// Hypothesis index (0-based).
+        idx: usize,
+
+        /// Evidence supporting this hypothesis. May be repeated.
+        #[arg(long)]
+        supporting: Vec<String>,
+
+        /// Evidence refuting this hypothesis. May be repeated.
+        #[arg(long)]
+        refuting: Vec<String>,
+    },
 }
 
 const DEFAULT_HEDGES: &[&str] = &["i think", "maybe", "not sure", "probably"];
@@ -3016,6 +3052,132 @@ fn main() {
                 Err(err) => handle_store_error(err, Some(&claim_id)),
             };
             emit_claim_view(&updated, &dismiss_result);
+        }
+
+        Command::Hypothesis { action } => {
+            let project = open_project_or_exit();
+            match action {
+                HypothesisAction::Add { id, text } => {
+                    if text.trim().is_empty() {
+                        emit_error_and_exit(
+                            refusal(
+                                "empty-text",
+                                "hypothesis text must be non-empty",
+                                Some(&id),
+                                vec![RemediationEntry {
+                                    command: format!(
+                                        "dont hypothesis add {id} --text \"<hypothesis>\""
+                                    ),
+                                    description: "Provide a non-empty hypothesis statement"
+                                        .to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+                    let (result, _idx) = match project.store.add_hypothesis(&id, &text) {
+                        Ok(r) => r,
+                        Err(StoreError::Malformed(ref msg)) if msg.contains("not found") => {
+                            emit_error_and_exit(
+                                refusal(
+                                    "claim-not-found",
+                                    &format!("claim {id} not found"),
+                                    Some(&id),
+                                    vec![RemediationEntry {
+                                        command: "dont list".to_string(),
+                                        description: "List claims to find the correct identifier"
+                                            .to_string(),
+                                    }],
+                                ),
+                                vec![],
+                                1,
+                            );
+                        }
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    };
+                    let updated = match project.store.claim_by_id(&id) {
+                        Ok(Some(r)) => r,
+                        Ok(None) => handle_store_error(
+                            StoreError::Malformed(format!("claim {id} vanished after hypothesis add")),
+                            Some(&id),
+                        ),
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    };
+                    emit_claim_view(&updated, &result);
+                }
+
+                HypothesisAction::Assess {
+                    id,
+                    idx,
+                    supporting,
+                    refuting,
+                } => {
+                    if supporting.is_empty() && refuting.is_empty() {
+                        emit_error_and_exit(
+                            refusal(
+                                "no-assessment",
+                                "hypothesis assess requires at least one --supporting or --refuting item",
+                                Some(&id),
+                                vec![RemediationEntry {
+                                    command: format!(
+                                        "dont hypothesis assess {id} {idx} --supporting <uri>"
+                                    ),
+                                    description:
+                                        "Provide at least one supporting or refuting evidence reference"
+                                            .to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+                    let result = match project.store.assess_hypothesis(&id, idx, &supporting, &refuting) {
+                        Ok(r) => r,
+                        Err(StoreError::Malformed(ref msg)) if msg.contains("not found") => {
+                            emit_error_and_exit(
+                                refusal(
+                                    "claim-not-found",
+                                    &format!("claim {id} not found"),
+                                    Some(&id),
+                                    vec![RemediationEntry {
+                                        command: "dont list".to_string(),
+                                        description: "List claims to find the correct identifier"
+                                            .to_string(),
+                                    }],
+                                ),
+                                vec![],
+                                1,
+                            );
+                        }
+                        Err(StoreError::Malformed(ref msg)) if msg.contains("out of range") => {
+                            emit_error_and_exit(
+                                refusal(
+                                    "hypothesis-not-found",
+                                    &format!("hypothesis index {idx} does not exist on claim {id}"),
+                                    Some(&id),
+                                    vec![RemediationEntry {
+                                        command: format!("dont show {id}"),
+                                        description: "Inspect the claim to see available hypothesis indices".to_string(),
+                                    }],
+                                ),
+                                vec![],
+                                1,
+                            );
+                        }
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    };
+                    let updated = match project.store.claim_by_id(&id) {
+                        Ok(Some(r)) => r,
+                        Ok(None) => handle_store_error(
+                            StoreError::Malformed(format!("claim {id} vanished after hypothesis assess")),
+                            Some(&id),
+                        ),
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    };
+                    emit_claim_view(&updated, &result);
+                }
+            }
         }
     }
 }
