@@ -642,6 +642,25 @@ impl Store {
         Ok(records)
     }
 
+    pub fn list_terms(&self) -> Result<Vec<TermRecord>, StoreError> {
+        let rows = self.query_rows(
+            r#"?[entity] := *datoms[entity, "entity_type", "term", _, true]"#,
+        )?;
+
+        let mut records = Vec::new();
+        for row in rows {
+            let Some(term_id) = row.first().and_then(Value::as_str) else {
+                return Err(StoreError::Malformed(
+                    "term-list query returned a non-string entity id".to_string(),
+                ));
+            };
+            if let Some(record) = self.term_by_id(term_id)? {
+                records.push(record);
+            }
+        }
+        Ok(records)
+    }
+
     pub fn term_curie_exists(&self, curie: &str) -> Result<bool, StoreError> {
         let script = format!(
             r#"?[entity] := *datoms[entity, "curie", {}, _, true], *datoms[entity, "entity_type", "term", _, true]"#,

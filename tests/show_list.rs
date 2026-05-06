@@ -29,6 +29,21 @@ fn conclude_claim(dir: &TempDir, statement: &str) -> String {
         .to_string()
 }
 
+fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
+    let out = dont()
+        .args(["define", curie, "--doc", doc, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    serde_json::from_slice::<Value>(&out).unwrap()["data"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
 // --- show ---
 
 #[test]
@@ -310,5 +325,127 @@ fn list_invalid_status_returns_validation_error_exit_1() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "invalid-status");
+    assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn list_kind_terms_returns_defined_terms() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let term_id = define_term(&dir, "WB:P001", "a process by which X becomes Y");
+    conclude_claim(&dir, "claims should not appear in term listings");
+
+    let out = dont()
+        .args(["list", "--kind", "terms", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["envelope_kind"], "terms");
+    let terms = v["data"].as_array().unwrap();
+    assert_eq!(terms.len(), 1);
+    assert_eq!(terms[0]["id"], term_id);
+    assert_eq!(terms[0]["entity_kind"], "term");
+    assert_eq!(terms[0]["curie"], "WB:P001");
+    assert_eq!(terms[0]["status"], "unverified");
+}
+
+#[test]
+fn list_kind_claims_retains_current_behavior() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    define_term(&dir, "WB:P001", "a process by which X becomes Y");
+    let claim_id = conclude_claim(&dir, "claims remain the default listing kind");
+
+    let out = dont()
+        .args(["list", "--kind", "claims", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["envelope_kind"], "claims");
+    let claims = v["data"].as_array().unwrap();
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0]["id"], claim_id);
+    assert_eq!(claims[0]["entity_kind"], "claim");
+}
+
+#[test]
+fn list_default_claims_emits_hint_when_terms_exist() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    define_term(&dir, "WB:P001", "a process by which X becomes Y");
+    conclude_claim(&dir, "default listing still shows claims");
+
+    let out = dont()
+        .args(["list", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["envelope_kind"], "claims");
+    assert!(v["hints"].as_array().unwrap().iter().any(|hint| {
+        hint["command"] == "dont list --kind terms"
+    }));
+}
+
+#[test]
+fn list_kind_terms_supports_status_filter() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let unverified = define_term(&dir, "WB:P001", "a process by which X becomes Y");
+    let ignored = define_term(&dir, "WB:P002", "a process by which Y becomes Z");
+    dont()
+        .args(["ignore", &ignored, "--reason", "Out of scope for this project", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["list", "--kind", "terms", "--status", "ignored", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let terms = v["data"].as_array().unwrap();
+    assert_eq!(terms.len(), 1);
+    assert_eq!(terms[0]["id"], ignored);
+    assert_eq!(terms[0]["status"], "ignored");
+    assert_ne!(terms[0]["id"], unverified);
+}
+
+#[test]
+fn list_invalid_kind_returns_validation_error_exit_1() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["list", "--kind", "events", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "invalid-kind");
     assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
 }
