@@ -17,7 +17,7 @@ use dont::model::{
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
-    AppendResult, ClaimRecord, EventRecord, HypothesisRecord, StoreError, StoreEvent,
+    AppendResult, ClaimRecord, EventRecord, HypothesisRecord, Store, StoreError, StoreEvent,
     StoreEventKind, StoreStatus, TermRecord,
 };
 
@@ -466,7 +466,16 @@ fn format_trace(data: &Value) -> String {
         Some(p) => {
             let mut out = format!("{id} is blocked by:");
             for path in p {
-                out.push_str(&format!("\n  {path}"));
+                let path_str = path
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(Value::as_str)
+                            .collect::<Vec<_>>()
+                            .join(" → ")
+                    })
+                    .unwrap_or_else(|| path.to_string());
+                out.push_str(&format!("\n  {path_str}"));
             }
             out
         }
@@ -624,7 +633,7 @@ fn updated_at(record: &ClaimRecord) -> String {
         .unwrap_or_else(|| record.created_at.clone())
 }
 
-fn build_claim_view(record: &ClaimRecord) -> Value {
+fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
     let evidence = collect_evidence(record);
     let events: Vec<Value> = record
         .events
@@ -642,14 +651,14 @@ fn build_claim_view(record: &ClaimRecord) -> Value {
         "entity_kind": "claim",
         "statement": record.statement,
         "status": format!("{:?}", record.status).to_lowercase(),
-        "derived_assessments": derived_assessments_for_claim(record),
+        "derived_assessments": derived_assessments_for_claim(record, store),
         "atoms": [],
         "hypotheses": record.hypotheses,
         "evidence": evidence,
         "depends_on": record.depends_on,
         "events": events,
         "applicable_rules": {
-            "lockable": lockable_rule_view(record),
+            "lockable": lockable_rule_view(record, store),
         },
         "created_at": record.created_at,
         "updated_at": updated_at(record),
@@ -809,21 +818,22 @@ fn build_repo_locator(
     Value::Object(obj)
 }
 
-fn derived_assessments_for_claim(record: &ClaimRecord) -> Vec<String> {
+/// Compute derived assessments (stale, compromised-support, etc.) for a claim.
+///
+/// Note: a claim depending on a Locked term cannot be verified — Locked terms emit
+/// "compromised-support" and there is no valid transition from Locked back to a
+/// verifiable state without reopening the term first. This is intentional.
+fn derived_assessments_for_claim(record: &ClaimRecord, store: &Store) -> Vec<String> {
     let mut derived = Vec::new();
     if record.depends_on.is_empty() {
         return derived;
     }
-    let project = match Project::open(&cwd()) {
-        Ok(project) => project,
-        Err(_) => return derived,
-    };
 
     for dep in &record.depends_on {
         let lookup = if dep.starts_with("term:") {
-            project.store.term_by_id(dep)
+            store.term_by_id(dep)
         } else {
-            project.store.term_by_curie(dep)
+            store.term_by_curie(dep)
         };
         match lookup {
             Ok(Some(term)) => match term.status {
@@ -963,7 +973,7 @@ fn blocker_path_to_value(bp: BlockerPath) -> Value {
     })
 }
 
-fn lockable_unmet_clauses(record: &ClaimRecord) -> Vec<UnmetClause> {
+fn lockable_unmet_clauses(record: &ClaimRecord, store: &Store) -> Vec<UnmetClause> {
     let mut unmet = Vec::new();
     let hypothesis_count = assessed_hypothesis_count(&record.hypotheses);
     if hypothesis_count < 3 {
@@ -983,7 +993,7 @@ fn lockable_unmet_clauses(record: &ClaimRecord) -> Vec<UnmetClause> {
         });
     }
 
-    for assessment in derived_assessments_for_claim(record) {
+    for assessment in derived_assessments_for_claim(record, store) {
         unmet.push(UnmetClause {
             clause: format!("derived assessment {assessment} blocks locking"),
             fix: "resolve dependency integrity issues before locking".to_string(),
@@ -993,8 +1003,8 @@ fn lockable_unmet_clauses(record: &ClaimRecord) -> Vec<UnmetClause> {
     unmet
 }
 
-fn lockable_rule_view(record: &ClaimRecord) -> Value {
-    let unmet: Vec<String> = lockable_unmet_clauses(record)
+fn lockable_rule_view(record: &ClaimRecord, store: &Store) -> Value {
+    let unmet: Vec<String> = lockable_unmet_clauses(record, store)
         .into_iter()
         .map(|clause| clause.clause)
         .collect();
@@ -1005,8 +1015,8 @@ fn lockable_rule_view(record: &ClaimRecord) -> Value {
     })
 }
 
-fn dependency_gate_unmet_clauses(record: &ClaimRecord) -> Vec<UnmetClause> {
-    derived_assessments_for_claim(record)
+fn dependency_gate_unmet_clauses(record: &ClaimRecord, store: &Store) -> Vec<UnmetClause> {
+    derived_assessments_for_claim(record, store)
         .into_iter()
         .map(|assessment| UnmetClause {
             clause: format!("derived assessment {assessment} blocks verification"),
@@ -1086,9 +1096,71 @@ fn check_evidence_uri(
 
     EvidenceCheckResult {
         uri: uri.to_string(),
-        outcome: "reachable".to_string(),
-        detail: None,
+        outcome: "unchecked".to_string(),
+        detail: Some("live HTTP reachability check not yet implemented".to_string()),
     }
+}
+
+/// Validate and resolve a `--file` locator into a `Value` suitable for the evidence array.
+/// Calls `emit_error_and_exit` on any validation failure.
+fn resolve_file_locator(
+    file_path: &str,
+    lines: Option<&str>,
+    anchor: Option<&str>,
+    excerpt: Option<&str>,
+    project_root: &std::path::Path,
+    entity_id: Option<&str>,
+    cmd_prefix: &str,
+) -> Value {
+    if PathBuf::from(file_path).is_absolute() {
+        emit_error_and_exit(
+            refusal(
+                "path-not-relative",
+                "repository evidence locators must be project-relative paths, not absolute",
+                entity_id,
+                vec![RemediationEntry {
+                    command: format!("{cmd_prefix} --file <relative-path>"),
+                    description: "Use a path relative to the project root".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        );
+    }
+    let normalized = match normalize_repo_path(file_path, project_root) {
+        Ok(p) => p,
+        Err(msg) => emit_error_and_exit(
+            refusal(
+                "path-escapes-root",
+                &format!("evidence locator path is invalid: {msg}"),
+                entity_id,
+                vec![RemediationEntry {
+                    command: format!("{cmd_prefix} --file <relative-path>"),
+                    description: "Use a path that stays within the project root".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        ),
+    };
+    let line_span = match lines.map(parse_line_span) {
+        Some(Ok(span)) => Some(span),
+        Some(Err(msg)) => emit_error_and_exit(
+            refusal(
+                "invalid-line-span",
+                &format!("invalid --lines value: {msg}"),
+                entity_id,
+                vec![RemediationEntry {
+                    command: format!("{cmd_prefix} --file {file_path} --lines <start-end>"),
+                    description: "Use a format like \"10-18\" or \"42\"".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        ),
+        None => None,
+    };
+    build_repo_locator(&normalized, line_span, anchor, excerpt)
 }
 
 fn refusal(
@@ -1159,8 +1231,8 @@ fn suggest_alternative_curie(curie: &str) -> String {
     }
 }
 
-fn emit_claim_view(record: &ClaimRecord, result: &AppendResult) {
-    let payload = build_claim_view(record);
+fn emit_claim_view(record: &ClaimRecord, result: &AppendResult, store: &Store) {
+    let payload = build_claim_view(record, store);
     let env = Envelope::success_with_tx(
         "claim",
         payload,
@@ -1797,7 +1869,7 @@ fn main() {
                         ),
                         Err(err) => handle_store_error(err, Some(&id)),
                     };
-                    emit_claim_view(&updated, &result);
+                    emit_claim_view(&updated, &result, &project.store);
                 }
             }
         }
@@ -1871,7 +1943,7 @@ fn main() {
                 ),
             }
 
-            let unmet_clauses = lockable_unmet_clauses(&record);
+            let unmet_clauses = lockable_unmet_clauses(&record, &project.store);
             if !unmet_clauses.is_empty() {
                 let err_result = ErrorResult::new(
                     "rule-not-met",
@@ -1927,7 +1999,7 @@ fn main() {
                 ),
                 Err(err) => handle_store_error(err, Some(&id)),
             };
-            emit_claim_view(&updated, &result);
+            emit_claim_view(&updated, &result, &project.store);
         }
 
         Command::Reopen { id } => {
@@ -2048,7 +2120,7 @@ fn main() {
                             ),
                             Err(err) => handle_store_error(err, Some(&id)),
                         };
-                        emit_claim_view(&updated, &result);
+                        emit_claim_view(&updated, &result, &project.store);
                     }
                 }
             }
@@ -2205,7 +2277,7 @@ fn main() {
                             ),
                             Err(err) => handle_store_error(err, Some(&id)),
                         };
-                        emit_claim_view(&updated, &result);
+                        emit_claim_view(&updated, &result, &project.store);
                     }
                 }
             }
@@ -2235,61 +2307,18 @@ fn main() {
             let mut all_evidence: Vec<Value> =
                 evidence.into_iter().map(Value::String).collect();
             if let Some(ref file_path) = file {
-                if PathBuf::from(file_path).is_absolute() {
-                    emit_error_and_exit(
-                        refusal(
-                            "path-not-relative",
-                            "repository evidence locators must be project-relative paths, not absolute",
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont dismiss {id} --file <relative-path>"),
-                                description: "Use a path relative to the project root".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    );
-                }
-                let normalized = match normalize_repo_path(file_path, &project_root) {
-                    Ok(p) => p,
-                    Err(msg) => emit_error_and_exit(
-                        refusal(
-                            "path-escapes-root",
-                            &format!("evidence locator path is invalid: {msg}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont dismiss {id} --file <relative-path>"),
-                                description: "Use a path that stays within the project root".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                };
-                let line_span = match lines.as_deref().map(parse_line_span) {
-                    Some(Ok(span)) => Some(span),
-                    Some(Err(msg)) => emit_error_and_exit(
-                        refusal(
-                            "invalid-line-span",
-                            &format!("invalid --lines value: {msg}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont dismiss {id} --file {file_path} --lines <start-end>"),
-                                description: "Use a format like \"10-18\" or \"42\"".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    None => None,
-                };
-                all_evidence.push(build_repo_locator(
-                    &normalized,
-                    line_span,
+                all_evidence.push(resolve_file_locator(
+                    file_path,
+                    lines.as_deref(),
                     anchor.as_deref(),
                     excerpt.as_deref(),
+                    &project_root,
+                    Some(&id),
+                    &format!("dont dismiss {id}"),
                 ));
             }
+            // Terms don't have depends_on fields so no dependency gate is needed here.
+            // If terms gain dependencies in the future, add dependency_gate_unmet_clauses.
             if id.starts_with("term:") {
                 let record = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
@@ -2374,7 +2403,7 @@ fn main() {
             };
 
             let current = model_status_from_store(record.status);
-            let dependency_unmet = dependency_gate_unmet_clauses(&record);
+            let dependency_unmet = dependency_gate_unmet_clauses(&record, &project.store);
             if !dependency_unmet.is_empty() {
                 let rule_name = dependency_gate_rule_name(&dependency_unmet);
                 let err_result = ErrorResult::new(
@@ -2443,7 +2472,7 @@ fn main() {
                 ),
                 Err(err) => handle_store_error(err, Some(&id)),
             };
-            emit_claim_view(&updated, &result);
+            emit_claim_view(&updated, &result, &project.store);
         }
 
         Command::Show { id } => {
@@ -2511,7 +2540,7 @@ fn main() {
             } else {
                 match project.store.claim_by_id(&id) {
                     Ok(Some(record)) => {
-                        let payload = build_claim_view(&record);
+                        let payload = build_claim_view(&record, &project.store);
                         let env = Envelope::success(
                             "claim",
                             payload,
@@ -2669,6 +2698,10 @@ fn main() {
             let mut ignored = 0;
             let mut locked = 0;
             let mut blocking = Vec::new();
+            let mut ac_stale = 0u32;
+            let mut ac_compromised = 0u32;
+            let mut ac_dangling = 0u32;
+            let mut ac_unresolved = 0u32;
             for claim in &claims {
                 match claim.status {
                     StoreStatus::Unverified => unverified += 1,
@@ -2683,6 +2716,15 @@ fn main() {
                     StoreStatus::Verified => verified += 1,
                     StoreStatus::Ignored => ignored += 1,
                     StoreStatus::Locked => locked += 1,
+                }
+                for a in derived_assessments_for_claim(claim, &project.store) {
+                    match a.as_str() {
+                        "stale" => ac_stale += 1,
+                        "compromised-support" => ac_compromised += 1,
+                        "dangling-dependency" => ac_dangling += 1,
+                        "unresolved-term" => ac_unresolved += 1,
+                        _ => {}
+                    }
                 }
             }
             for term in &terms {
@@ -2712,10 +2754,10 @@ fn main() {
                     "ignored": ignored,
                 },
                 "assessment_counts": {
-                    "stale": 0,
-                    "compromised_support": 0,
-                    "dangling_dependency": 0,
-                    "unresolved_term": 0,
+                    "stale": ac_stale,
+                    "compromised_support": ac_compromised,
+                    "dangling_dependency": ac_dangling,
+                    "unresolved_term": ac_unresolved,
                 },
                 "rules": { "strict": [], "warn": [] },
                 "ontologies": [],
@@ -2793,7 +2835,7 @@ fn main() {
                             .cmp(&a.created_at)
                             .then_with(|| b.id.cmp(&a.id))
                     });
-                    let views: Vec<Value> = claims.iter().map(build_claim_view).collect();
+                    let views: Vec<Value> = claims.iter().map(|c| build_claim_view(c, &project.store)).collect();
                     let hints = match project.store.list_terms() {
                         Ok(terms) if default_kind && !terms.is_empty() => vec![HintEntry {
                             command: "dont list --kind terms".to_string(),
@@ -2965,59 +3007,14 @@ fn main() {
             let mut all_evidence: Vec<Value> =
                 evidence.into_iter().map(Value::String).collect();
             if let Some(ref file_path) = file {
-                if PathBuf::from(file_path).is_absolute() {
-                    emit_error_and_exit(
-                        refusal(
-                            "path-not-relative",
-                            "repository evidence locators must be project-relative paths, not absolute",
-                            None,
-                            vec![RemediationEntry {
-                                command: "dont ground \"<statement>\" --file <relative-path>".to_string(),
-                                description: "Use a path relative to the project root".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    );
-                }
-                let normalized = match normalize_repo_path(file_path, &project_root) {
-                    Ok(p) => p,
-                    Err(msg) => emit_error_and_exit(
-                        refusal(
-                            "path-escapes-root",
-                            &format!("evidence locator path is invalid: {msg}"),
-                            None,
-                            vec![RemediationEntry {
-                                command: "dont ground \"<statement>\" --file <relative-path>".to_string(),
-                                description: "Use a path that stays within the project root".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                };
-                let line_span = match lines.as_deref().map(parse_line_span) {
-                    Some(Ok(span)) => Some(span),
-                    Some(Err(msg)) => emit_error_and_exit(
-                        refusal(
-                            "invalid-line-span",
-                            &format!("invalid --lines value: {msg}"),
-                            None,
-                            vec![RemediationEntry {
-                                command: "dont ground \"<statement>\" --file <path> --lines <start-end>".to_string(),
-                                description: "Use a format like \"10-18\" or \"42\"".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    None => None,
-                };
-                all_evidence.push(build_repo_locator(
-                    &normalized,
-                    line_span,
+                all_evidence.push(resolve_file_locator(
+                    file_path,
+                    lines.as_deref(),
                     anchor.as_deref(),
                     excerpt.as_deref(),
+                    &project_root,
+                    None,
+                    "dont ground \"<statement>\"",
                 ));
             }
 
@@ -3051,7 +3048,7 @@ fn main() {
                 ),
                 Err(err) => handle_store_error(err, Some(&claim_id)),
             };
-            emit_claim_view(&updated, &dismiss_result);
+            emit_claim_view(&updated, &dismiss_result, &project.store);
         }
 
         Command::Hypothesis { action } => {
@@ -3104,7 +3101,7 @@ fn main() {
                         ),
                         Err(err) => handle_store_error(err, Some(&id)),
                     };
-                    emit_claim_view(&updated, &result);
+                    emit_claim_view(&updated, &result, &project.store);
                 }
 
                 HypothesisAction::Assess {
@@ -3175,7 +3172,7 @@ fn main() {
                         ),
                         Err(err) => handle_store_error(err, Some(&id)),
                     };
-                    emit_claim_view(&updated, &result);
+                    emit_claim_view(&updated, &result, &project.store);
                 }
             }
         }

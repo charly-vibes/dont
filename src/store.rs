@@ -763,21 +763,95 @@ impl Store {
         Ok(records)
     }
 
+    /// Return all terms, each with its current state. Uses two batch queries to avoid
+    /// N-per-term round trips, matching the approach used by `list_claims`.
     pub fn list_terms(&self) -> Result<Vec<TermRecord>, StoreError> {
-        let rows = self.query_rows(
-            r#"?[entity] := *datoms[entity, "entity_type", "term", _, true]"#,
+        // 1. All datoms for all term entities in one query
+        let term_rows = self.query_rows(
+            r#"?[entity, attribute, value, tx, assert_bit] :=
+                *datoms[entity, "entity_type", "term", _, true],
+                *datoms[entity, attribute, value, tx, assert_bit]"#,
         )?;
+        let term_datoms: Vec<Datom> = term_rows.into_iter().map(row_to_datom).collect::<Result<_, _>>()?;
 
-        let mut records = Vec::new();
-        for row in rows {
-            let Some(term_id) = row.first().and_then(Value::as_str) else {
-                return Err(StoreError::Malformed(
-                    "term-list query returned a non-string entity id".to_string(),
-                ));
-            };
-            if let Some(record) = self.term_by_id(term_id)? {
-                records.push(record);
+        // 2. All event datoms for all term-owned events (linked via entity_id)
+        let event_rows = self.query_rows(
+            r#"?[ev_entity, attribute, value, tx, assert_bit] :=
+                *datoms[_term, "entity_type", "term", _, true],
+                *datoms[ev_entity, "entity_id", _term, _, true],
+                *datoms[ev_entity, attribute, value, tx, assert_bit]"#,
+        )?;
+        let event_datoms: Vec<Datom> = event_rows.into_iter().map(row_to_datom).collect::<Result<_, _>>()?;
+
+        // Group event datoms by event entity
+        let mut events_by_ev: std::collections::HashMap<String, Vec<&Datom>> = std::collections::HashMap::new();
+        for d in &event_datoms {
+            events_by_ev.entry(d.entity.clone()).or_default().push(d);
+        }
+
+        // Resolve entity_id for each event so we can group by term
+        let mut events_by_term: std::collections::HashMap<String, Vec<EventRecord>> =
+            std::collections::HashMap::new();
+        for (ev_id, datoms) in &events_by_ev {
+            let term_id = datoms
+                .iter()
+                .filter(|d| d.attribute == "entity_id" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .map(str::to_string);
+            if let Some(tid) = term_id {
+                let record = event_from_datoms(ev_id.clone(), datoms.iter().copied())?;
+                events_by_term.entry(tid).or_default().push(record);
             }
+        }
+
+        // Group term datoms by entity
+        let mut term_datoms_by_id: std::collections::HashMap<String, Vec<&Datom>> =
+            std::collections::HashMap::new();
+        for d in &term_datoms {
+            term_datoms_by_id.entry(d.entity.clone()).or_default().push(d);
+        }
+
+        // Build TermRecord for each entity
+        let mut records = Vec::new();
+        for (id, datoms) in term_datoms_by_id {
+            let curie = datoms
+                .iter()
+                .filter(|d| d.attribute == "curie" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .ok_or_else(|| StoreError::Malformed(format!("term {id} has no curie")))?
+                .to_string();
+            let definition = datoms
+                .iter()
+                .filter(|d| d.attribute == "definition" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .ok_or_else(|| StoreError::Malformed(format!("term {id} has no definition")))?
+                .to_string();
+            let status_str = datoms
+                .iter()
+                .filter(|d| d.attribute == "status" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .ok_or_else(|| StoreError::Malformed(format!("term {id} has no status")))?;
+            let status = StoreStatus::from_str(status_str)?;
+            let created_at = datoms
+                .iter()
+                .filter(|d| d.attribute == "created_at" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let label = datoms
+                .iter()
+                .filter(|d| d.attribute == "label" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_str())
+                .map(ToString::to_string);
+            let mut events = events_by_term.remove(&id).unwrap_or_default();
+            events.sort_by_key(|event| event.tx);
+            records.push(TermRecord { id, curie, label, definition, status, created_at, events });
         }
         Ok(records)
     }
