@@ -170,11 +170,15 @@ fn ground_with_multiple_evidence_items() {
 #[test]
 fn ground_with_file_locator_returns_verified() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    dont()
+        .args(["init", "--json"])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success();
 
-    // Create a real file at the project root so the locator is valid
-    let project_root = dir.path();
-    std::fs::write(project_root.join("README.md"), "# test").unwrap();
+    std::fs::write(root.join("README.md"), "# test").unwrap();
 
     let out = dont()
         .args([
@@ -184,7 +188,7 @@ fn ground_with_file_locator_returns_verified() {
             "README.md",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", root.join(".dont"))
         .assert()
         .success()
         .get_output()
@@ -193,6 +197,50 @@ fn ground_with_file_locator_returns_verified() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["data"]["status"], "verified");
+}
+
+#[test]
+fn ground_refuses_unreadable_file_locator_without_partial_claim() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    dont()
+        .args(["init", "--json"])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success();
+
+    let out = dont()
+        .args([
+            "ground",
+            "missing file should not verify",
+            "--file",
+            "MISSING.md",
+            "--lines",
+            "1",
+            "--json",
+        ])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "unreadable-evidence");
+
+    let out = dont()
+        .args(["list", "--json"])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let listed: Value = serde_json::from_slice(&out).unwrap();
+    assert!(listed["data"].as_array().unwrap().is_empty());
 }
 
 #[test]

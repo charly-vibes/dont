@@ -7,7 +7,7 @@ Use `dont` as a sidecar when you want repository facts to survive beyond chat me
 When the claim and repository evidence are both in hand, prefer `dont ground` with a repository-relative locator:
 
 ```bash
-dont ground "The project builds docs with mdBook" --file justfile --lines 27-28
+dont ground "The project builds docs with mdBook" --file justfile --lines 48-49
 ```
 
 This is the shortest trustworthy path for documented project facts. It records the claim and verifies it in one invocation.
@@ -26,7 +26,7 @@ Internally, `ground` composes `conclude` and `dismiss` so normal event history a
 For evidence inside the current project, use `--file` with an optional line span or anchor:
 
 ```bash
-dont ground "The crate exposes a test recipe" --file justfile --lines 10-11
+dont ground "The crate exposes a test recipe" --file justfile --lines 12-13
 dont dismiss <id> --file src/main.rs --lines 188-205 --anchor "Ground"
 ```
 

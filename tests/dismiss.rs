@@ -9,7 +9,7 @@ fn dont() -> Command {
 fn init_dir(dir: &TempDir) {
     dont()
         .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success();
 }
@@ -17,7 +17,7 @@ fn init_dir(dir: &TempDir) {
 fn conclude_claim(dir: &TempDir, statement: &str) -> String {
     let out = dont()
         .args(["conclude", statement, "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success()
         .get_output()
@@ -30,7 +30,7 @@ fn conclude_claim(dir: &TempDir, statement: &str) -> String {
 fn dismiss(dir: &TempDir, id: &str, evidence: &str) -> Vec<u8> {
     dont()
         .args(["dismiss", id, "--evidence", evidence, "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success()
         .get_output()
@@ -41,7 +41,7 @@ fn dismiss(dir: &TempDir, id: &str, evidence: &str) -> Vec<u8> {
 fn define_term(dir: &TempDir, curie: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", "a valid definition", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success()
         .get_output()
@@ -56,7 +56,7 @@ fn dismiss_file(dir: &TempDir, id: &str, extra_args: &[&str]) -> Vec<u8> {
     args.extend_from_slice(extra_args);
     dont()
         .args(&args)
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .output()
         .unwrap()
         .stdout
@@ -83,7 +83,7 @@ fn dismiss_doubted_claim_produces_verified_status() {
     let id = conclude_claim(&dir, "photosynthesis converts CO2 to O2");
     dont()
         .args(["trust", &id, "--reason", "Need to verify the chemistry", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success();
     let out = dismiss(&dir, &id, "https://acs.org/photosynthesis");
@@ -157,7 +157,7 @@ fn dismiss_without_evidence_returns_no_evidence_exit_1() {
     let id = conclude_claim(&dir, "evidence-free dismiss should fail");
     let out = dont()
         .args(["dismiss", &id, "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .code(1)
         .get_output()
@@ -183,7 +183,7 @@ fn dismiss_refuses_claims_with_unverified_term_dependencies() {
             "WB:P001",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success()
         .get_output()
@@ -194,7 +194,7 @@ fn dismiss_refuses_claims_with_unverified_term_dependencies() {
 
     let output = dont()
         .args(["dismiss", &id, "--evidence", "https://example.test/proof", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .code(1)
         .get_output()
@@ -208,7 +208,7 @@ fn dismiss_refuses_claims_with_unverified_term_dependencies() {
 
     let shown = dont()
         .args(["show", &id, "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success()
         .get_output()
@@ -224,7 +224,7 @@ fn dismiss_claim_not_found_returns_error_exit_1() {
     init_dir(&dir);
     let out = dont()
         .args(["dismiss", "claim:01JNONEXISTENT", "--evidence", "https://example.test", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .code(1)
         .get_output()
@@ -241,6 +241,7 @@ fn dismiss_claim_not_found_returns_error_exit_1() {
 fn dismiss_file_locator_stored_as_structured_entry() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
+    std::fs::write(dir.path().join("README.md"), "API docs\n").unwrap();
     let id = conclude_claim(&dir, "README documents the API");
     let out = dismiss_file(&dir, &id, &["--file", "README.md"]);
     let v: Value = serde_json::from_slice(&out).unwrap();
@@ -255,6 +256,10 @@ fn dismiss_file_locator_stored_as_structured_entry() {
 fn dismiss_file_locator_with_line_span() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
+    let spec = (1..=18)
+        .map(|n| format!("line {n}\n"))
+        .collect::<String>();
+    std::fs::write(dir.path().join("spec.md"), spec).unwrap();
     let id = conclude_claim(&dir, "spec defines the contract on lines 10-18");
     let out = dismiss_file(&dir, &id, &["--file", "spec.md", "--lines", "10-18"]);
     let v: Value = serde_json::from_slice(&out).unwrap();
@@ -271,6 +276,8 @@ fn dismiss_file_locator_with_line_span() {
 fn dismiss_file_locator_with_anchor() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
+    std::fs::create_dir(dir.path().join("docs")).unwrap();
+    std::fs::write(dir.path().join("docs/api.md"), "# authentication\n").unwrap();
     let id = conclude_claim(&dir, "section heading anchors the claim");
     let out = dismiss_file(&dir, &id, &["--file", "docs/api.md", "--anchor", "authentication"]);
     let v: Value = serde_json::from_slice(&out).unwrap();
@@ -306,6 +313,7 @@ fn dismiss_file_locator_absolute_path_refused() {
 fn dismiss_file_and_uri_evidence_combined() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
+    std::fs::write(dir.path().join("README.md"), "proof\n").unwrap();
     let id = conclude_claim(&dir, "claim grounded in both repo and URI evidence");
     let out = dismiss_file(
         &dir,

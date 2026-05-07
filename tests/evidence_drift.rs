@@ -118,6 +118,58 @@ fn dismiss_refuses_symlink_escape_outside_project_root() {
 }
 
 #[test]
+fn dismiss_refuses_broken_symlink_locator_before_it_can_later_escape() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    let outside_target = dir.path().join("later-secret.txt");
+    std::fs::create_dir_all(&root).unwrap();
+    init_project(&root);
+    std::os::unix::fs::symlink(&outside_target, root.join("link.txt")).unwrap();
+    let id = conclude_claim(&root, "broken symlink should not become future evidence");
+
+    let v = dismiss_file_value(&root, &id, "link.txt", "1");
+
+    assert_eq!(v["ok"], false, "broken symlink should be refused: {v}");
+    assert_eq!(v["data"]["code"], "unreadable-evidence");
+    std::fs::write(outside_target, "secret\n").unwrap();
+    let shown = show(&root, &id);
+    assert!(shown["data"]["evidence"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn dismiss_with_excerpt_without_lines_audits_excerpt_presence() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    init_project(&root);
+    std::fs::write(root.join("README.md"), "alpha beta gamma\n").unwrap();
+    let id = conclude_claim(&root, "README mentions beta");
+
+    let v = dont()
+        .args([
+            "dismiss",
+            &id,
+            "--file",
+            "README.md",
+            "--excerpt",
+            "beta",
+            "--json",
+        ])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&v).unwrap();
+    assert_eq!(v["data"]["evidence"][0]["audit"]["status"], "current");
+
+    std::fs::write(root.join("README.md"), "alpha gamma\n").unwrap();
+    let shown = show(&root, &id);
+    assert_eq!(shown["data"]["evidence"][0]["audit"]["status"], "drifted");
+}
+
+#[test]
 fn dismiss_refuses_invalid_line_spans() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");

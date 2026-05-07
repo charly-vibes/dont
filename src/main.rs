@@ -651,7 +651,19 @@ fn current_locator_text(locator: &Value, project_root: &Path) -> Result<String, 
         .and_then(Value::as_str)
         .ok_or_else(|| "locator is missing path".to_string())?;
     let full_path = project_root.join(path);
-    let text = std::fs::read_to_string(&full_path)
+    let canonical_root = project_root.canonicalize().map_err(|err| {
+        format!(
+            "could not resolve project root {}: {err}",
+            project_root.display()
+        )
+    })?;
+    let canonical_target = full_path
+        .canonicalize()
+        .map_err(|err| format!("could not read {}: {err}", full_path.display()))?;
+    if !canonical_target.starts_with(&canonical_root) {
+        return Err("path escapes project root".to_string());
+    }
+    let text = std::fs::read_to_string(&canonical_target)
         .map_err(|err| format!("could not read {}: {err}", full_path.display()))?;
     if let Some((start, end)) = locator_line_span(locator) {
         let lines: Vec<&str> = text.lines().collect();
@@ -671,7 +683,16 @@ fn locator_audit(locator: &Value, project_root: &Path) -> Value {
     match current_locator_text(locator, project_root) {
         Ok(current_text) => {
             if let Some(stored) = locator.get("fingerprint").and_then(Value::as_str) {
-                let current = fingerprint_text(&current_text);
+                let current = if locator_line_span(locator).is_none() {
+                    locator
+                        .get("excerpt")
+                        .and_then(Value::as_str)
+                        .filter(|excerpt| current_text.contains(*excerpt))
+                        .map(fingerprint_text)
+                        .unwrap_or_else(|| fingerprint_text(&current_text))
+                } else {
+                    fingerprint_text(&current_text)
+                };
                 if current == stored {
                     json!({"status": "current"})
                 } else {
@@ -1304,13 +1325,39 @@ fn resolve_file_locator(
         ),
         None => None,
     };
-    let source_text = line_span
-        .and_then(|_| current_locator_text(&build_repo_locator(&normalized, line_span, anchor, None), project_root).ok());
-    let stored_excerpt = excerpt.map(str::to_string).or_else(|| source_text.clone());
+    let current_text = match current_locator_text(
+        &build_repo_locator(&normalized, line_span, anchor, None),
+        project_root,
+    ) {
+        Ok(text) => text,
+        Err(msg) => emit_error_and_exit(
+            refusal(
+                "unreadable-evidence",
+                &format!("repository evidence locator could not be read: {msg}"),
+                entity_id,
+                vec![RemediationEntry {
+                    command: format!("{cmd_prefix} --file <existing-relative-path>"),
+                    description: "Use an existing file inside the project root".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        ),
+    };
+    let fingerprint_source = if line_span.is_some() {
+        current_text.as_str()
+    } else {
+        excerpt.unwrap_or(&current_text)
+    };
+    let stored_excerpt = excerpt
+        .map(str::to_string)
+        .or_else(|| line_span.map(|_| current_text.clone()));
     let mut locator = build_repo_locator(&normalized, line_span, anchor, stored_excerpt.as_deref());
-    let fingerprint_source = source_text.as_deref().or(excerpt);
-    if let (Value::Object(obj), Some(text)) = (&mut locator, fingerprint_source) {
-        obj.insert("fingerprint".to_string(), Value::String(fingerprint_text(text)));
+    if let Value::Object(obj) = &mut locator {
+        obj.insert(
+            "fingerprint".to_string(),
+            Value::String(fingerprint_text(fingerprint_source)),
+        );
     }
     locator
 }
