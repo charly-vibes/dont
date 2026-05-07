@@ -1,4 +1,16 @@
+use std::sync::OnceLock;
+
 use serde::{Deserialize, Serialize};
+
+static CURRENT_AUTHOR: OnceLock<String> = OnceLock::new();
+
+pub fn set_author(author: String) {
+    let _ = CURRENT_AUTHOR.set(author);
+}
+
+fn current_author() -> Option<String> {
+    CURRENT_AUTHOR.get().cloned()
+}
 
 pub const ENVELOPE_VERSION: &str = "0.2";
 pub const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -53,6 +65,8 @@ pub struct Meta {
     pub duration_ms: u64,
     pub tx: Option<u64>,
     pub request_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,6 +143,7 @@ impl<T: Serialize> Envelope<T> {
                 duration_ms: 0,
                 tx: None,
                 request_id: None,
+                author: current_author(),
             },
         }
     }
@@ -160,6 +175,7 @@ impl Envelope<ErrorResult> {
                 duration_ms: 0,
                 tx: None,
                 request_id: None,
+                author: current_author(),
             },
         }
     }

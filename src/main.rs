@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use dont::envelope::{
-    Envelope, ErrorResult, HintEntry, RemediationEntry, UnmetClause, Warning,
+    CLI_VERSION, ENVELOPE_VERSION, Envelope, ErrorResult, HintEntry, RemediationEntry,
+    UnmetClause, Warning, set_author,
 };
 use dont::model::{
     Status, flag as model_flag, ignore as model_ignore, lock as model_lock,
@@ -31,19 +32,35 @@ fn human_mode() -> bool {
 
 #[derive(Debug, Parser)]
 #[command(name = "dont")]
-#[command(version)]
+#[command(disable_version_flag = true)]
 #[command(about = "Epistemic forcing-function CLI for grounded claims")]
 struct Cli {
-    /// Output JSON envelope on stdout.
+    /// Print version information. Combine with --json for machine-readable output.
     #[arg(long, global = true)]
+    version: bool,
+
+    /// Output JSON envelope on stdout.
+    #[arg(long, short = 'j', global = true)]
     json: bool,
 
     /// Output human-readable text instead of JSON (--json takes precedence).
     #[arg(long, global = true)]
     human: bool,
 
+    /// Output human-readable text without ANSI colours (for logging to files).
+    #[arg(long, global = true)]
+    plain: bool,
+
+    /// Author identifier for this invocation. Overrides $DONT_AUTHOR.
+    #[arg(long, short = 'a', global = true)]
+    author: Option<String>,
+
+    /// Bypass harness detection; behave as if DONT_DIRECT=1.
+    #[arg(long, global = true)]
+    direct: bool,
+
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -1705,11 +1722,48 @@ fn doc_shape_warnings(doc: &str) -> Vec<Warning> {
 fn main() {
     let cli = Cli::parse();
 
+    // Resolve author: explicit flag > $DONT_AUTHOR > $USER
+    let author = cli
+        .author
+        .clone()
+        .or_else(|| std::env::var("DONT_AUTHOR").ok())
+        .or_else(|| std::env::var("USER").ok());
+    if let Some(a) = author {
+        set_author(a);
+    }
+
     if cli.human && !cli.json {
         HUMAN_MODE.with(|m| m.set(true));
     }
 
-    match cli.command {
+    // --version [--json]
+    if cli.version {
+        if cli.json {
+            let env = Envelope::success(
+                "version",
+                json!({
+                    "cli_version": CLI_VERSION,
+                    "envelope_version": ENVELOPE_VERSION,
+                }),
+                vec![],
+                vec![],
+            );
+            println!("{}", serde_json::to_string(&env).unwrap());
+        } else {
+            println!("dont {CLI_VERSION}");
+        }
+        process::exit(0);
+    }
+
+    let command = match cli.command {
+        Some(c) => c,
+        None => {
+            let _ = Cli::command().print_help();
+            process::exit(0);
+        }
+    };
+
+    match command {
         Command::Init { strict } => {
             let mode = if strict {
                 ProjectMode::Strict
