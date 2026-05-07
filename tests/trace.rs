@@ -230,7 +230,6 @@ fn trace_unknown_entity_returns_error() {
 }
 
 #[test]
-#[test]
 fn trace_duplicate_dependency_is_reported_once() {
     // Validates deduplication: if the same term appears multiple times in depends_on,
     // trace emits only one blocker entry (visited-set semantics).

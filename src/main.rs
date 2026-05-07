@@ -759,8 +759,9 @@ fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
     })
 }
 
-fn build_term_view(record: &TermRecord) -> Value {
-    let evidence = collect_term_evidence(record);
+fn build_term_view(record: &TermRecord, store: &Store) -> Value {
+    let project_root = project_root_from_store(store);
+    let evidence = project_evidence(collect_term_evidence(record), &project_root);
     let updated_at = record
         .events
         .iter()
@@ -815,8 +816,8 @@ fn build_claim_why_view(record: &ClaimRecord, store: &Store) -> Value {
     })
 }
 
-fn build_term_why_view(record: &TermRecord) -> Value {
-    let entity = build_term_view(record);
+fn build_term_why_view(record: &TermRecord, store: &Store) -> Value {
+    let entity = build_term_view(record, store);
     json!({
         "entity": entity,
         "history": build_event_history(&record.events),
@@ -906,6 +907,11 @@ fn normalize_repo_path(
             _ => {}
         }
     }
+    if let (Ok(canonical_root), Ok(canonical_target)) = (project_root.canonicalize(), full.canonicalize()) {
+        if !canonical_target.starts_with(&canonical_root) {
+            return Err("path escapes project root");
+        }
+    }
     Ok(full.strip_prefix(project_root).unwrap_or(&full).to_path_buf())
 }
 
@@ -914,12 +920,18 @@ fn parse_line_span(s: &str) -> Result<(u32, u32), String> {
     if let Some((a, b)) = s.split_once('-') {
         let start: u32 = a.trim().parse().map_err(|_| format!("invalid line span: {s}"))?;
         let end: u32 = b.trim().parse().map_err(|_| format!("invalid line span: {s}"))?;
+        if start == 0 || end == 0 {
+            return Err("line spans are one-based; line 0 is invalid".to_string());
+        }
         if start > end {
             return Err(format!("line span start {start} is greater than end {end}"));
         }
         Ok((start, end))
     } else {
         let line: u32 = s.trim().parse().map_err(|_| format!("invalid line number: {s}"))?;
+        if line == 0 {
+            return Err("line spans are one-based; line 0 is invalid".to_string());
+        }
         Ok((line, line))
     }
 }
@@ -1386,8 +1398,8 @@ fn emit_claim_view(record: &ClaimRecord, result: &AppendResult, store: &Store) {
     emit_json(&env);
 }
 
-fn emit_term_view(record: &TermRecord, result: &AppendResult, warnings: Vec<Warning>) {
-    let payload = build_term_view(record);
+fn emit_term_view(record: &TermRecord, result: &AppendResult, store: &Store, warnings: Vec<Warning>) {
+    let payload = build_term_view(record, store);
     let env = Envelope::success_with_tx(
         "term",
         payload,
@@ -1845,7 +1857,7 @@ fn main() {
                 ),
                 Err(err) => handle_store_error(err, Some(&result.id)),
             };
-            emit_term_view(&term, &result, warnings);
+            emit_term_view(&term, &result, &project.store, warnings);
         }
 
         Command::Trust { id, reason } => {
@@ -1945,7 +1957,7 @@ fn main() {
                             ),
                             Err(err) => handle_store_error(err, Some(&id)),
                         };
-                        emit_term_view(&updated, &result, vec![]);
+                        emit_term_view(&updated, &result, &project.store, vec![]);
                         return;
                     }
                 }
@@ -2201,7 +2213,7 @@ fn main() {
                             ),
                             Err(err) => handle_store_error(err, Some(&id)),
                         };
-                        emit_term_view(&updated, &result, vec![]);
+                        emit_term_view(&updated, &result, &project.store, vec![]);
                     }
                 }
             } else {
@@ -2358,7 +2370,7 @@ fn main() {
                             ),
                             Err(err) => handle_store_error(err, Some(&id)),
                         };
-                        emit_term_view(&updated, &result, vec![]);
+                        emit_term_view(&updated, &result, &project.store, vec![]);
                     }
                 }
             } else {
@@ -2520,7 +2532,7 @@ fn main() {
                     ),
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
-                emit_term_view(&updated, &result, vec![]);
+                emit_term_view(&updated, &result, &project.store, vec![]);
                 return;
             }
 
@@ -2620,7 +2632,7 @@ fn main() {
             if id.starts_with("term:") {
                 match project.store.term_by_id(&id) {
                     Ok(Some(record)) => {
-                        let payload = build_term_view(&record);
+                        let payload = build_term_view(&record, &project.store);
                         let env = Envelope::success(
                             "term",
                             payload,
@@ -2650,7 +2662,7 @@ fn main() {
             } else if !id.starts_with("claim:") && id.contains(':') {
                 match project.store.term_by_curie(&id) {
                     Ok(Some(record)) => {
-                        let payload = build_term_view(&record);
+                        let payload = build_term_view(&record, &project.store);
                         let env = Envelope::success(
                             "term",
                             payload,
@@ -2715,7 +2727,7 @@ fn main() {
             if id.starts_with("term:") {
                 match project.store.term_by_id(&id) {
                     Ok(Some(record)) => {
-                        let payload = build_term_why_view(&record);
+                        let payload = build_term_why_view(&record, &project.store);
                         let env = Envelope::success(
                             "why",
                             payload,
@@ -2745,7 +2757,7 @@ fn main() {
             } else if !id.starts_with("claim:") && id.contains(':') {
                 match project.store.term_by_curie(&id) {
                     Ok(Some(record)) => {
-                        let payload = build_term_why_view(&record);
+                        let payload = build_term_why_view(&record, &project.store);
                         let env = Envelope::success(
                             "why",
                             payload,
@@ -3115,7 +3127,7 @@ fn main() {
                             .cmp(&a.created_at)
                             .then_with(|| b.id.cmp(&a.id))
                     });
-                    let views: Vec<Value> = terms.iter().map(build_term_view).collect();
+                    let views: Vec<Value> = terms.iter().map(|term| build_term_view(term, &project.store)).collect();
                     let env = Envelope::success("terms", views, vec![], vec![]);
                     emit_json(&env);
                 }

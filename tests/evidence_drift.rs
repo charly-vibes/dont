@@ -30,12 +30,37 @@ fn conclude_claim(root: &Path, statement: &str) -> String {
         .to_string()
 }
 
+fn define_term(root: &Path, curie: &str) -> String {
+    let out = dont()
+        .args(["define", curie, "--doc", "a valid definition", "--json"])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    serde_json::from_slice::<Value>(&out).unwrap()["data"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
 fn dismiss_file(root: &Path, id: &str, file: &str, lines: &str) {
     dont()
         .args(["dismiss", id, "--file", file, "--lines", lines, "--json"])
         .env("DONT_DIR", root.join(".dont"))
         .assert()
         .success();
+}
+
+fn dismiss_file_value(root: &Path, id: &str, file: &str, lines: &str) -> Value {
+    let out = dont()
+        .args(["dismiss", id, "--file", file, "--lines", lines, "--json"])
+        .env("DONT_DIR", root.join(".dont"))
+        .output()
+        .unwrap()
+        .stdout;
+    serde_json::from_slice(&out).unwrap()
 }
 
 fn show(root: &Path, id: &str) -> Value {
@@ -72,6 +97,41 @@ fn why(root: &Path, id: &str) -> Value {
         .stdout
         .clone();
     serde_json::from_slice(&out).unwrap()
+}
+
+#[test]
+fn dismiss_refuses_symlink_escape_outside_project_root() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    init_project(&root);
+    std::fs::write(outside.join("secret.txt"), "secret\n").unwrap();
+    std::os::unix::fs::symlink(outside.join("secret.txt"), root.join("link.txt")).unwrap();
+    let id = conclude_claim(&root, "symlink should not escape project root");
+
+    let v = dismiss_file_value(&root, &id, "link.txt", "1");
+
+    assert_eq!(v["ok"], false, "symlink escape should be refused: {v}");
+    assert_eq!(v["data"]["code"], "path-escapes-root");
+}
+
+#[test]
+fn dismiss_refuses_invalid_line_spans() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    init_project(&root);
+    std::fs::write(root.join("README.md"), "line\n").unwrap();
+
+    for lines in ["0", "0-1", "1-0"] {
+        let id = conclude_claim(&root, &format!("line span {lines} is invalid"));
+        let v = dismiss_file_value(&root, &id, "README.md", lines);
+
+        assert_eq!(v["ok"], false, "line span {lines} should be refused: {v}");
+        assert_eq!(v["data"]["code"], "invalid-line-span");
+    }
 }
 
 #[test]
@@ -155,6 +215,36 @@ fn why_projects_same_repo_locator_audit_contract_as_show() {
         .find(|entry| entry["kind"] == "repo-file")
         .unwrap();
     assert_eq!(locator["audit"]["status"], "drifted");
+}
+
+#[test]
+fn term_show_and_why_project_repo_locator_audit() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    init_project(&root);
+    std::fs::write(root.join("README.md"), "original\n").unwrap();
+    let id = define_term(&root, "EX:T");
+    dismiss_file(&root, &id, "README.md", "1");
+    std::fs::write(root.join("README.md"), "changed\n").unwrap();
+
+    let shown = show(&root, &id);
+    let show_locator = shown["data"]["evidence"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["kind"] == "repo-file")
+        .unwrap();
+    assert_eq!(show_locator["audit"]["status"], "drifted");
+
+    let explained = why(&root, &id);
+    let why_locator = explained["data"]["entity"]["evidence"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["kind"] == "repo-file")
+        .unwrap();
+    assert_eq!(why_locator["audit"]["status"], "drifted");
 }
 
 #[test]
