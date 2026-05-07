@@ -8,7 +8,7 @@
 - [ ] 2.2 Add a structured payload contract for trace output
 
 ## 3. Teach the diagnostic flow
-- [ ] 3.1 Update help/tutorial expectations so tracing is the recommended next step when verification is blocked
+- [x] 3.1 Update help/tutorial expectations so tracing is the recommended next step when verification is blocked
 
 ## 4. Validate
-- [ ] 4.1 Run `openspec validate add-trace-query --strict`
+- [x] 4.1 Run `openspec validate add-trace-query --strict`

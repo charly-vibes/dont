@@ -18,6 +18,7 @@ This book is the reader-friendly front door for the project. It does not replace
 
 - what `dont` is for
 - why ordinary “please double-check yourself” prompting is not enough
+- how to ground repository facts with `dont ground`, repository-relative locators, and `dont trace`
 - how the project’s research maps onto the proposed tool
 
 ## Key sources

@@ -8,8 +8,8 @@
 - [ ] 2.2 Add input-schema expectations for `ground` in payload/schema contracts
 
 ## 3. Teach the workflow
-- [ ] 3.1 Update tutorial/how-to expectations so `ground` is documented as the fast path for repository-fact capture
-- [ ] 3.2 Preserve the core four verbs as the canonical underlying model in docs and help
+- [x] 3.1 Update tutorial/how-to expectations so `ground` is documented as the fast path for repository-fact capture
+- [x] 3.2 Preserve the core four verbs as the canonical underlying model in docs and help
 
 ## 4. Validate
-- [ ] 4.1 Run `openspec validate add-ground-command --strict`
+- [x] 4.1 Run `openspec validate add-ground-command --strict`

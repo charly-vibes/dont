@@ -35,6 +35,30 @@ fn init_creates_dont_directory_with_required_entries() {
 }
 
 #[test]
+fn init_agents_teaches_repository_grounding_workflow() {
+    let dir = TempDir::new().unwrap();
+    init_in(&dir).success();
+
+    let agents = fs::read_to_string(dir.path().join("AGENTS.md")).unwrap();
+    assert!(
+        agents.contains("dont ground \"claim text\" --file README.md --lines 10-18"),
+        "AGENTS.md should teach ground as the fast path for repository facts: {agents}"
+    );
+    assert!(
+        agents.contains("underlying model is still conclude → trust → dismiss → lock"),
+        "AGENTS.md should preserve the core verb model: {agents}"
+    );
+    assert!(
+        agents.contains("dont trace <id>"),
+        "AGENTS.md should recommend trace for blocker-path diagnosis: {agents}"
+    );
+    assert!(
+        agents.contains("Prefer repository-relative file locators over opaque `file://` URIs"),
+        "AGENTS.md should prefer repo-relative locators: {agents}"
+    );
+}
+
+#[test]
 fn init_config_toml_has_required_sections() {
     let dir = TempDir::new().unwrap();
     init_in(&dir).success();
