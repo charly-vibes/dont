@@ -176,6 +176,7 @@ pub enum StoreError {
     Cozo(String),
     SchemaMismatch { found: i64, expected: i64 },
     CurieConflict { curie: String, existing_id: String },
+    AmbiguousPrefix { prefix: String, candidates: Vec<String> },
     Malformed(String),
 }
 
@@ -190,9 +191,24 @@ impl fmt::Display for StoreError {
             Self::CurieConflict { curie, existing_id } => {
                 write!(f, "CURIE {curie} is already defined by {existing_id}")
             }
+            Self::AmbiguousPrefix { prefix, candidates } => {
+                write!(
+                    f,
+                    "prefix {prefix:?} matches {} entities: {}",
+                    candidates.len(),
+                    candidates.join(", ")
+                )
+            }
             Self::Malformed(message) => f.write_str(message),
         }
     }
+}
+
+/// Resolved entity from [`Store::resolve_entity`].
+#[derive(Debug, Clone)]
+pub enum EntityResolution {
+    Claim(ClaimRecord),
+    Term(TermRecord),
 }
 
 impl std::error::Error for StoreError {}
@@ -961,6 +977,105 @@ impl Store {
             return Ok(None);
         };
         self.term_by_id(term_id)
+    }
+
+    /// Resolve an entity identifier, CURIE, or short ULID prefix to a concrete record.
+    ///
+    /// Resolution rules (in priority order):
+    /// 1. `claim:SUFFIX` — exact lookup if suffix is 26 chars; prefix search otherwise.
+    /// 2. `term:SUFFIX`  — same as above for terms.
+    /// 3. `NS:local` (any other colon form) — CURIE lookup.
+    /// 4. Bare string (no colon) — prefix search across both claims and terms.
+    ///
+    /// Returns `Ok(None)` when no entity matches. Returns `Err(AmbiguousPrefix)` when
+    /// more than one entity matches a prefix.
+    pub fn resolve_entity(&self, input: &str) -> Result<Option<EntityResolution>, StoreError> {
+        const ULID_LEN: usize = 26;
+
+        if let Some(suffix) = input.strip_prefix("claim:") {
+            if suffix.len() == ULID_LEN {
+                return self.claim_by_id(input).map(|opt| opt.map(EntityResolution::Claim));
+            }
+            let full_prefix = input; // "claim:<partial>"
+            let candidates = self.ids_by_entity_type_and_prefix("claim", full_prefix)?;
+            return self.resolve_candidates(input, candidates, |id| {
+                self.claim_by_id(id).map(|o| o.map(EntityResolution::Claim))
+            });
+        }
+
+        if let Some(suffix) = input.strip_prefix("term:") {
+            if suffix.len() == ULID_LEN {
+                return self.term_by_id(input).map(|opt| opt.map(EntityResolution::Term));
+            }
+            let full_prefix = input;
+            let candidates = self.ids_by_entity_type_and_prefix("term", full_prefix)?;
+            return self.resolve_candidates(input, candidates, |id| {
+                self.term_by_id(id).map(|o| o.map(EntityResolution::Term))
+            });
+        }
+
+        if input.contains(':') {
+            // CURIE
+            return self.term_by_curie(input).map(|opt| opt.map(EntityResolution::Term));
+        }
+
+        // Bare prefix — search both namespaces
+        let claim_prefix = format!("claim:{input}");
+        let term_prefix = format!("term:{input}");
+        let mut candidates: Vec<(String, &str)> = vec![];
+        for id in self.ids_by_entity_type_and_prefix("claim", &claim_prefix)? {
+            candidates.push((id, "claim"));
+        }
+        for id in self.ids_by_entity_type_and_prefix("term", &term_prefix)? {
+            candidates.push((id, "term"));
+        }
+        if candidates.len() > 1 {
+            return Err(StoreError::AmbiguousPrefix {
+                prefix: input.to_string(),
+                candidates: candidates.into_iter().map(|(id, _)| id).collect(),
+            });
+        }
+        match candidates.into_iter().next() {
+            None => Ok(None),
+            Some((id, "claim")) => self.claim_by_id(&id).map(|o| o.map(EntityResolution::Claim)),
+            Some((id, _)) => self.term_by_id(&id).map(|o| o.map(EntityResolution::Term)),
+        }
+    }
+
+    fn ids_by_entity_type_and_prefix(
+        &self,
+        entity_type: &str,
+        full_prefix: &str,
+    ) -> Result<Vec<String>, StoreError> {
+        let script = format!(
+            r#"?[entity] := *datoms[entity, "entity_type", {}, _, true]"#,
+            json_string(entity_type)
+        );
+        let rows = self.query_rows(&script)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| row.into_iter().next().and_then(|v| v.as_str().map(str::to_string)))
+            .filter(|id| id.starts_with(full_prefix))
+            .collect())
+    }
+
+    fn resolve_candidates<F>(
+        &self,
+        prefix: &str,
+        candidates: Vec<String>,
+        fetch: F,
+    ) -> Result<Option<EntityResolution>, StoreError>
+    where
+        F: FnOnce(&str) -> Result<Option<EntityResolution>, StoreError>,
+    {
+        match candidates.len() {
+            0 => Ok(None),
+            1 => fetch(&candidates[0]),
+            _ => Err(StoreError::AmbiguousPrefix {
+                prefix: prefix.to_string(),
+                candidates,
+            }),
+        }
     }
 
     pub fn datoms_for_entity(&self, entity: &str) -> Result<Vec<Datom>, StoreError> {

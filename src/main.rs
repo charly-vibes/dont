@@ -18,8 +18,8 @@ use dont::model::{
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
-    AppendResult, ClaimRecord, EventRecord, HypothesisRecord, Store, StoreError, StoreEvent,
-    StoreEventKind, StoreStatus, TermRecord,
+    AppendResult, ClaimRecord, EntityResolution, EventRecord, HypothesisRecord, Store, StoreError,
+    StoreEvent, StoreEventKind, StoreStatus, TermRecord,
 };
 
 thread_local! {
@@ -1401,6 +1401,58 @@ fn resolve_file_locator(
     locator
 }
 
+/// Build a typed not-found error based on the input form:
+/// - `claim:*`  → "claim-not-found"
+/// - `term:*`   → "term-not-found"
+/// - CURIE (`NS:local`, not claim/term prefix) → "term-not-found" with curie phrasing
+/// - bare (no colon) → "entity-not-found"
+fn entity_not_found_error(input: &str) -> (&'static str, String, Vec<RemediationEntry>) {
+    if input.starts_with("claim:") {
+        (
+            "claim-not-found",
+            format!("no claim with id {input}"),
+            vec![RemediationEntry {
+                command: "dont list".to_string(),
+                description: "List all claims to find the correct id".to_string(),
+            }],
+        )
+    } else if input.starts_with("term:") {
+        (
+            "term-not-found",
+            format!("no term with id {input}"),
+            vec![RemediationEntry {
+                command: "dont vocab".to_string(),
+                description: "List terms to find the correct id".to_string(),
+            }],
+        )
+    } else if input.contains(':') {
+        // CURIE
+        (
+            "term-not-found",
+            format!("no term with curie {input}"),
+            vec![RemediationEntry {
+                command: "dont vocab".to_string(),
+                description: "List terms to find the correct curie".to_string(),
+            }],
+        )
+    } else {
+        (
+            "entity-not-found",
+            format!("no entity matching {input:?}"),
+            vec![
+                RemediationEntry {
+                    command: "dont list".to_string(),
+                    description: "List all claims".to_string(),
+                },
+                RemediationEntry {
+                    command: "dont vocab".to_string(),
+                    description: "List all terms".to_string(),
+                },
+            ],
+        )
+    }
+}
+
 fn refusal(
     code: &str,
     message: &str,
@@ -1435,6 +1487,29 @@ fn handle_store_error(err: StoreError, entity_id: Option<&str>) -> ! {
                         description: "Use a different CURIE for a distinct term".to_string(),
                     },
                 ],
+            ),
+            vec![],
+            1,
+        );
+    }
+
+    if let StoreError::AmbiguousPrefix { prefix, candidates } = err {
+        emit_error_and_exit(
+            refusal(
+                "ambiguous-prefix",
+                &format!(
+                    "prefix {:?} matches {} entities — use a longer prefix or full ID",
+                    prefix,
+                    candidates.len()
+                ),
+                entity_id,
+                candidates
+                    .iter()
+                    .map(|id| RemediationEntry {
+                        command: format!("dont show {id}"),
+                        description: format!("Show {id}"),
+                    })
+                    .collect(),
             ),
             vec![],
             1,
@@ -2876,191 +2951,75 @@ fn main() {
 
         Command::Show { id } => {
             let project = open_project_or_exit();
-            if id.starts_with("term:") {
-                match project.store.term_by_id(&id) {
-                    Ok(Some(record)) => {
-                        let payload = build_term_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "term",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont trust {id} --reason \"...\""),
-                                description: "Register doubt about this term".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                    }
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "term-not-found",
-                            &format!("no term with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont vocab".to_string(),
-                                description: "List terms to find the correct id".to_string(),
-                            }],
-                        ),
+            match project.store.resolve_entity(&id) {
+                Ok(Some(EntityResolution::Claim(record))) => {
+                    let payload = build_claim_view(&record, &project.store);
+                    let env = Envelope::success(
+                        "claim",
+                        payload,
                         vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
+                        vec![HintEntry {
+                            command: format!("dont trust {} --reason \"...\"", record.id),
+                            description: "Register doubt about this claim".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
                 }
-            } else if !id.starts_with("claim:") && id.contains(':') {
-                match project.store.term_by_curie(&id) {
-                    Ok(Some(record)) => {
-                        let payload = build_term_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "term",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont trust {} --reason \"...\"", record.id),
-                                description: "Register doubt about this term".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                    }
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "term-not-found",
-                            &format!("no term with curie {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont vocab".to_string(),
-                                description: "List terms to find the correct curie".to_string(),
-                            }],
-                        ),
+                Ok(Some(EntityResolution::Term(record))) => {
+                    let payload = build_term_view(&record, &project.store);
+                    let env = Envelope::success(
+                        "term",
+                        payload,
                         vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
+                        vec![HintEntry {
+                            command: format!("dont trust {} --reason \"...\"", record.id),
+                            description: "Register doubt about this term".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
                 }
-            } else {
-                match project.store.claim_by_id(&id) {
-                    Ok(Some(record)) => {
-                        let payload = build_claim_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "claim",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont trust {id} --reason \"...\""),
-                                description: "Register doubt about this claim".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                    }
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "claim-not-found",
-                            &format!("no claim with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all claims to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
+                Ok(None) => {
+                    let (code, message, remediation) = entity_not_found_error(&id);
+                    emit_error_and_exit(refusal(code, &message, Some(&id), remediation), vec![], 1);
                 }
+                Err(err) => handle_store_error(err, Some(&id)),
             }
         }
 
         Command::Why { id } => {
             let project = open_project_or_exit();
-            if id.starts_with("term:") {
-                match project.store.term_by_id(&id) {
-                    Ok(Some(record)) => {
-                        let payload = build_term_why_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "why",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current term view".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                    }
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "term-not-found",
-                            &format!("no term with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont vocab".to_string(),
-                                description: "List terms to find the correct id".to_string(),
-                            }],
-                        ),
+            match project.store.resolve_entity(&id) {
+                Ok(Some(EntityResolution::Claim(record))) => {
+                    let payload = build_claim_why_view(&record, &project.store);
+                    let env = Envelope::success(
+                        "why",
+                        payload,
                         vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
+                        vec![HintEntry {
+                            command: format!("dont show {}", record.id),
+                            description: "Inspect the current claim view".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
                 }
-            } else if !id.starts_with("claim:") && id.contains(':') {
-                match project.store.term_by_curie(&id) {
-                    Ok(Some(record)) => {
-                        let payload = build_term_why_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "why",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont show {}", record.id),
-                                description: "Inspect the current term view".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                    }
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "term-not-found",
-                            &format!("no term with curie {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont vocab".to_string(),
-                                description: "List terms to find the correct curie".to_string(),
-                            }],
-                        ),
+                Ok(Some(EntityResolution::Term(record))) => {
+                    let payload = build_term_why_view(&record, &project.store);
+                    let env = Envelope::success(
+                        "why",
+                        payload,
                         vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
+                        vec![HintEntry {
+                            command: format!("dont show {}", record.id),
+                            description: "Inspect the current term view".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
                 }
-            } else {
-                match project.store.claim_by_id(&id) {
-                    Ok(Some(record)) => {
-                        let payload = build_claim_why_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "why",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current claim view".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                    }
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "claim-not-found",
-                            &format!("no claim with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all claims to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
+                Ok(None) => {
+                    let (code, message, remediation) = entity_not_found_error(&id);
+                    emit_error_and_exit(refusal(code, &message, Some(&id), remediation), vec![], 1);
                 }
+                Err(err) => handle_store_error(err, Some(&id)),
             }
         }
 
