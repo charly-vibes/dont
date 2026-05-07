@@ -97,7 +97,7 @@ fn reopen_verified_claim_is_refused() {
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
-        .args(["dismiss", &id, "--evidence", "https://example.com/e1", "--json"])
+        .args(["flag", &id, "--evidence", "https://example.com/e1", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

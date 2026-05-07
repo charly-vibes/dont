@@ -30,6 +30,17 @@ The system SHALL provide a `lock` operation that promotes a verified claim to th
 - **WHEN** an actor invokes `lock` on a term
 - **THEN** the command is refused because term locking is not supported for non-seed terms in this version
 
+### Requirement: Undoubt retracts explicit doubt
+The system SHALL provide an `undoubt` operation that moves a `doubted` claim or term back to `unverified`, allowing the doubt to be retracted when it was registered in error or superseded. `undoubt` SHALL only target entities in the `doubted` state and SHALL refuse all other persisted statuses. Use `reopen` for `ignored` entities — `undoubt` and `reopen` are distinct recovery operations for distinct closure states.
+
+#### Scenario: undoubt moves doubted entity to unverified
+- **WHEN** an actor invokes `undoubt` on an entity whose persisted status is `doubted`
+- **THEN** the entity transitions to `unverified`
+
+#### Scenario: undoubt refuses non-doubted entities
+- **WHEN** an actor invokes `undoubt` on an entity whose persisted status is `unverified`, `verified`, `ignored`, or `locked`
+- **THEN** the command is refused
+
 ### Requirement: Reopen restores ignored entities
 The system SHALL provide a `reopen` operation that moves an `ignored` claim or term to `unverified` so it can be reconsidered on its own merits. `reopen` SHALL NOT target `stale` or any other derived assessment, because derived assessments are computed trace results rather than persisted lifecycle states. `reopen` SHALL NOT unlock `locked` entities in v0.3.
 
@@ -93,16 +104,16 @@ The system SHALL provide a `verify-evidence` operation that checks the liveness 
 - **WHEN** an actor invokes `verify-evidence` for a target that does not exist
 - **THEN** the command fails structurally rather than recording liveness results
 
-### Requirement: Verify-evidence is separate from dismiss
-The system SHALL keep evidence liveness verification separate from `dismiss` so that dismissal remains deterministic and network-independent, and SHALL apply bounded network politeness measures when checking remote evidence.
+### Requirement: Verify-evidence is separate from flag
+The system SHALL keep evidence liveness verification separate from `flag` so that flagal remains deterministic and network-independent, and SHALL apply bounded network politeness measures when checking remote evidence.
 
-#### Scenario: dismiss does not require live network verification
-- **WHEN** an actor invokes `dismiss` with well-formed evidence references
-- **THEN** dismissal behavior does not depend on live network checks performed during that command
+#### Scenario: flag does not require live network verification
+- **WHEN** an actor invokes `flag` with well-formed evidence references
+- **THEN** flagal behavior does not depend on live network checks performed during that command
 
 #### Scenario: verify-evidence handles network-sensitive checks
 - **WHEN** a project wants to assess whether evidence references are still reachable
-- **THEN** it uses `verify-evidence` rather than changing the dismissal contract
+- **THEN** it uses `verify-evidence` rather than changing the flagal contract
 
 #### Scenario: verify-evidence uses bounded polite network behavior
 - **WHEN** `verify-evidence` checks remote evidence references

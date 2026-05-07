@@ -62,15 +62,31 @@ pub fn ignore(from: Status) -> Result<Status, TransitionError> {
     }
 }
 
-pub fn dismiss(from: Status) -> Result<Status, TransitionError> {
+pub fn flag(from: Status) -> Result<Status, TransitionError> {
     match from {
         Status::Unverified | Status::Doubted => Ok(Status::Verified),
         Status::Verified | Status::Ignored | Status::Locked => Err(TransitionError {
             code: "invalid-transition".to_string(),
-            message: format!("cannot dismiss a {from:?} entity as a status transition"),
+            message: format!("cannot flag a {from:?} entity as a status transition"),
             from_status: from,
             entity_id: None,
         }),
+    }
+}
+
+pub fn undoubt(from: Status) -> Result<Status, TransitionError> {
+    match from {
+        Status::Doubted => Ok(Status::Unverified),
+        Status::Unverified | Status::Verified | Status::Ignored | Status::Locked => {
+            Err(TransitionError {
+                code: "invalid-transition".to_string(),
+                message: format!(
+                    "cannot undoubt a {from:?} entity — only doubted entities can be undoubted"
+                ),
+                from_status: from,
+                entity_id: None,
+            })
+        }
     }
 }
 

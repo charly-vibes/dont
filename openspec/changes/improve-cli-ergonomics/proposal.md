@@ -5,8 +5,9 @@
 The current `dont` CLI implementation has several usability friction points that hinder adoption and violate existing specifications. Key issues include inverted verb semantics (`trust` meaning doubt), lack of human-readable output (everything is JSON), and the inability to reach the "Locked" state because commands for adding hypotheses and atoms are missing. Improving these ergonomics is critical for the tool to be usable by human operators and not just autonomous agents.
 
 ## What Changes
-- Rename `trust` to `doubt` to align with natural English and the intent of registering skepticism.
-- Rename `dismiss` to `verify` to more clearly signal the transition to a verified state.
+- Keep `trust` as the doubt verb — `dont trust` reads as "do not trust it", which correctly signals skepticism.
+- Rename `dismiss` to `flag` — `dont flag` reads as "do not flag it as a concern", which correctly signals clearance. (`dont verify` and `dont doubt` were rejected because they invert the "dont = do not" phrase semantics.)
+- Add `undoubt` as a correction verb for walking back an erroneous `trust` (doubted → unverified). `reopen` remains exclusive to ignored entities.
 - Implement human-readable output as the default mode, moving JSON to the `--json` opt-in flag.
 - Add subcommands or flags to support adding `hypotheses` and `atoms` to claims, enabling the path to `Locked` status.
 - Support CURIE resolution in all entity-targeting commands (e.g., `dont show WB:P001` instead of requiring ULIDs).

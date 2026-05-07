@@ -29,7 +29,7 @@ fn conclude_claim(dir: &TempDir, statement: &str) -> String {
 
 fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
     dont()
-        .args(["dismiss", id, "--evidence", evidence, "--json"])
+        .args(["flag", id, "--evidence", evidence, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

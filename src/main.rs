@@ -12,8 +12,8 @@ use dont::envelope::{
     Envelope, ErrorResult, HintEntry, RemediationEntry, UnmetClause, Warning,
 };
 use dont::model::{
-    Status, dismiss as model_dismiss, ignore as model_ignore, lock as model_lock,
-    reopen as model_reopen, trust as model_trust,
+    Status, flag as model_flag, ignore as model_ignore, lock as model_lock,
+    reopen as model_reopen, trust as model_trust, undoubt as model_undoubt,
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
@@ -79,7 +79,7 @@ enum Command {
         label: Option<String>,
     },
 
-    /// Register explicit doubt about a claim.
+    /// Register explicit doubt about a claim. Read as 'dont trust' = 'do not trust it'.
     Trust {
         /// Claim identifier.
         id: String,
@@ -89,8 +89,8 @@ enum Command {
         reason: Option<String>,
     },
 
-    /// Verify or add evidence to a claim.
-    Dismiss {
+    /// Verify a claim with evidence. Read as 'dont flag' = 'do not flag it as a concern'.
+    Flag {
         /// Claim identifier.
         id: String,
 
@@ -113,6 +113,12 @@ enum Command {
         /// Captured excerpt from the referenced source for later audit.
         #[arg(long)]
         excerpt: Option<String>,
+    },
+
+    /// Retract doubt on a doubted entity, returning it to unverified. Use 'reopen' for ignored entities.
+    Undoubt {
+        /// Entity identifier (claim:... or term:...).
+        id: String,
     },
 
     /// Promote a verified claim to locked when the lockable gate is met.
@@ -2482,15 +2488,15 @@ fn main() {
             }
         }
 
-        Command::Dismiss { id, evidence, file, lines, anchor, excerpt } => {
+        Command::Flag { id, evidence, file, lines, anchor, excerpt } => {
             if evidence.is_empty() && file.is_none() {
                 emit_error_and_exit(
                     refusal(
                         "no-evidence",
-                        "dismiss requires at least one --evidence URI or --file locator",
+                        "flag requires at least one --evidence URI or --file locator",
                         Some(&id),
                         vec![RemediationEntry {
-                            command: format!("dont dismiss {id} --evidence <uri>"),
+                            command: format!("dont flag {id} --evidence <uri>"),
                             description: "Re-run with at least one evidence reference".to_string(),
                         }],
                     ),
@@ -2513,7 +2519,7 @@ fn main() {
                     excerpt.as_deref(),
                     &project_root,
                     Some(&id),
-                    &format!("dont dismiss {id}"),
+                    &format!("dont flag {id}"),
                 ));
             }
             // Terms don't have depends_on fields so no dependency gate is needed here.
@@ -2539,12 +2545,12 @@ fn main() {
 
                 let current = model_status_from_store(record.status);
                 let event = StoreEvent {
-                    kind: StoreEventKind::Dismissed,
+                    kind: StoreEventKind::Flagged,
                     note: None,
                     evidence: all_evidence.clone(),
                 };
 
-                let result = match model_dismiss(current) {
+                let result = match model_flag(current) {
                     Ok(new_model_status) => match project.store.append_term_status_change(
                         &id,
                         store_status_from_model(current),
@@ -2574,7 +2580,7 @@ fn main() {
                 let updated = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
                     Ok(None) => handle_store_error(
-                        StoreError::Malformed(format!("term {id} vanished after dismiss")),
+                        StoreError::Malformed(format!("term {id} vanished after flag")),
                         Some(&id),
                     ),
                     Err(err) => handle_store_error(err, Some(&id)),
@@ -2622,12 +2628,12 @@ fn main() {
                 emit_error_and_exit(err_result, vec![], 1);
             }
             let event = StoreEvent {
-                kind: StoreEventKind::Dismissed,
+                kind: StoreEventKind::Flagged,
                 note: None,
                 evidence: all_evidence,
             };
 
-            let result = match model_dismiss(current) {
+            let result = match model_flag(current) {
                 Ok(new_model_status) => {
                     match project.store.append_status_change(
                         &id,
@@ -2640,7 +2646,7 @@ fn main() {
                     }
                 }
                 Err(_) if current == Status::Verified => {
-                    // Phase 8: already-verified dismiss appends evidence without status change
+                    // already-verified flag appends evidence without status change
                     match project.store.append_evidence_event(&id, event) {
                         Ok(r) => r,
                         Err(err) => handle_store_error(err, Some(&id)),
@@ -2666,12 +2672,136 @@ fn main() {
             let updated = match project.store.claim_by_id(&id) {
                 Ok(Some(r)) => r,
                 Ok(None) => handle_store_error(
-                    StoreError::Malformed(format!("claim {id} vanished after dismiss")),
+                    StoreError::Malformed(format!("claim {id} vanished after flag")),
                     Some(&id),
                 ),
                 Err(err) => handle_store_error(err, Some(&id)),
             };
             emit_claim_view(&updated, &result, &project.store);
+        }
+
+        Command::Undoubt { id } => {
+            let project = open_project_or_exit();
+
+            if id.starts_with("term:") {
+                let record = match project.store.term_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "entity-not-found",
+                            &format!("no entity with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all entities to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+                let current = model_status_from_store(record.status);
+                match model_undoubt(current) {
+                    Err(transition_err) => emit_error_and_exit(
+                        refusal(
+                            &transition_err.code,
+                            &transition_err.message,
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current entity status".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Ok(new_model_status) => {
+                        let event = StoreEvent {
+                            kind: StoreEventKind::Undoubted,
+                            note: None,
+                            evidence: vec![],
+                        };
+                        let result = match project.store.append_term_status_change(
+                            &id,
+                            store_status_from_model(current),
+                            store_status_from_model(new_model_status),
+                            event,
+                        ) {
+                            Ok(r) => r,
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        let updated = match project.store.term_by_id(&id) {
+                            Ok(Some(r)) => r,
+                            Ok(None) => handle_store_error(
+                                StoreError::Malformed(format!("term {id} vanished after undoubt")),
+                                Some(&id),
+                            ),
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        emit_term_view(&updated, &result, &project.store, vec![]);
+                    }
+                }
+            } else {
+                let record = match project.store.claim_by_id(&id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => emit_error_and_exit(
+                        refusal(
+                            "entity-not-found",
+                            &format!("no entity with id {id}"),
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all entities to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => handle_store_error(err, Some(&id)),
+                };
+                let current = model_status_from_store(record.status);
+                match model_undoubt(current) {
+                    Err(transition_err) => emit_error_and_exit(
+                        refusal(
+                            &transition_err.code,
+                            &transition_err.message,
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current entity status".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Ok(new_model_status) => {
+                        let event = StoreEvent {
+                            kind: StoreEventKind::Undoubted,
+                            note: None,
+                            evidence: vec![],
+                        };
+                        let result = match project.store.append_status_change(
+                            &id,
+                            store_status_from_model(current),
+                            store_status_from_model(new_model_status),
+                            event,
+                        ) {
+                            Ok(r) => r,
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        let updated = match project.store.claim_by_id(&id) {
+                            Ok(Some(r)) => r,
+                            Ok(None) => handle_store_error(
+                                StoreError::Malformed(format!("claim {id} vanished after undoubt")),
+                                Some(&id),
+                            ),
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
+                        emit_claim_view(&updated, &result, &project.store);
+                    }
+                }
+            }
         }
 
         Command::Show { id } => {
@@ -3339,16 +3469,16 @@ fn main() {
             };
             let claim_id = conclude_result.id.clone();
 
-            let dismiss_event = StoreEvent {
-                kind: StoreEventKind::Dismissed,
+            let flag_event = StoreEvent {
+                kind: StoreEventKind::Flagged,
                 note: None,
                 evidence: all_evidence,
             };
-            let dismiss_result = match project.store.append_status_change(
+            let flag_result = match project.store.append_status_change(
                 &claim_id,
                 StoreStatus::Unverified,
                 StoreStatus::Verified,
-                dismiss_event,
+                flag_event,
             ) {
                 Ok(r) => r,
                 Err(err) => handle_store_error(err, Some(&claim_id)),
@@ -3362,7 +3492,7 @@ fn main() {
                 ),
                 Err(err) => handle_store_error(err, Some(&claim_id)),
             };
-            emit_claim_view(&updated, &dismiss_result, &project.store);
+            emit_claim_view(&updated, &flag_result, &project.store);
         }
 
         Command::Hypothesis { action } => {

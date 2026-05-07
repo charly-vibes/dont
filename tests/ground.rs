@@ -126,15 +126,15 @@ fn ground_history_reflects_concluded_then_dismissed_events() {
         kinds
     );
     assert!(
-        kinds.contains(&"dismissed"),
-        "events should contain 'dismissed', got: {:?}",
+        kinds.contains(&"flagged"),
+        "events should contain 'flagged', got: {:?}",
         kinds
     );
     let concluded_pos = kinds.iter().position(|&k| k == "concluded").unwrap();
-    let dismissed_pos = kinds.iter().position(|&k| k == "dismissed").unwrap();
+    let flagged_pos = kinds.iter().position(|&k| k == "flagged").unwrap();
     assert!(
-        concluded_pos < dismissed_pos,
-        "concluded must precede dismissed in history for {}",
+        concluded_pos < flagged_pos,
+        "concluded must precede flagged in history for {}",
         id
     );
 }

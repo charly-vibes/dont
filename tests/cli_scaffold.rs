@@ -11,7 +11,8 @@ fn help_lists_tracer_bullet_commands() {
         .stdout(predicate::str::contains("init"))
         .stdout(predicate::str::contains("conclude"))
         .stdout(predicate::str::contains("trust"))
-        .stdout(predicate::str::contains("dismiss"))
+        .stdout(predicate::str::contains("flag"))
+        .stdout(predicate::str::contains("undoubt"))
         .stdout(predicate::str::contains("show"))
         .stdout(predicate::str::contains("list"));
 }

@@ -134,7 +134,7 @@ fn ignore_verified_claim_produces_ignored_status() {
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
-        .args(["dismiss", &id, "--evidence", "https://example.com/evidence", "--json"])
+        .args(["flag", &id, "--evidence", "https://example.com/evidence", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

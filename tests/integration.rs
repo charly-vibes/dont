@@ -92,7 +92,7 @@ fn workflow_conclude_dismiss_show() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "the speed of light is constant");
     dont()
-        .args(["dismiss", &id, "--evidence", "https://nist.gov/codata", "--json"])
+        .args(["flag", &id, "--evidence", "https://nist.gov/codata", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -118,7 +118,7 @@ fn workflow_full_transition_cycle() {
     // unverified → verified → doubted → verified
     let id = conclude_claim(&dir, "plate tectonics drives continental drift");
     dont()
-        .args(["dismiss", &id, "--evidence", "https://usgs.gov/tectonics", "--json"])
+        .args(["flag", &id, "--evidence", "https://usgs.gov/tectonics", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -128,7 +128,7 @@ fn workflow_full_transition_cycle() {
         .assert()
         .success();
     let out = dont()
-        .args(["dismiss", &id, "--evidence", "https://usgs.gov/corrected", "--json"])
+        .args(["flag", &id, "--evidence", "https://usgs.gov/corrected", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -187,7 +187,7 @@ fn envelope_conformance_success_commands() {
 
     // dismiss
     let out = dont()
-        .args(["dismiss", &id, "--evidence", "https://example.test/proof", "--json"])
+        .args(["flag", &id, "--evidence", "https://example.test/proof", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -246,7 +246,7 @@ fn envelope_conformance_error_commands() {
 
     // dismiss without evidence → no-evidence, exit 1
     let out = dont()
-        .args(["dismiss", &id, "--json"])
+        .args(["flag", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -288,7 +288,7 @@ fn workflow_refusal_loop_dismiss_no_evidence_then_with_evidence() {
 
     // dismiss without evidence → error, exit 1, structured remediation
     let out = dont()
-        .args(["dismiss", &id, "--json"])
+        .args(["flag", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -318,7 +318,7 @@ fn workflow_refusal_loop_dismiss_no_evidence_then_with_evidence() {
 
     // dismiss with evidence → verified
     dont()
-        .args(["dismiss", &id, "--evidence", "https://cdc.gov/vaccines", "--json"])
+        .args(["flag", &id, "--evidence", "https://cdc.gov/vaccines", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

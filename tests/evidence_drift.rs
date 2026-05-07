@@ -47,7 +47,7 @@ fn define_term(root: &Path, curie: &str) -> String {
 
 fn dismiss_file(root: &Path, id: &str, file: &str, lines: &str) {
     dont()
-        .args(["dismiss", id, "--file", file, "--lines", lines, "--json"])
+        .args(["flag", id, "--file", file, "--lines", lines, "--json"])
         .env("DONT_DIR", root.join(".dont"))
         .assert()
         .success();
@@ -55,7 +55,7 @@ fn dismiss_file(root: &Path, id: &str, file: &str, lines: &str) {
 
 fn dismiss_file_value(root: &Path, id: &str, file: &str, lines: &str) -> Value {
     let out = dont()
-        .args(["dismiss", id, "--file", file, "--lines", lines, "--json"])
+        .args(["flag", id, "--file", file, "--lines", lines, "--json"])
         .env("DONT_DIR", root.join(".dont"))
         .output()
         .unwrap()
@@ -147,7 +147,7 @@ fn dismiss_with_excerpt_without_lines_audits_excerpt_presence() {
 
     let v = dont()
         .args([
-            "dismiss",
+            "flag",
             &id,
             "--file",
             "README.md",

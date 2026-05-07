@@ -82,7 +82,7 @@ fn trust_verified_claim_produces_doubted_status() {
     let id = conclude_claim(&dir, "water boils at 100C at sea level");
     // Dismiss first to reach verified
     dont()
-        .args(["dismiss", &id, "--evidence", "https://nist.gov", "--json"])
+        .args(["flag", &id, "--evidence", "https://nist.gov", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

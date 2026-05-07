@@ -66,7 +66,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
 
 fn dismiss(dir: &TempDir, id: &str, evidence: &str) {
     dont()
-        .args(["dismiss", id, "--evidence", evidence, "--json"])
+        .args(["flag", id, "--evidence", evidence, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

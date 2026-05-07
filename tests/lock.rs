@@ -45,7 +45,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
 
 fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
     dont()
-        .args(["dismiss", id, "--evidence", evidence, "--json"])
+        .args(["flag", id, "--evidence", evidence, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -60,7 +60,7 @@ fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[
             StoreStatus::Unverified,
             StoreStatus::Verified,
             StoreEvent {
-                kind: StoreEventKind::Dismissed,
+                kind: StoreEventKind::Flagged,
                 note: None,
                 evidence: vec![serde_json::Value::String((*first).to_string())],
             },
@@ -71,7 +71,7 @@ fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[
             .append_evidence_event(
                 claim_id,
                 StoreEvent {
-                    kind: StoreEventKind::Dismissed,
+                    kind: StoreEventKind::Flagged,
                     note: None,
                     evidence: vec![serde_json::Value::String((*uri).to_string())],
                 },

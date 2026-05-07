@@ -127,7 +127,7 @@ fn show_evidence_reflects_dismiss_history() {
     let id = conclude_claim(&dir, "claim with evidence");
     let ev = "https://example.test/proof";
     dont()
-        .args(["dismiss", &id, "--evidence", ev, "--json"])
+        .args(["flag", &id, "--evidence", ev, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -321,7 +321,7 @@ fn list_status_filter_returns_only_matching_claims() {
         .assert()
         .success();
     dont()
-        .args(["dismiss", &verified, "--evidence", "https://example.test/proof", "--json"])
+        .args(["flag", &verified, "--evidence", "https://example.test/proof", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

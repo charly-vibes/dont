@@ -1,6 +1,6 @@
 ## 1. Ergonomic Verb Renaming
-- [ ] 1.1 Update `dont-lifecycle-verbs` and `dont-status-lifecycle` to rename `trust` -> `doubt` and `dismiss` -> `verify`
-- [ ] 1.2 Implement aliases in the CLI for backward compatibility during the transition period
+- [x] 1.1 Rename `dismiss` -> `flag` in CLI, model, store, specs, and docs. Keep `trust`. Add `undoubt` (doubted→unverified).
+- [ ] 1.2 Update `dont-lifecycle-verbs` and `dont-status-lifecycle` specs to reflect `flag` and `undoubt`
 - [ ] 1.3 Update help and tutorial documentation to reflect the new naming convention
 
 ## 2. Human-Readable Output Mode

@@ -1,4 +1,4 @@
-use dont::model::{Status, TransitionError, dismiss, lock, trust};
+use dont::model::{Status, TransitionError, flag, lock, trust, undoubt};
 
 // --- Valid transitions ---
 
@@ -13,13 +13,18 @@ fn trust_verified_produces_doubted() {
 }
 
 #[test]
-fn dismiss_unverified_produces_verified() {
-    assert_eq!(dismiss(Status::Unverified).unwrap(), Status::Verified);
+fn flag_unverified_produces_verified() {
+    assert_eq!(flag(Status::Unverified).unwrap(), Status::Verified);
 }
 
 #[test]
-fn dismiss_doubted_produces_verified() {
-    assert_eq!(dismiss(Status::Doubted).unwrap(), Status::Verified);
+fn flag_doubted_produces_verified() {
+    assert_eq!(flag(Status::Doubted).unwrap(), Status::Verified);
+}
+
+#[test]
+fn undoubt_doubted_produces_unverified() {
+    assert_eq!(undoubt(Status::Doubted).unwrap(), Status::Unverified);
 }
 
 #[test]
@@ -37,10 +42,24 @@ fn trust_doubted_is_refused() {
 }
 
 #[test]
-fn dismiss_verified_is_refused() {
-    // Already-verified dismiss is evidence append, not a status transition (Phase 8).
-    // For now it must return a typed refusal.
-    let err = dismiss(Status::Verified).unwrap_err();
+fn flag_verified_is_refused() {
+    // Already-verified flag is evidence append, not a status transition.
+    // The model function must return a typed refusal.
+    let err = flag(Status::Verified).unwrap_err();
+    assert_eq!(err.code, "invalid-transition");
+    assert!(!err.message.is_empty());
+}
+
+#[test]
+fn undoubt_unverified_is_refused() {
+    let err = undoubt(Status::Unverified).unwrap_err();
+    assert_eq!(err.code, "invalid-transition");
+    assert!(!err.message.is_empty());
+}
+
+#[test]
+fn undoubt_verified_is_refused() {
+    let err = undoubt(Status::Verified).unwrap_err();
     assert_eq!(err.code, "invalid-transition");
     assert!(!err.message.is_empty());
 }
