@@ -473,12 +473,15 @@ fn format_prime(data: &Value) -> String {
 
 fn format_trace(data: &Value) -> String {
     let id = data["entity_id"].as_str().unwrap_or("?");
-    match data["blocker_paths"].as_array() {
+    let blockers = data["blockers"]
+        .as_array()
+        .or_else(|| data["blocker_paths"].as_array());
+    match blockers {
         Some(p) if p.is_empty() => format!("{id}  no blockers"),
         Some(p) => {
             let mut out = format!("{id} is blocked by:");
-            for path in p {
-                let path_str = path
+            for blocker in p {
+                let path_str = blocker["path"]
                     .as_array()
                     .map(|arr| {
                         arr.iter()
@@ -486,7 +489,7 @@ fn format_trace(data: &Value) -> String {
                             .collect::<Vec<_>>()
                             .join(" → ")
                     })
-                    .unwrap_or_else(|| path.to_string());
+                    .unwrap_or_else(|| blocker.to_string());
                 out.push_str(&format!("\n  {path_str}"));
             }
             out
@@ -1039,8 +1042,10 @@ fn derived_assessments_for_claim(record: &ClaimRecord, store: &Store) -> Vec<Str
 #[derive(Debug)]
 struct BlockerPath {
     kind: String,
+    start_entity: String,
     path: Vec<String>,
     blocking_node: String,
+    unresolved_reference: Option<String>,
     remediation: Vec<RemediationEntry>,
 }
 
@@ -1074,15 +1079,19 @@ fn blocker_path_for_dep(
             };
             Some(BlockerPath {
                 kind: kind.to_string(),
+                start_entity: start_id.to_string(),
                 path: vec![start_id.to_string(), term.id.clone()],
                 blocking_node: term.id,
+                unresolved_reference: None,
                 remediation,
             })
         }
         Ok(None) => Some(BlockerPath {
             kind: "unresolved-term".to_string(),
+            start_entity: start_id.to_string(),
             path,
             blocking_node: dep.to_string(),
+            unresolved_reference: Some(dep.to_string()),
             remediation: vec![RemediationEntry {
                 command: format!("dont define {dep} --doc \"<definition>\""),
                 description: format!("Define the missing term {dep}"),
@@ -1090,8 +1099,10 @@ fn blocker_path_for_dep(
         }),
         Err(_) => Some(BlockerPath {
             kind: "dangling-dependency".to_string(),
+            start_entity: start_id.to_string(),
             path,
             blocking_node: dep.to_string(),
+            unresolved_reference: Some(dep.to_string()),
             remediation: vec![RemediationEntry {
                 command: "dont list --kind=term".to_string(),
                 description: "List terms to diagnose the missing dependency".to_string(),
@@ -1133,15 +1144,20 @@ fn trace_claim(record: &ClaimRecord) -> Vec<BlockerPath> {
 }
 
 fn blocker_path_to_value(bp: BlockerPath) -> Value {
-    json!({
+    let mut value = json!({
         "kind": bp.kind,
+        "start_entity": bp.start_entity,
         "path": bp.path,
         "blocking_node": bp.blocking_node,
         "remediation": bp.remediation.iter().map(|r| json!({
             "command": r.command,
             "description": r.description,
         })).collect::<Vec<_>>(),
-    })
+    });
+    if let Some(reference) = bp.unresolved_reference {
+        value["unresolved_reference"] = json!(reference);
+    }
+    value
 }
 
 fn lockable_unmet_clauses(record: &ClaimRecord, store: &Store) -> Vec<UnmetClause> {
@@ -3318,7 +3334,8 @@ fn main() {
                     Ok(Some(_)) => {
                         let payload = json!({
                             "entity_id": id,
-                            "blocker_paths": [],
+                            "blockers": [],
+                            "as_of": chrono::Utc::now().to_rfc3339(),
                         });
                         let env = Envelope::success("trace", payload, vec![], vec![]);
                         emit_json(&env);
@@ -3347,7 +3364,8 @@ fn main() {
                             .collect();
                         let payload = json!({
                             "entity_id": id,
-                            "blocker_paths": blocker_paths,
+                            "blockers": blocker_paths,
+                            "as_of": chrono::Utc::now().to_rfc3339(),
                         });
                         let hints = if blocker_paths.is_empty() {
                             vec![]

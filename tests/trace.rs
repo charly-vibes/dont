@@ -83,7 +83,7 @@ fn trust(dir: &TempDir, id: &str, reason: &str) {
 // --- trace ---
 
 #[test]
-fn trace_healthy_claim_returns_empty_blocker_paths() {
+fn trace_healthy_claim_returns_empty_blockers() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "standalone healthy claim");
@@ -102,11 +102,12 @@ fn trace_healthy_claim_returns_empty_blocker_paths() {
     assert_eq!(v["ok"], true);
     assert_eq!(v["envelope_kind"], "trace");
     assert_eq!(v["data"]["entity_id"], id.as_str());
-    assert!(v["data"]["blocker_paths"].as_array().unwrap().is_empty());
+    assert!(v["data"]["blockers"].as_array().unwrap().is_empty());
+    assert!(v["data"]["as_of"].as_str().unwrap().contains('T'));
 }
 
 #[test]
-fn trace_unverified_standalone_claim_returns_empty_blocker_paths() {
+fn trace_unverified_standalone_claim_returns_empty_blockers() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "unverified standalone claim");
@@ -122,8 +123,8 @@ fn trace_unverified_standalone_claim_returns_empty_blocker_paths() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    let paths = v["data"]["blocker_paths"].as_array().unwrap();
-    assert!(paths.is_empty(), "standalone unverified claim has no dep blockers");
+    let blockers = v["data"]["blockers"].as_array().unwrap();
+    assert!(blockers.is_empty(), "standalone unverified claim has no dep blockers");
 }
 
 #[test]
@@ -145,15 +146,16 @@ fn trace_claim_blocked_by_doubted_term_shows_stale_path() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    let paths = v["data"]["blocker_paths"].as_array().unwrap();
-    assert_eq!(paths.len(), 1);
-    let bp = &paths[0];
-    assert_eq!(bp["kind"], "stale");
-    assert_eq!(bp["blocking_node"], term_id.as_str());
-    let path = bp["path"].as_array().unwrap();
+    let blockers = v["data"]["blockers"].as_array().unwrap();
+    assert_eq!(blockers.len(), 1);
+    let blocker = &blockers[0];
+    assert_eq!(blocker["kind"], "stale");
+    assert_eq!(blocker["start_entity"], claim_id.as_str());
+    assert_eq!(blocker["blocking_node"], term_id.as_str());
+    let path = blocker["path"].as_array().unwrap();
     assert!(path.iter().any(|p| p == claim_id.as_str()));
     assert!(path.iter().any(|p| p == term_id.as_str()));
-    assert!(!bp["remediation"].as_array().unwrap().is_empty());
+    assert!(!blocker["remediation"].as_array().unwrap().is_empty());
 }
 
 #[test]
@@ -173,12 +175,13 @@ fn trace_claim_with_unresolved_curie_shows_unresolved_term_path() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    let paths = v["data"]["blocker_paths"].as_array().unwrap();
-    assert_eq!(paths.len(), 1);
-    let bp = &paths[0];
-    assert_eq!(bp["kind"], "unresolved-term");
-    assert_eq!(bp["blocking_node"], "EX:MISSING");
-    assert!(!bp["remediation"].as_array().unwrap().is_empty());
+    let blockers = v["data"]["blockers"].as_array().unwrap();
+    assert_eq!(blockers.len(), 1);
+    let blocker = &blockers[0];
+    assert_eq!(blocker["kind"], "unresolved-term");
+    assert_eq!(blocker["start_entity"], claim_id.as_str());
+    assert_eq!(blocker["unresolved_reference"], "EX:MISSING");
+    assert!(!blocker["remediation"].as_array().unwrap().is_empty());
 }
 
 #[test]
@@ -203,9 +206,9 @@ fn trace_multiple_independent_blockers_reported_separately() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let paths = v["data"]["blocker_paths"].as_array().unwrap();
-    assert_eq!(paths.len(), 2, "two independent blockers reported separately");
-    let kinds: Vec<&str> = paths.iter().map(|p| p["kind"].as_str().unwrap()).collect();
+    let blockers = v["data"]["blockers"].as_array().unwrap();
+    assert_eq!(blockers.len(), 2, "two independent blockers reported separately");
+    let kinds: Vec<&str> = blockers.iter().map(|p| p["kind"].as_str().unwrap()).collect();
     assert!(kinds.contains(&"stale"));
     assert!(kinds.contains(&"unresolved-term"));
 }
@@ -253,8 +256,8 @@ fn trace_duplicate_dependency_is_reported_once() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let paths = v["data"]["blocker_paths"].as_array().unwrap();
-    assert_eq!(paths.len(), 1, "duplicate dep should be reported exactly once");
+    let blockers = v["data"]["blockers"].as_array().unwrap();
+    assert_eq!(blockers.len(), 1, "duplicate dep should be reported exactly once");
 }
 
 #[test]
@@ -275,8 +278,8 @@ fn trace_remediation_contains_valid_dont_commands() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let paths = v["data"]["blocker_paths"].as_array().unwrap();
-    let remediation = paths[0]["remediation"].as_array().unwrap();
+    let blockers = v["data"]["blockers"].as_array().unwrap();
+    let remediation = blockers[0]["remediation"].as_array().unwrap();
     assert!(!remediation.is_empty());
     for entry in remediation {
         let cmd = entry["command"].as_str().unwrap();

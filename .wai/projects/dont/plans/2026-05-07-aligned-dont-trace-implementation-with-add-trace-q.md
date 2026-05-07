@@ -1,0 +1,1 @@
+Aligned dont trace implementation with add-trace-query TraceView contract: payload now exposes data.blockers[], data.as_of, per-blocker start_entity, blocking_node/unresolved_reference, path, and remediation; kept human formatter tolerant of legacy blocker_paths.
