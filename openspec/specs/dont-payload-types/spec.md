@@ -273,3 +273,14 @@ Future minor versions MAY add new fields to output payload types (ClaimView, Ter
 #### Scenario: optional input field remains optional across minor versions
 - **WHEN** `ConcludeInput.confidence` is optional in v0.3
 - **THEN** it remains optional in v0.3.x and v0.4; making it required needs a major version bump
+
+### Requirement: GroundInput schema
+`GroundInput` SHALL accept: `statement` (required string), `evidence` (required non-empty EvidenceSpec array), and `author?` (AuthorString). In the initial version it SHALL NOT add ground-specific convenience fields for atoms, dependencies, or references; callers needing those richer shapes MUST use the underlying core verbs directly.
+
+#### Scenario: ground with statement and evidence validates
+- **WHEN** `dont ground "..." --evidence uri1 --json` is run
+- **THEN** the input is validated as `{statement, evidence: [{uri: "uri1"}]}`
+
+#### Scenario: ground rejects empty evidence list
+- **WHEN** `GroundInput.evidence` is provided as an empty array
+- **THEN** the command is refused rather than creating an ungrounded claim
