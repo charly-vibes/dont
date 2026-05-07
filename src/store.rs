@@ -992,6 +992,10 @@ impl Store {
     pub fn resolve_entity(&self, input: &str) -> Result<Option<EntityResolution>, StoreError> {
         const ULID_LEN: usize = 26;
 
+        if input.trim().is_empty() {
+            return Ok(None);
+        }
+
         if let Some(suffix) = input.strip_prefix("claim:") {
             if suffix.len() == ULID_LEN {
                 return self.claim_by_id(input).map(|opt| opt.map(EntityResolution::Claim));
@@ -1042,11 +1046,14 @@ impl Store {
         }
     }
 
+    // full_prefix must be in "type:suffix" form — IDs are stored with the type prefix.
+    // Comparison is case-insensitive to match Crockford base32 ULIDs.
     fn ids_by_entity_type_and_prefix(
         &self,
         entity_type: &str,
         full_prefix: &str,
     ) -> Result<Vec<String>, StoreError> {
+        let prefix_upper = full_prefix.to_uppercase();
         let script = format!(
             r#"?[entity] := *datoms[entity, "entity_type", {}, _, true]"#,
             json_string(entity_type)
@@ -1055,7 +1062,7 @@ impl Store {
         Ok(rows
             .into_iter()
             .filter_map(|row| row.into_iter().next().and_then(|v| v.as_str().map(str::to_string)))
-            .filter(|id| id.starts_with(full_prefix))
+            .filter(|id| id.to_uppercase().starts_with(&prefix_upper))
             .collect())
     }
 

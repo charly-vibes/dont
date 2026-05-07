@@ -181,6 +181,51 @@ fn entity_lookup_ambiguous_prefix_exits_nonzero() {
     );
 }
 
+/// Lowercase prefix resolves the same as uppercase (ULID case-insensitivity)
+#[test]
+fn entity_lookup_lowercase_prefix_resolves_claim() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "lowercase prefix test claim");
+    let prefix8_upper = &id.strip_prefix("claim:").unwrap()[..8];
+    let prefix8_lower = prefix8_upper.to_lowercase();
+
+    let out = dont()
+        .args(["show", &format!("claim:{prefix8_lower}"), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["id"], id.as_str());
+}
+
+/// why with a short prefix resolves to the correct claim (regression guard for why dispatch)
+#[test]
+fn entity_lookup_why_short_prefix() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "why short prefix test claim");
+    let prefix8 = &id.strip_prefix("claim:").unwrap()[..8];
+
+    let out = dont()
+        .args(["why", &format!("claim:{prefix8}"), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["entity"]["id"], id.as_str());
+}
+
 /// Full claim:ULID still resolves correctly (regression guard)
 #[test]
 fn entity_lookup_full_id_regression() {
