@@ -27,7 +27,7 @@ The system SHALL accept the following flags on every subcommand, parsed before s
 - **THEN** the tool behaves as if `DONT_DIRECT=1` is set, ignoring any parent harness presence (e.g. skipping extra harness-facing hints or envelopes)
 
 ### Requirement: No short-flag conflicts
-The system SHALL ensure that subcommand-specific short flags do not collide with the universal short flags (`-h`, `-j`, `-a`), and SHALL document the full short-flag mapping via `dont help <cmd>` and the shell-completion generator. The widely reused per-command short flags are `-r` for `--reason` (on `doubt`, `ignore`) and `-e` for `--evidence` (on `verify`).
+The system SHALL ensure that subcommand-specific short flags do not collide with the universal short flags (`-h`, `-j`, `-a`), and SHALL document the full short-flag mapping via `dont help <cmd>` and the shell-completion generator. The widely reused per-command short flags are `-r` for `--reason` (on `trust`, `undoubt`, `ignore`) and `-e` for `--evidence` (on `flag`).
 
 #### Scenario: help and completions document short flags
 - **WHEN** `dont help <cmd>` or the shell-completion generator is queried for a subcommand
@@ -62,7 +62,7 @@ If an identifier is ambiguous within a priority level (e.g. matches multiple CUR
 - **THEN** the command exits `1` with an error listing the ambiguous matches
 
 ### Requirement: Stdin ID piping support
-The system SHALL support `-` as an identifier argument to read a newline-delimited list of entity IDs or CURIEs from stdin. This allows bulk operations across commands like `show`, `doubt`, `verify`, `ignore`, and `reopen`.
+The system SHALL support `-` as an identifier argument to read a newline-delimited list of entity IDs or CURIEs from stdin. This allows bulk operations across commands like `show`, `trust`, `flag`, `undoubt`, `ignore`, and `reopen`.
 
 #### Scenario: bulk show via stdin
 - **WHEN** `echo "claim:1\nclaim:2" | dont show -` is invoked
