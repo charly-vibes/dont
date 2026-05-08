@@ -138,6 +138,40 @@ fn rows_to_matches(rows: Vec<Vec<Value>>) -> Vec<RuleMatch> {
         .collect()
 }
 
+/// Returns a stable source key for deduplicating evidence entries across rules.
+///
+/// URI entries normalize to host (port stripped); repo-file objects use their
+/// path; anything else falls back to the JSON representation.
+pub(super) fn source_key(v: &Value) -> String {
+    if let Some(uri) = v.as_str() {
+        return host_from_uri(uri);
+    }
+    if let Some(path) = v
+        .as_object()
+        .filter(|o| o.get("kind").and_then(Value::as_str) == Some("repo-file"))
+        .and_then(|o| o.get("path"))
+        .and_then(Value::as_str)
+    {
+        return format!("repo-file:{path}");
+    }
+    v.to_string()
+}
+
+fn host_from_uri(uri: &str) -> String {
+    let without_scheme = uri.split_once("://").map(|(_, rest)| rest).unwrap_or(uri);
+    let host = without_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(without_scheme)
+        .trim();
+    if host.is_empty() {
+        uri.to_string()
+    } else {
+        // Strip port so example.com and example.com:8080 count as the same source.
+        host.split(':').next().unwrap_or(host).to_lowercase()
+    }
+}
+
 #[cfg(test)]
 mod engine {
     use std::fs;
@@ -297,5 +331,32 @@ mod engine {
             matches.iter().any(|m| m.entity_id == claim_id),
             "rule should find the inserted claim {claim_id}"
         );
+    }
+}
+
+#[cfg(test)]
+mod source_key_tests {
+    use serde_json::json;
+
+    use super::source_key;
+
+    #[test]
+    fn host_same_with_and_without_port() {
+        let a = source_key(&json!("https://example.com/page"));
+        let b = source_key(&json!("https://example.com:8080/page"));
+        assert_eq!(a, b, "port should be stripped when computing source key");
+    }
+
+    #[test]
+    fn different_hosts_are_different_sources() {
+        let a = source_key(&json!("https://source-a.example.com/page"));
+        let b = source_key(&json!("https://source-b.example.com/page"));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn repo_file_uses_path_as_key() {
+        let v = json!({"kind": "repo-file", "path": "docs/evidence.md"});
+        assert_eq!(source_key(&v), "repo-file:docs/evidence.md");
     }
 }

@@ -21,8 +21,7 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
                     matches.push(RuleMatch {
                         entity_id: claim.id.clone(),
                         detail: format!(
-                            "depends on {} '{}' with status '{}'",
-                            term.id,
+                            "depends on '{}' with status '{}'",
                             term.curie,
                             term.status.as_str()
                         ),

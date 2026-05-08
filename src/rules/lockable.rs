@@ -1,19 +1,19 @@
 use std::collections::BTreeSet;
 
-use serde_json::Value;
-
 use crate::store::{ClaimRecord, EventRecord, HypothesisRecord, Store, StoreError, StoreStatus};
 
-
-use super::RuleMatch;
+use super::{source_key, RuleMatch};
 
 const MIN_ASSESSED_HYPOTHESES: usize = 3;
 const MIN_INDEPENDENT_EVIDENCE: usize = 2;
 
 /// Fires for claims that do not yet meet the gate conditions required before locking.
 ///
-/// Conditions: ≥3 assessed hypotheses, ≥2 independent evidence sources, and no
-/// derived assessments (stale, compromised-support) from dependencies.
+/// Intended as a pre-lock gate check, not a background lint — run with
+/// `dont check --lock-readiness`.
+///
+/// Conditions: ≥3 assessed hypotheses, ≥2 independent evidence sources, and all
+/// dependencies verified or resolvable.
 pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
     let claims = store.list_claims()?;
     let mut matches = Vec::new();
@@ -53,6 +53,7 @@ fn unmet_reasons(claim: &ClaimRecord, store: &Store) -> Result<Vec<String>, Stor
             store.term_by_curie(dep)?
         };
         if let Some(term) = term {
+            // Any status other than Verified is blocking.
             match term.status {
                 StoreStatus::Verified => {}
                 _ => {
@@ -63,6 +64,8 @@ fn unmet_reasons(claim: &ClaimRecord, store: &Store) -> Result<Vec<String>, Stor
                     ));
                 }
             }
+        } else {
+            reasons.push(format!("dependency {dep} is unresolved"));
         }
     }
 
@@ -86,35 +89,6 @@ fn independent_evidence_count(events: &[EventRecord]) -> usize {
         }
     }
     sources.len()
-}
-
-fn source_key(v: &Value) -> String {
-    if let Some(uri) = v.as_str() {
-        return host_from_uri(uri);
-    }
-    if let Some(path) = v
-        .as_object()
-        .filter(|o| o.get("kind").and_then(Value::as_str) == Some("repo-file"))
-        .and_then(|o| o.get("path"))
-        .and_then(Value::as_str)
-    {
-        return format!("repo-file:{path}");
-    }
-    v.to_string()
-}
-
-fn host_from_uri(uri: &str) -> String {
-    let without_scheme = uri.split_once("://").map(|(_, rest)| rest).unwrap_or(uri);
-    let host = without_scheme
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or(without_scheme)
-        .trim();
-    if host.is_empty() {
-        uri.to_string()
-    } else {
-        host.to_lowercase()
-    }
 }
 
 #[cfg(test)]
@@ -182,7 +156,28 @@ mod lockable {
         assert!(
             matches.iter().any(|m| m.entity_id == result.id
                 && m.detail.contains("independent evidence")),
-            "expected lockable to fire for correlated evidence"
+            "expected lockable to fire for insufficient evidence sources"
+        );
+    }
+
+    #[test]
+    fn fires_for_unresolved_dep() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let result = store
+            .append_claim("a claim", &["ns:missing".to_string()])
+            .unwrap();
+        add_hypotheses(&store, &result.id);
+        add_evidence(
+            &store,
+            &result.id,
+            &["https://source-a.example.com", "https://source-b.example.com"],
+        );
+        let matches = check(&store).unwrap();
+        assert!(
+            matches.iter().any(|m| m.entity_id == result.id
+                && m.detail.contains("is unresolved")),
+            "expected lockable to fire for unresolved dependency"
         );
     }
 

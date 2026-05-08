@@ -4,13 +4,10 @@ use serde_json::Value;
 
 use crate::store::{EventRecord, Store, StoreError};
 
-use super::RuleMatch;
+use super::{source_key, RuleMatch};
 
 /// Fires when a claim's evidence items come from fewer unique sources than the total count,
 /// indicating that some evidence is from correlated (shared) sources.
-///
-/// Traversal terminates even on cyclic dependency graphs because this rule inspects
-/// only the single claim's evidence — it does not walk dependencies.
 pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
     let claims = store.list_claims()?;
     let mut matches = Vec::new();
@@ -46,35 +43,6 @@ fn collect_evidence(events: &[EventRecord]) -> Vec<Value> {
         .iter()
         .flat_map(|ev| ev.evidence.iter().cloned())
         .collect()
-}
-
-fn source_key(v: &Value) -> String {
-    if let Some(uri) = v.as_str() {
-        return host_from_uri(uri);
-    }
-    if let Some(path) = v
-        .as_object()
-        .filter(|o| o.get("kind").and_then(Value::as_str) == Some("repo-file"))
-        .and_then(|o| o.get("path"))
-        .and_then(Value::as_str)
-    {
-        return format!("repo-file:{path}");
-    }
-    v.to_string()
-}
-
-fn host_from_uri(uri: &str) -> String {
-    let without_scheme = uri.split_once("://").map(|(_, rest)| rest).unwrap_or(uri);
-    let host = without_scheme
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or(without_scheme)
-        .trim();
-    if host.is_empty() {
-        uri.to_string()
-    } else {
-        host.to_lowercase()
-    }
 }
 
 #[cfg(test)]

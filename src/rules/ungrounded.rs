@@ -13,7 +13,8 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
             if dep.starts_with("term:") {
                 continue;
             }
-            if store.term_by_curie(dep)?.is_none() {
+            // Short-circuit for malformed deps (no ':') — always unresolvable.
+            if !dep.contains(':') || store.term_by_curie(dep)?.is_none() {
                 matches.push(RuleMatch {
                     entity_id: claim.id.clone(),
                     detail: format!("depends on unresolved term CURIE '{dep}'"),
@@ -88,5 +89,17 @@ mod ungrounded {
             .unwrap();
         let matches = check(&store).unwrap();
         assert_eq!(matches.len(), 2);
+    }
+
+    #[test]
+    fn fires_for_malformed_dep_without_colon() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        store
+            .append_claim("a claim", &["malformed-no-colon".to_string()])
+            .unwrap();
+        let matches = check(&store).unwrap();
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].detail.contains("malformed-no-colon"));
     }
 }
