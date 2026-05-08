@@ -1,5 +1,16 @@
 # dont
 
+> *Don't speak*
+> *I know just what you're sayin'*
+> *So please stop explainin'*
+> *Don't tell me 'cause it hurts*
+> *Don't speak*
+> *I know what you're thinkin'*
+> *I don't need your reasons*
+> *Don't tell me 'cause it hurts*
+>
+> — No Doubt, "Don't Speak"
+
 [![tracked with wai](https://img.shields.io/badge/tracked%20with-wai-blue)](https://github.com/charly-vibes/wai)
 
 Specification-first repository for `dont`, a proposed CLI that forces autonomous LLM agents to ground claims before asserting them.
