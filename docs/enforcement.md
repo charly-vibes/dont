@@ -30,19 +30,20 @@ All transitions are exhaustive matches. The only path to `Locked` is
 
 ### 2. Always-strict rules (`src/rules/mod.rs`)
 
-Three rules are hardcoded to `Error` severity before any config lookup:
+Three rules are hardcoded to `Strict` severity before any config lookup:
 
 | Rule | What it catches |
 |------|----------------|
-| `unresolved-terms` | CURIE that can't be resolved |
+| `unresolved-terms` | dependency reference (CURIE or `term:uuid`) that can't be resolved |
 | `stale-cascade` | claim that depends on an unverified or doubted claim |
-| `dangling-definition` | store lookup fails entirely |
+| `dangling-definition` | explicit `term:uuid` ID reference to a term that no longer exists |
 
 These cannot be downgraded to warnings via project config.
 
 ### 3. Dependency integrity gate
 
-Before a claim can be verified with `dont flag`, `dependency_gate_unmet_clauses()`
+Before a claim can be verified with `dont flag` (read: "don't flag this as a
+concern"), `dependency_gate_unmet_clauses()`
 walks all dependencies. If any are `Unverified` or `Doubted`, the command
 emits a structured refusal and exits 1.
 
@@ -55,8 +56,8 @@ config can only extend it, never replace it.
 ### 5. `dont prime` — the terminal gate
 
 `dont prime` scans the claim store and exits 1 if any claim is `Doubted`.
-Unverified claims are allowed in permissive mode; doubted claims are always
-blocking. This is the command wired into CI, pre-commit, and agent stop hooks.
+Unverified claims are allowed in permissive mode (where warnings replace errors
+for most rules); doubted claims are always blocking regardless of mode. This is the command wired into CI, pre-commit, and agent stop hooks.
 
 ### 6. Lockability rule
 
