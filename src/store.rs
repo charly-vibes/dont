@@ -40,7 +40,7 @@ pub enum StoreStatus {
 }
 
 impl StoreStatus {
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::Unverified => "unverified",
             Self::Verified => "verified",

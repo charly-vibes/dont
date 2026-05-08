@@ -3,7 +3,15 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 use crate::config::RulesConfig;
-use crate::store::Store;
+use crate::store::{Store, StoreError};
+
+pub mod correlated_error;
+pub mod dangling_definition;
+pub mod lockable;
+pub mod stale_cascade;
+pub mod term_nonfunctional_label;
+pub mod ungrounded;
+pub mod unresolved_terms;
 
 #[derive(Debug, Clone)]
 pub struct RuleMatch {
@@ -15,6 +23,7 @@ pub struct RuleMatch {
 pub enum RuleError {
     Io(std::io::Error),
     Compile { rule_name: String, message: String },
+    Store(StoreError),
 }
 
 impl std::fmt::Display for RuleError {
@@ -24,6 +33,7 @@ impl std::fmt::Display for RuleError {
             Self::Compile { rule_name, message } => {
                 write!(f, "rule {rule_name:?} failed to compile: {message}")
             }
+            Self::Store(e) => write!(f, "store error evaluating rule: {e}"),
         }
     }
 }
@@ -73,6 +83,30 @@ impl RuleEngine {
             "ungrounded" if self.mode_is_strict => Severity::Strict,
             _ => Severity::Warn,
         }
+    }
+
+    /// Evaluate a shipped (built-in) rule by name.
+    ///
+    /// Returns `None` if `rule_name` is not a shipped rule; the caller should then fall
+    /// back to file-based evaluation via [`Self::evaluate`].
+    pub fn evaluate_shipped(
+        &self,
+        store: &Store,
+        rule_name: &str,
+    ) -> Option<Result<Vec<RuleMatch>, RuleError>> {
+        let result = match rule_name {
+            "ungrounded" => ungrounded::check(store),
+            "unresolved-terms" => unresolved_terms::check(store),
+            "stale-cascade" => stale_cascade::check(store),
+            "lockable" => lockable::check(store),
+            "correlated-error" => correlated_error::check(store),
+            "dangling-definition" => dangling_definition::check(store),
+            "term-nonfunctional-label" => {
+                term_nonfunctional_label::check(store, &self.config.term_nonfunctional)
+            }
+            _ => return None,
+        };
+        Some(result.map_err(RuleError::Store))
     }
 
     /// Load `<rule_name>.dl` from the rules directory and evaluate it against `store`.
@@ -175,6 +209,7 @@ mod engine {
         match err {
             RuleError::Compile { rule_name, .. } => assert_eq!(rule_name, "bad-syntax"),
             RuleError::Io(_) => panic!("expected compile error, got IO error"),
+            RuleError::Store(_) => panic!("expected compile error, got store error"),
         }
     }
 
