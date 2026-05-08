@@ -9,7 +9,7 @@
 - [ ] 2.3 Ensure structured evidence (from `add-evidence-locators`) is rendered clearly in human-mode
 
 ## 3. Core Lifecycle Accessibility (Hypotheses & Atoms)
-- [ ] 3.1 Add subcommands for `hypothesis` (add, assess) and `atom` (define, dismiss) management
+- [x] 3.1 Add subcommands for `hypothesis` (add, assess) and `atom` (define, dismiss) management
 - [ ] 3.2 Update `dont-payload-types` to ensure these new entities/attributes are properly exposed
 
 ## 4. Entity Lookup & ID Ergonomics

@@ -74,6 +74,8 @@ pub enum StoreEventKind {
     Reopened,
     HypothesisAdded,
     HypothesisAssessed,
+    AtomDefined,
+    AtomDismissed,
 }
 
 impl StoreEventKind {
@@ -89,6 +91,8 @@ impl StoreEventKind {
             Self::Reopened => "reopened",
             Self::HypothesisAdded => "hypothesis-added",
             Self::HypothesisAssessed => "hypothesis-assessed",
+            Self::AtomDefined => "atom-defined",
+            Self::AtomDismissed => "atom-dismissed",
         }
     }
 
@@ -104,6 +108,8 @@ impl StoreEventKind {
             "reopened" => Ok(Self::Reopened),
             "hypothesis-added" => Ok(Self::HypothesisAdded),
             "hypothesis-assessed" => Ok(Self::HypothesisAssessed),
+            "atom-defined" => Ok(Self::AtomDefined),
+            "atom-dismissed" => Ok(Self::AtomDismissed),
             _ => Err(StoreError::Malformed(format!("unknown event kind {value}"))),
         }
     }
@@ -126,6 +132,14 @@ pub struct Datom {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AtomRecord {
+    pub idx: usize,
+    pub text: String,
+    pub status: String,
+    pub evidence: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HypothesisAssessment {
     pub supporting: Vec<String>,
     pub refuting: Vec<String>,
@@ -144,6 +158,7 @@ pub struct ClaimRecord {
     pub statement: String,
     pub status: StoreStatus,
     pub depends_on: Vec<String>,
+    pub atoms: Vec<AtomRecord>,
     pub hypotheses: Vec<HypothesisRecord>,
     pub created_at: String,
     pub events: Vec<EventRecord>,
@@ -269,6 +284,118 @@ impl Store {
             let tx = store.next_tx()?;
             let value = serde_json::to_value(hypotheses).map_err(StoreError::from_err)?;
             store.put_datoms(&[Datom::assert(claim_id, "hypotheses", value, tx)])
+        })
+    }
+
+    pub fn define_atom(
+        &self,
+        claim_id: &str,
+        text: &str,
+    ) -> Result<(AppendResult, usize), StoreError> {
+        self.with_write_lock(|store| {
+            let record = store
+                .claim_by_id(claim_id)?
+                .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} not found")))?;
+            let tx = store.next_tx()?;
+            let mut atoms = record.atoms;
+            let idx = atoms.len();
+            atoms.push(AtomRecord {
+                idx,
+                text: text.to_string(),
+                status: "unverified".to_string(),
+                evidence: vec![],
+            });
+            let value = serde_json::to_value(&atoms).map_err(StoreError::from_err)?;
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            store.put_datoms(&[
+                Datom::assert(claim_id, "atoms", value, tx),
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "claim_id",
+                    Value::String(claim_id.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String("atom-defined".to_string()),
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ])?;
+            Ok((
+                AppendResult {
+                    id: claim_id.to_string(),
+                    event_id,
+                    tx,
+                    created_at: now,
+                },
+                idx,
+            ))
+        })
+    }
+
+    pub fn dismiss_atom(
+        &self,
+        claim_id: &str,
+        idx: usize,
+        evidence: &[String],
+    ) -> Result<AppendResult, StoreError> {
+        self.with_write_lock(|store| {
+            let record = store
+                .claim_by_id(claim_id)?
+                .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} not found")))?;
+            let tx = store.next_tx()?;
+            let mut atoms = record.atoms;
+            let atom = atoms
+                .get_mut(idx)
+                .ok_or_else(|| StoreError::Malformed(format!("atom index {idx} out of range")))?;
+            atom.status = "verified".to_string();
+            atom.evidence.extend_from_slice(evidence);
+            let value = serde_json::to_value(&atoms).map_err(StoreError::from_err)?;
+            let event_id = prefixed_ulid("event");
+            let now = now_rfc3339_seconds();
+            store.put_datoms(&[
+                Datom::assert(claim_id, "atoms", value, tx),
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "claim_id",
+                    Value::String(claim_id.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "kind",
+                    Value::String("atom-dismissed".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "evidence",
+                    serde_json::to_value(evidence).map_err(StoreError::from_err)?,
+                    tx,
+                ),
+                Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
+            ])?;
+            Ok(AppendResult {
+                id: claim_id.to_string(),
+                event_id,
+                tx,
+                created_at: now,
+            })
         })
     }
 
@@ -770,6 +897,13 @@ impl Store {
                         .collect()
                 })
                 .unwrap_or_default();
+            let atoms = datoms
+                .iter()
+                .filter(|d| d.attribute == "atoms" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .map(|d| atoms_from_value(&d.value))
+                .transpose()?
+                .unwrap_or_default();
             let hypotheses = datoms
                 .iter()
                 .filter(|d| d.attribute == "hypotheses" && d.assert_bit)
@@ -777,7 +911,7 @@ impl Store {
                 .map(|d| hypotheses_from_value(&d.value))
                 .transpose()?
                 .unwrap_or_default();
-            records.push(ClaimRecord { id, statement, status, depends_on, hypotheses, created_at, events });
+            records.push(ClaimRecord { id, statement, status, depends_on, atoms, hypotheses, created_at, events });
         }
         Ok(records)
     }
@@ -909,6 +1043,10 @@ impl Store {
                     .collect()
             })
             .unwrap_or_default();
+        let atoms = latest_asserted_value(&datoms, "atoms")
+            .map(atoms_from_value)
+            .transpose()?
+            .unwrap_or_default();
         let hypotheses = latest_asserted_value(&datoms, "hypotheses")
             .map(hypotheses_from_value)
             .transpose()?
@@ -920,6 +1058,7 @@ impl Store {
             statement,
             status,
             depends_on,
+            atoms,
             hypotheses,
             created_at,
             events,
@@ -1333,6 +1472,10 @@ fn prefixed_ulid(prefix: &str) -> String {
 
 fn now_rfc3339_seconds() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+fn atoms_from_value(value: &Value) -> Result<Vec<AtomRecord>, StoreError> {
+    serde_json::from_value(value.clone()).map_err(StoreError::from_err)
 }
 
 fn hypotheses_from_value(value: &Value) -> Result<Vec<HypothesisRecord>, StoreError> {

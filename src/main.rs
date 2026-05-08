@@ -234,10 +234,42 @@ enum Command {
         excerpt: Option<String>,
     },
 
+    /// Manage independently checkable atoms for a claim.
+    Atom {
+        #[command(subcommand)]
+        action: AtomAction,
+    },
+
     /// Manage competing hypotheses for a claim.
     Hypothesis {
         #[command(subcommand)]
         action: HypothesisAction,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AtomAction {
+    /// Add an independently checkable atom to a claim.
+    Define {
+        /// Claim identifier.
+        id: String,
+
+        /// Atom text.
+        #[arg(long)]
+        text: String,
+    },
+
+    /// Mark an atom verified with evidence.
+    Dismiss {
+        /// Claim identifier.
+        id: String,
+
+        /// Atom index (0-based).
+        idx: usize,
+
+        /// Evidence URI or reference. May be repeated.
+        #[arg(long, short)]
+        evidence: Vec<String>,
     },
 }
 
@@ -793,7 +825,7 @@ fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
         "statement": record.statement,
         "status": format!("{:?}", record.status).to_lowercase(),
         "derived_assessments": derived_assessments_for_claim(record, store),
-        "atoms": [],
+        "atoms": record.atoms,
         "hypotheses": record.hypotheses,
         "evidence": evidence,
         "depends_on": record.depends_on,
@@ -3524,6 +3556,120 @@ fn main() {
                 Err(err) => handle_store_error(err, Some(&claim_id)),
             };
             emit_claim_view(&updated, &flag_result, &project.store);
+        }
+
+        Command::Atom { action } => {
+            let project = open_project_or_exit();
+            match action {
+                AtomAction::Define { id, text } => {
+                    if text.trim().is_empty() {
+                        emit_error_and_exit(
+                            refusal(
+                                "empty-text",
+                                "atom text must be non-empty",
+                                Some(&id),
+                                vec![RemediationEntry {
+                                    command: format!("dont atom define {id} --text \"<atom>\""),
+                                    description: "Provide a non-empty atom statement".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+                    let (result, _idx) = match project.store.define_atom(&id, &text) {
+                        Ok(r) => r,
+                        Err(StoreError::Malformed(ref msg)) if msg.contains("not found") => {
+                            emit_error_and_exit(
+                                refusal(
+                                    "claim-not-found",
+                                    &format!("claim {id} not found"),
+                                    Some(&id),
+                                    vec![RemediationEntry {
+                                        command: "dont list".to_string(),
+                                        description: "List claims to find the correct identifier"
+                                            .to_string(),
+                                    }],
+                                ),
+                                vec![],
+                                1,
+                            );
+                        }
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    };
+                    let updated = match project.store.claim_by_id(&id) {
+                        Ok(Some(r)) => r,
+                        Ok(None) => handle_store_error(
+                            StoreError::Malformed(format!("claim {id} vanished after atom define")),
+                            Some(&id),
+                        ),
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    };
+                    emit_claim_view(&updated, &result, &project.store);
+                }
+
+                AtomAction::Dismiss { id, idx, evidence } => {
+                    if evidence.is_empty() {
+                        emit_error_and_exit(
+                            refusal(
+                                "no-evidence",
+                                "atom dismiss requires at least one --evidence item",
+                                Some(&id),
+                                vec![RemediationEntry {
+                                    command: format!("dont atom dismiss {id} {idx} --evidence <uri>"),
+                                    description: "Attach evidence for the atom verification".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+                    let result = match project.store.dismiss_atom(&id, idx, &evidence) {
+                        Ok(r) => r,
+                        Err(StoreError::Malformed(ref msg)) if msg.contains("not found") => {
+                            emit_error_and_exit(
+                                refusal(
+                                    "claim-not-found",
+                                    &format!("claim {id} not found"),
+                                    Some(&id),
+                                    vec![RemediationEntry {
+                                        command: "dont list".to_string(),
+                                        description: "List claims to find the correct identifier"
+                                            .to_string(),
+                                    }],
+                                ),
+                                vec![],
+                                1,
+                            );
+                        }
+                        Err(StoreError::Malformed(ref msg)) if msg.contains("out of range") => {
+                            emit_error_and_exit(
+                                refusal(
+                                    "atom-not-found",
+                                    &format!("atom index {idx} does not exist on claim {id}"),
+                                    Some(&id),
+                                    vec![RemediationEntry {
+                                        command: format!("dont show {id}"),
+                                        description: "Inspect the claim to see available atom indices".to_string(),
+                                    }],
+                                ),
+                                vec![],
+                                1,
+                            );
+                        }
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    };
+                    let updated = match project.store.claim_by_id(&id) {
+                        Ok(Some(r)) => r,
+                        Ok(None) => handle_store_error(
+                            StoreError::Malformed(format!("claim {id} vanished after atom dismiss")),
+                            Some(&id),
+                        ),
+                        Err(err) => handle_store_error(err, Some(&id)),
+                    };
+                    emit_claim_view(&updated, &result, &project.store);
+                }
+            }
         }
 
         Command::Hypothesis { action } => {

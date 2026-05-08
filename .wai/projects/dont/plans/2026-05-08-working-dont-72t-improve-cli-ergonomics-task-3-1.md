@@ -1,0 +1,1 @@
+Working dont-72t (improve-cli-ergonomics task 3.1). Hypothesis subcommands are already present; remaining gap is atom define/dismiss management. Use TDD: add CLI tests for atom define, dismiss, validation, then implement minimal store + command wiring and update OpenSpec task if complete.

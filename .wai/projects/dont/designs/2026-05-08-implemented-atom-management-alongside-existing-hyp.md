@@ -1,0 +1,1 @@
+Implemented atom management alongside existing hypothesis commands for dont-72t. Atoms are represented in ClaimRecord as serialized AtomRecord entries with idx/text/status/evidence, exposed through ClaimView, and mutated by dont atom define/dismiss. This matches current hypothesis storage style while leaving fuller atom-completion gate semantics for future data-model work.
