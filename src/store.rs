@@ -1345,6 +1345,14 @@ impl Store {
             .map_err(StoreError::Io)
     }
 
+    /// Execute a rule violation query against the store.
+    ///
+    /// Rule scripts MUST return two columns: `[entity_id, detail]`.
+    /// Returns `StoreError::Cozo` if the script fails to parse or execute.
+    pub fn run_rule_query(&self, script: &str) -> Result<Vec<Vec<Value>>, StoreError> {
+        self.query_rows(script)
+    }
+
     fn run(&self, script: &str) -> Result<(), StoreError> {
         let result = self.db.run_script_str(script, "", false);
         let value: Value = serde_json::from_str(&result).map_err(StoreError::from_err)?;
