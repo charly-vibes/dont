@@ -15,7 +15,7 @@
 ## 4. Entity Lookup & ID Ergonomics
 - [x] 4.1 Implement a CURIE-to-ULID resolver for all command arguments
 - [x] 4.2 Support short-ULID prefixes (e.g., `claim:01KQZ`) in entity lookups
-- [ ] 4.3 Implement stdin ID piping (`-`) for bulk operations
+- [x] 4.3 Implement stdin ID piping (`-`) for bulk operations
 
 ## 5. Universal Flag Compliance
 - [x] 5.1 Implement `--author <id>` and `$DONT_AUTHOR` environment variable support

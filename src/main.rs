@@ -373,7 +373,7 @@ fn emit_json<T: serde::Serialize>(envelope: &T) {
     }
 }
 
-fn emit_error_and_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> ! {
+fn emit_error_no_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> i32 {
     if human_mode() {
         eprintln!("error: {}", err.message);
         for w in &warnings {
@@ -386,7 +386,98 @@ fn emit_error_and_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> !
         let envelope = Envelope::error(err, warnings);
         emit_json(&envelope);
     }
-    process::exit(code);
+    code
+}
+
+fn emit_error_and_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> ! {
+    process::exit(emit_error_no_exit(err, warnings, code));
+}
+
+fn handle_store_error_code(err: StoreError, entity_id: Option<&str>) -> i32 {
+    if let StoreError::CurieConflict { curie, existing_id } = err {
+        return emit_error_no_exit(
+            refusal(
+                "curie-conflict",
+                &format!("CURIE {curie} is already defined by {existing_id}"),
+                Some(&existing_id),
+                vec![
+                    RemediationEntry {
+                        command: format!("dont show {existing_id}"),
+                        description: "Inspect the existing term before redefining it".to_string(),
+                    },
+                    RemediationEntry {
+                        command: format!("dont define {} --doc \"<definition>\"", suggest_alternative_curie(&curie)),
+                        description: "Use a different CURIE for a distinct term".to_string(),
+                    },
+                ],
+            ),
+            vec![],
+            1,
+        );
+    }
+
+    if let StoreError::AmbiguousPrefix { prefix, candidates } = err {
+        return emit_error_no_exit(
+            refusal(
+                "ambiguous-prefix",
+                &format!(
+                    "prefix {:?} matches {} entities — use a longer prefix or full ID",
+                    prefix,
+                    candidates.len()
+                ),
+                entity_id,
+                candidates
+                    .iter()
+                    .map(|id| RemediationEntry {
+                        command: format!("dont show {id}"),
+                        description: format!("Show {id}"),
+                    })
+                    .collect(),
+            ),
+            vec![],
+            1,
+        );
+    }
+
+    let err_result = ErrorResult {
+        code: "internal".to_string(),
+        message: err.to_string(),
+        rule_name: None,
+        spec_ref: None,
+        entity_id: entity_id.map(str::to_string),
+        unmet_clauses: vec![],
+        remediation: vec![
+            RemediationEntry {
+                command: "ls ${DONT_DIR:-.dont}".to_string(),
+                description: "Inspect the project state directory for obvious corruption or missing files".to_string(),
+            },
+            RemediationEntry {
+                command: "https://github.com/charly-vibes/dont/issues".to_string(),
+                description: "Report the issue if the project state looks intact".to_string(),
+            },
+        ],
+    };
+    emit_error_no_exit(err_result, vec![], 4)
+}
+
+fn run_per_entity<F: FnMut(&str) -> i32>(id: String, mut f: F) -> ! {
+    if id != "-" {
+        process::exit(f(&id));
+    }
+    use std::io::BufRead;
+    let mut max_code = 0i32;
+    for line in std::io::stdin().lock().lines() {
+        let raw = line.unwrap_or_default();
+        let trimmed = raw.trim().to_string();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let code = f(&trimmed);
+        if code > max_code {
+            max_code = code;
+        }
+    }
+    process::exit(max_code);
 }
 
 fn format_human(v: &Value) -> String {
@@ -1578,70 +1669,7 @@ fn refusal(
 }
 
 fn handle_store_error(err: StoreError, entity_id: Option<&str>) -> ! {
-    if let StoreError::CurieConflict { curie, existing_id } = err {
-        emit_error_and_exit(
-            refusal(
-                "curie-conflict",
-                &format!("CURIE {curie} is already defined by {existing_id}"),
-                Some(&existing_id),
-                vec![
-                    RemediationEntry {
-                        command: format!("dont show {existing_id}"),
-                        description: "Inspect the existing term before redefining it".to_string(),
-                    },
-                    RemediationEntry {
-                        command: format!("dont define {} --doc \"<definition>\"", suggest_alternative_curie(&curie)),
-                        description: "Use a different CURIE for a distinct term".to_string(),
-                    },
-                ],
-            ),
-            vec![],
-            1,
-        );
-    }
-
-    if let StoreError::AmbiguousPrefix { prefix, candidates } = err {
-        emit_error_and_exit(
-            refusal(
-                "ambiguous-prefix",
-                &format!(
-                    "prefix {:?} matches {} entities — use a longer prefix or full ID",
-                    prefix,
-                    candidates.len()
-                ),
-                entity_id,
-                candidates
-                    .iter()
-                    .map(|id| RemediationEntry {
-                        command: format!("dont show {id}"),
-                        description: format!("Show {id}"),
-                    })
-                    .collect(),
-            ),
-            vec![],
-            1,
-        );
-    }
-
-    let err_result = ErrorResult {
-        code: "internal".to_string(),
-        message: err.to_string(),
-        rule_name: None,
-        spec_ref: None,
-        entity_id: entity_id.map(str::to_string),
-        unmet_clauses: vec![],
-        remediation: vec![
-            RemediationEntry {
-                command: "ls ${DONT_DIR:-.dont}".to_string(),
-                description: "Inspect the project state directory for obvious corruption or missing files".to_string(),
-            },
-            RemediationEntry {
-                command: "https://github.com/charly-vibes/dont/issues".to_string(),
-                description: "Report the issue if the project state looks intact".to_string(),
-            },
-        ],
-    };
-    emit_error_and_exit(err_result, vec![], 4);
+    process::exit(handle_store_error_code(err, entity_id));
 }
 
 fn suggest_alternative_curie(curie: &str) -> String {
@@ -1991,6 +2019,22 @@ fn main() {
         } => {
             let project = open_project_or_exit();
 
+            if statement == "-" {
+                emit_error_and_exit(
+                    refusal(
+                        "stdin-not-supported",
+                        "conclude does not read entity IDs from stdin; provide the statement as an argument",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont conclude \"<claim text>\"".to_string(),
+                            description: "Provide the statement directly as an argument".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    2,
+                );
+            }
+
             if statement.trim().is_empty() {
                 emit_error_and_exit(
                     refusal(
@@ -2335,131 +2379,134 @@ fn main() {
         }
 
         Command::Lock { id } => {
-            if id.starts_with("term:") {
-                emit_error_and_exit(
-                    refusal(
-                        "wrong-entity-kind",
-                        "lock applies to claims only in this version",
-                        Some(&id),
-                        vec![RemediationEntry {
-                            command: format!("dont show {id}"),
-                            description: "Inspect the term instead of trying to lock it"
-                                .to_string(),
-                        }],
-                    ),
-                    vec![],
-                    1,
-                );
-            }
-
             let project = open_project_or_exit();
-            let record = match project.store.claim_by_id(&id) {
-                Ok(Some(r)) => r,
-                Ok(None) => emit_error_and_exit(
-                    refusal(
-                        "claim-not-found",
-                        &format!("no claim with id {id}"),
-                        Some(&id),
-                        vec![RemediationEntry {
-                            command: "dont list".to_string(),
-                            description: "List all claims to find the correct id".to_string(),
-                        }],
-                    ),
-                    vec![],
-                    1,
-                ),
-                Err(err) => handle_store_error(err, Some(&id)),
-            };
+            run_per_entity(id, |id| {
+                if id.starts_with("term:") {
+                    return emit_error_no_exit(
+                        refusal(
+                            "wrong-entity-kind",
+                            "lock applies to claims only in this version",
+                            Some(id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the term instead of trying to lock it"
+                                    .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    );
+                }
 
-            let current = model_status_from_store(record.status);
-            match current {
-                Status::Locked => emit_error_and_exit(
-                    refusal(
-                        "claim-locked",
-                        "claim is already locked",
-                        Some(&id),
+                let record = match project.store.claim_by_id(id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => return emit_error_no_exit(
+                        refusal(
+                            "claim-not-found",
+                            &format!("no claim with id {id}"),
+                            Some(id),
+                            vec![RemediationEntry {
+                                command: "dont list".to_string(),
+                                description: "List all claims to find the correct id".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Err(err) => return handle_store_error_code(err, Some(id)),
+                };
+
+                let current = model_status_from_store(record.status);
+                match current {
+                    Status::Locked => return emit_error_no_exit(
+                        refusal(
+                            "claim-locked",
+                            "claim is already locked",
+                            Some(id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the locked claim".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                    Status::Verified => {}
+                    _ => return emit_error_no_exit(
+                        refusal(
+                            "claim-not-verified",
+                            "claim must be verified before it can be locked",
+                            Some(id),
+                            vec![RemediationEntry {
+                                command: format!("dont dismiss {id} --evidence <uri>"),
+                                description: "Attach evidence until the claim reaches verified"
+                                    .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                }
+
+                let unmet_clauses = lockable_unmet_clauses(&record, &project.store);
+                if !unmet_clauses.is_empty() {
+                    let err_result = ErrorResult::new(
+                        "rule-not-met",
+                        "lockable gate is not met",
+                        Some("lockable"),
+                        None,
+                        Some(id),
+                        unmet_clauses,
                         vec![RemediationEntry {
                             command: format!("dont show {id}"),
-                            description: "Inspect the locked claim".to_string(),
-                        }],
-                    ),
-                    vec![],
-                    1,
-                ),
-                Status::Verified => {}
-                _ => emit_error_and_exit(
-                    refusal(
-                        "claim-not-verified",
-                        "claim must be verified before it can be locked",
-                        Some(&id),
-                        vec![RemediationEntry {
-                            command: format!("dont dismiss {id} --evidence <uri>"),
-                            description: "Attach evidence until the claim reaches verified"
+                            description: "Inspect the claim and satisfy the unmet lock gates"
                                 .to_string(),
                         }],
-                    ),
-                    vec![],
-                    1,
-                ),
-            }
+                    )
+                    .expect("lock refusal must include remediation");
+                    return emit_error_no_exit(err_result, vec![], 1);
+                }
 
-            let unmet_clauses = lockable_unmet_clauses(&record, &project.store);
-            if !unmet_clauses.is_empty() {
-                let err_result = ErrorResult::new(
-                    "rule-not-met",
-                    "lockable gate is not met",
-                    Some("lockable"),
-                    None,
-                    Some(&id),
-                    unmet_clauses,
-                    vec![RemediationEntry {
-                        command: format!("dont show {id}"),
-                        description: "Inspect the claim and satisfy the unmet lock gates"
-                            .to_string(),
-                    }],
-                )
-                .expect("lock refusal must include remediation");
-                emit_error_and_exit(err_result, vec![], 1);
-            }
-
-            let result = match model_lock(current) {
-                Ok(new_model_status) => match project.store.append_status_change(
-                    &id,
-                    store_status_from_model(current),
-                    store_status_from_model(new_model_status),
-                    StoreEvent {
-                        kind: StoreEventKind::Locked,
-                        note: None,
-                        evidence: vec![],
+                let result = match model_lock(current) {
+                    Ok(new_model_status) => match project.store.append_status_change(
+                        id,
+                        store_status_from_model(current),
+                        store_status_from_model(new_model_status),
+                        StoreEvent {
+                            kind: StoreEventKind::Locked,
+                            note: None,
+                            evidence: vec![],
+                        },
+                    ) {
+                        Ok(r) => r,
+                        Err(err) => return handle_store_error_code(err, Some(id)),
                     },
-                ) {
-                    Ok(r) => r,
-                    Err(err) => handle_store_error(err, Some(&id)),
-                },
-                Err(err) => emit_error_and_exit(
-                    refusal(
-                        &err.code,
-                        &err.message,
-                        Some(&id),
-                        vec![RemediationEntry {
-                            command: format!("dont show {id}"),
-                            description: "Inspect the current claim status".to_string(),
-                        }],
+                    Err(err) => return emit_error_no_exit(
+                        refusal(
+                            &err.code,
+                            &err.message,
+                            Some(id),
+                            vec![RemediationEntry {
+                                command: format!("dont show {id}"),
+                                description: "Inspect the current claim status".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
                     ),
-                    vec![],
-                    1,
-                ),
-            };
+                };
 
-            let updated = match project.store.claim_by_id(&id) {
-                Ok(Some(r)) => r,
-                Ok(None) => handle_store_error(
-                    StoreError::Malformed(format!("claim {id} vanished after lock")),
-                    Some(&id),
-                ),
-                Err(err) => handle_store_error(err, Some(&id)),
-            };
-            emit_claim_view(&updated, &result, &project.store);
+                let updated = match project.store.claim_by_id(id) {
+                    Ok(Some(r)) => r,
+                    Ok(None) => return handle_store_error_code(
+                        StoreError::Malformed(format!("claim {id} vanished after lock")),
+                        Some(id),
+                    ),
+                    Err(err) => return handle_store_error_code(err, Some(id)),
+                };
+                emit_claim_view(&updated, &result, &project.store);
+                0
+            });
         }
 
         Command::Reopen { id } => {
@@ -3061,76 +3108,84 @@ fn main() {
 
         Command::Show { id } => {
             let project = open_project_or_exit();
-            match project.store.resolve_entity(&id) {
-                Ok(Some(EntityResolution::Claim(record))) => {
-                    let payload = build_claim_view(&record, &project.store);
-                    let env = Envelope::success(
-                        "claim",
-                        payload,
-                        vec![],
-                        vec![HintEntry {
-                            command: format!("dont trust {} --reason \"...\"", record.id),
-                            description: "Register doubt about this claim".to_string(),
-                        }],
-                    );
-                    emit_json(&env);
+            run_per_entity(id, |id| {
+                match project.store.resolve_entity(id) {
+                    Ok(Some(EntityResolution::Claim(record))) => {
+                        let payload = build_claim_view(&record, &project.store);
+                        let env = Envelope::success(
+                            "claim",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont trust {} --reason \"...\"", record.id),
+                                description: "Register doubt about this claim".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                        0
+                    }
+                    Ok(Some(EntityResolution::Term(record))) => {
+                        let payload = build_term_view(&record, &project.store);
+                        let env = Envelope::success(
+                            "term",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont trust {} --reason \"...\"", record.id),
+                                description: "Register doubt about this term".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                        0
+                    }
+                    Ok(None) => {
+                        let (code, message, remediation) = entity_not_found_error(id);
+                        emit_error_no_exit(refusal(code, &message, Some(id), remediation), vec![], 1)
+                    }
+                    Err(err) => handle_store_error_code(err, Some(id)),
                 }
-                Ok(Some(EntityResolution::Term(record))) => {
-                    let payload = build_term_view(&record, &project.store);
-                    let env = Envelope::success(
-                        "term",
-                        payload,
-                        vec![],
-                        vec![HintEntry {
-                            command: format!("dont trust {} --reason \"...\"", record.id),
-                            description: "Register doubt about this term".to_string(),
-                        }],
-                    );
-                    emit_json(&env);
-                }
-                Ok(None) => {
-                    let (code, message, remediation) = entity_not_found_error(&id);
-                    emit_error_and_exit(refusal(code, &message, Some(&id), remediation), vec![], 1);
-                }
-                Err(err) => handle_store_error(err, Some(&id)),
-            }
+            });
         }
 
         Command::Why { id } => {
             let project = open_project_or_exit();
-            match project.store.resolve_entity(&id) {
-                Ok(Some(EntityResolution::Claim(record))) => {
-                    let payload = build_claim_why_view(&record, &project.store);
-                    let env = Envelope::success(
-                        "why",
-                        payload,
-                        vec![],
-                        vec![HintEntry {
-                            command: format!("dont show {}", record.id),
-                            description: "Inspect the current claim view".to_string(),
-                        }],
-                    );
-                    emit_json(&env);
+            run_per_entity(id, |id| {
+                match project.store.resolve_entity(id) {
+                    Ok(Some(EntityResolution::Claim(record))) => {
+                        let payload = build_claim_why_view(&record, &project.store);
+                        let env = Envelope::success(
+                            "why",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont show {}", record.id),
+                                description: "Inspect the current claim view".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                        0
+                    }
+                    Ok(Some(EntityResolution::Term(record))) => {
+                        let payload = build_term_why_view(&record, &project.store);
+                        let env = Envelope::success(
+                            "why",
+                            payload,
+                            vec![],
+                            vec![HintEntry {
+                                command: format!("dont show {}", record.id),
+                                description: "Inspect the current term view".to_string(),
+                            }],
+                        );
+                        emit_json(&env);
+                        0
+                    }
+                    Ok(None) => {
+                        let (code, message, remediation) = entity_not_found_error(id);
+                        emit_error_no_exit(refusal(code, &message, Some(id), remediation), vec![], 1)
+                    }
+                    Err(err) => handle_store_error_code(err, Some(id)),
                 }
-                Ok(Some(EntityResolution::Term(record))) => {
-                    let payload = build_term_why_view(&record, &project.store);
-                    let env = Envelope::success(
-                        "why",
-                        payload,
-                        vec![],
-                        vec![HintEntry {
-                            command: format!("dont show {}", record.id),
-                            description: "Inspect the current term view".to_string(),
-                        }],
-                    );
-                    emit_json(&env);
-                }
-                Ok(None) => {
-                    let (code, message, remediation) = entity_not_found_error(&id);
-                    emit_error_and_exit(refusal(code, &message, Some(&id), remediation), vec![], 1);
-                }
-                Err(err) => handle_store_error(err, Some(&id)),
-            }
+            });
         }
 
         Command::VerifyEvidence {
