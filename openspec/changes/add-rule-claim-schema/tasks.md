@@ -1,9 +1,12 @@
 ## Phase 1 — Convention (no code changes)
 
-- [ ] 1.1 [AFK] Define `rule-claim-type` term in the project with `dont define rule-claim-type`. Note the resulting `term:uuid` — all subsequent steps use this ID, not the bare string or a CURIE.
-- [ ] 1.2 [HITL] Add rule claim authoring section to `.dont/AGENTS.md` including canonical template, slot reference table, CONFIG vs MODE sub-marker guidance, the validate-before-create note ("fill and review the template before running `dont conclude`; there is no pre-creation dry-run"), and guidance on when optional slots become load-bearing.
-- [ ] 1.3 [AFK] Re-tag the 7 existing rule claims by adding the `term:uuid` from step 1.1 to each claim's `depends_on` via `dont update <claim-id> --dep <term:uuid>`. Do not use the string `rule-claim-type` or a CURIE directly — that would trigger `unresolved-terms`.
-- [ ] 1.4 [HITL] Verify each of the 7 rule claims covers both mandatory slots (TRIGGER and at least one of CONFIG/MODE). Rewrite any that do not using the canonical `[SLOT]` marker template from step 1.2, not free-form prose — Phase 2 validation depends on marker presence. Doubt the old version before creating the corrected claim.
+- [x] 1.1 [AFK] Define `rule-claim-type` term in the project with `dont define rule-claim-type`. Note the resulting `term:uuid` — all subsequent steps use this ID, not the bare string or a CURIE.
+  - Result: `term:01KR4TNRGHVPRZQ1Z95GFZN4ZQ`
+- [x] 1.2 [HITL] Add rule claim authoring section to `.dont/AGENTS.md` including canonical template, slot reference table, CONFIG vs MODE sub-marker guidance, the validate-before-create note ("fill and review the template before running `dont conclude`; there is no pre-creation dry-run"), and guidance on when optional slots become load-bearing.
+- [x] 1.3 [AFK] Re-tag the 7 existing rule claims by adding the `term:uuid` from step 1.1 to each claim's `depends_on` via `dont update <claim-id> --dep <term:uuid>`. Do not use the string `rule-claim-type` or a CURIE directly — that would trigger `unresolved-terms`.
+  - Note: `dont update` does not exist; tasks 1.3 and 1.4 were merged — all 7 claims were re-created with slot markers + `--depends-on term:01KR4TNRGHVPRZQ1Z95GFZN4ZQ`. Old verified claims doubted with supersession reason.
+- [x] 1.4 [HITL] Verify each of the 7 rule claims covers both mandatory slots (TRIGGER and at least one of CONFIG/MODE). Rewrite any that do not using the canonical `[SLOT]` marker template from step 1.2, not free-form prose — Phase 2 validation depends on marker presence. Doubt the old version before creating the corrected claim.
+  - New claim IDs: dangling-definition `claim:01KR4V3FVQRYQBBREH637N6CN7`, correlated-error `claim:01KR4V3HKMFTRZJJCC2QDGSE4S`, ungrounded `claim:01KR4V3KP8ETNMA6KRJEJVR8AK`, term-nonfunctional-label `claim:01KR4V3PQF5KDNF8K94BW1YT7M`, stale-cascade `claim:01KR4V3SDH7P2EW9RDQN9RBMVF`, lockable `claim:01KR4V3WG3XM7GQFN6JV8S9SMF`, unresolved-terms `claim:01KR4V3YRAS28PDGCTGCNRFA7F`
 
 ## Phase 2 — Structural lint rule (code changes)
 
