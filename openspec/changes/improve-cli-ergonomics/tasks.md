@@ -13,14 +13,14 @@
 - [x] 3.2 Update `dont-payload-types` to ensure these new entities/attributes are properly exposed
 
 ## 4. Entity Lookup & ID Ergonomics
-- [ ] 4.1 Implement a CURIE-to-ULID resolver for all command arguments
-- [ ] 4.2 Support short-ULID prefixes (e.g., `claim:01KQZ`) in entity lookups
+- [x] 4.1 Implement a CURIE-to-ULID resolver for all command arguments
+- [x] 4.2 Support short-ULID prefixes (e.g., `claim:01KQZ`) in entity lookups
 - [ ] 4.3 Implement stdin ID piping (`-`) for bulk operations
 
 ## 5. Universal Flag Compliance
-- [ ] 5.1 Implement `--author <id>` and `$DONT_AUTHOR` environment variable support
-- [ ] 5.2 Implement `--direct` flag to bypass harness detection
-- [ ] 5.3 Implement `--version --json` for structured version envelopes
+- [x] 5.1 Implement `--author <id>` and `$DONT_AUTHOR` environment variable support
+- [x] 5.2 Implement `--direct` flag to bypass harness detection
+- [x] 5.3 Implement `--version --json` for structured version envelopes
 
 ## 6. Validate
 - [ ] 6.1 Run `openspec validate improve-cli-ergonomics --strict`
