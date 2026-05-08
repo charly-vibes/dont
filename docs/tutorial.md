@@ -1,67 +1,96 @@
 # Getting Started with `dont`
 
-This tutorial walks you through the core epistemic workflow of `dont`.
+## When to reach for `dont`
 
-By the end, you will understand how to transition a claim from an unverified assertion to a grounded project fact.
+The trigger is a thought that starts with *"I think..."*, *"I believe..."*, or *"I'm assuming..."* — combined with the fact that you haven't verified it yet, and that being wrong would cost you time.
 
-## 1. Initialize the project
+If you find yourself holding two competing explanations for a bug, that's the clearest signal. `dont` gives those competing explanations a name, lets you track evidence for each, and forces you to resolve them before moving on.
 
-First, initialize `dont` in your repository. This creates the `.dont/` directory to store your project's epistemic state.
+## A real session
+
+You're debugging a write-loss bug. Writes succeed (no errors returned) but data disappears after process restart. You have two theories.
+
+**First time? Initialize first:**
 
 ```bash
 dont init
 ```
 
-## 2. Conclude a claim
-
-Imagine you've just discovered that the project uses `uv` for Python management. Instead of just remembering this in your head (or chat memory), record it as a project claim.
+**Returning session? Orient first:**
 
 ```bash
-dont conclude "The project uses uv for Python dependency management"
+dont prime
 ```
 
-The tool will return an ID for this claim (e.g., `claim-abc`).
+This shows what claims are currently doubted or unverified — your open questions from the last session. If the store is clean, it exits 0 silently. If something is doubted, it exits 1 and tells you what to resolve first.
 
-## 3. Observe the refusal
-
-`dont` is designed to interrupt unsupported assertions. If you try to see the details or rely on this claim, the tool will remind you that it is currently **unverified**.
+**Step 1: Record the claim you're investigating**
 
 ```bash
-dont show claim-abc
+dont conclude "CozoDb flushes writes lazily, causing data loss on unclean shutdown"
+# → claim-a1b2c3
 ```
 
-You will see a status of `unverified`. If you were using a harness that integrates with `dont`, the harness would refuse to let you use this claim as a "fact" in downstream prompts until it is grounded.
+**Step 2: Add a competing hypothesis**
 
-## 4. Ground the claim with evidence
-
-To "ground" the claim, you need to point to evidence in the repository. In this case, the `README.md` likely mentions `uv`.
-
-Use `dont ground` to provide the evidence and move the claim toward verification in one step:
+You're not sure. Connection pool exhaustion could also cause silent write drops before any flush happens.
 
 ```bash
-dont ground "The project uses uv for Python dependency management" --file README.md
+dont hypothesis add claim-a1b2c3 --text "Connection pool exhaustion silently drops writes before flush"
+# → hypothesis-x9y8z7
 ```
 
-Wait—`ground` is for *new* claims. If you want to verify the *existing* `claim-abc`, you use `flag`:
+**Step 3: Gather evidence**
+
+You find the flush behavior in source:
 
 ```bash
-dont flag claim-abc --file README.md
+dont flag claim-a1b2c3 --file src/store.rs --lines 47-62
 ```
 
-## 5. Verify the status
-
-Now, check the claim again:
+You check connection pool behavior and find it refutes the competing hypothesis:
 
 ```bash
-dont show claim-abc
+dont hypothesis assess claim-a1b2c3 hypothesis-x9y8z7 --refuting src/pool.rs --lines 88-103
 ```
 
-The status is now `verified`. The claim is now "grounded" and can be safely asserted by an autonomous agent.
+**Step 4: Confirm**
 
-## Summary of the lifecycle
+Flagging evidence (`dont flag`) transitions the claim from `unverified` to `verified`. `dont show` lets you confirm the new state:
 
-- **Conclude**: "I want to say this." (Status: `unverified`)
-- **Flag**: "Here is the proof." (Status: `verified`)
-- **Lock**: "This is mature and shouldn't change easily." (Status: `locked`)
+```bash
+dont show claim-a1b2c3
+```
 
-That's it! You've successfully moved a claim through the `dont` epistemic workflow.
+Status is `verified`. The claim is grounded and the competing hypothesis is marked refuted.
+
+**Step 5: Lock when mature**
+
+`dont lock` requires ≥ 3 assessed hypotheses and ≥ 2 independent evidence sources. This tutorial used one hypothesis for brevity — see [Competing hypotheses and atoms](./hypotheses.md) for the full lock pattern.
+
+```bash
+dont lock claim-a1b2c3
+```
+
+## Lifecycle summary
+
+| Step | Command | Status after |
+|---|---|---|
+| State the claim | `dont conclude "..."` | `unverified` |
+| Add a competing explanation | `dont hypothesis add <id> --text "..."` | — |
+| Attach evidence | `dont flag <id> --file <path> --lines N-M` | `verified` |
+| Assess a hypothesis | `dont hypothesis assess <id> <hyp-id> --refuting <path>` | — |
+| Check status | `dont show <id>` | (read-only) |
+| Freeze a mature claim | `dont lock <id>` | `locked` |
+| Register doubt | `dont trust <id>` | `doubted` |
+| Orient at session start | `dont prime` | exits 0 or 1 |
+
+## Fast path: one-shot grounding
+
+When you already have both the claim and the evidence in hand:
+
+```bash
+dont ground "The crate exposes a test recipe" --file justfile --lines 12-13
+```
+
+This concludes and verifies in a single command.

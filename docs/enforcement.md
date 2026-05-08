@@ -53,11 +53,15 @@ emits a structured refusal and exits 1.
 (`"I think"`, `"maybe"`, `"probably"`, etc.). The default list is compiled in;
 config can only extend it, never replace it.
 
-### 5. `dont prime` — the terminal gate
+### 5. `dont prime` — orientation and terminal gate
 
-`dont prime` scans the claim store and exits 1 if any claim is `Doubted`.
-Unverified claims are allowed in permissive mode (where warnings replace errors
-for most rules); doubted claims are always blocking regardless of mode. This is the command wired into CI, pre-commit, and agent stop hooks.
+`dont prime` has two roles:
+
+**Orientation** — run it at the start of a session to see what's doubted or unverified. It prints the open epistemic state so you know what needs resolution before introducing new claims. When the store is clean it exits 0 silently.
+
+**Terminal gate** — run it at the end (CI, pre-commit, agent stop hook) to confirm nothing was left unresolved. It exits 1 if any claim is `Doubted`, regardless of project mode.
+
+Projects initialize in permissive mode by default (pass `--strict` to `dont init` to start in strict mode). Unverified claims are allowed in permissive mode (where warnings replace errors for most rules); doubted claims are always blocking regardless of mode.
 
 ### 6. Lockability rule
 
@@ -71,7 +75,8 @@ The same `dont prime` check runs at three points in the development cycle.
 ### Git (prek pre-commit)
 
 `prek.toml` includes a local hook that runs `just check-claims` (which runs
-`dont prime`) before every commit:
+`dont prime`) before every commit. (prek is a pre-commit hook runner — install
+it and run `prek install` to activate hooks.)
 
 ```toml
 [[repos]]
