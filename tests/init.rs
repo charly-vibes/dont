@@ -344,7 +344,8 @@ fn prime_blocking_includes_doubted_terms() {
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
-        .success()
+        .failure()
+        .code(1)
         .get_output()
         .stdout
         .clone();

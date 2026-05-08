@@ -388,3 +388,33 @@ fn list_performance_under_250ms_on_100_claims() {
         elapsed.as_millis()
     );
 }
+
+#[test]
+fn test_prime_exits_nonzero_with_doubted_claim() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "The earth orbits the sun");
+    dont()
+        .args(["trust", &id, "--reason", "test", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+    dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .code(1);
+}
+
+#[test]
+fn test_prime_exits_zero_without_doubted_claims() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    conclude_claim(&dir, "The earth orbits the sun");
+    dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+}

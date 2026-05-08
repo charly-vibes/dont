@@ -3548,6 +3548,9 @@ fn main() {
             });
             let env = Envelope::success("prime", payload, vec![], vec![]);
             emit_json(&env);
+            if !blocking.is_empty() {
+                std::process::exit(1);
+            }
         }
 
         Command::List { status, kind } => {
