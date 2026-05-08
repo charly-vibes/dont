@@ -72,6 +72,27 @@ A harness can use three different kinds of support:
 
 It is meant to sit beside workflow and memory tools, but remain independent from them. Its concern is narrower: claims, terms, evidence, rules, and the right to assert.
 
+## Epistemic design choices
+
+### Grounding as a lifecycle shortcut
+
+The underlying lifecycle for any claim in `dont` is:
+
+1. `conclude` — introduce an unverified claim
+2. `trust` — register doubt
+3. `flag` — verify with evidence
+4. `lock` — freeze a mature verified claim
+
+`dont ground` is a convenience command that composes these steps. It is not a separate epistemic model; it records the claim and verifies it in one invocation while ensuring normal event history and status rules still apply.
+
+### Preference for repository-relative locators
+
+`dont` prefers repository-relative locators (using `--file` and `--lines`) over opaque absolute `file://` URIs. This is an intentional design choice to ensure that evidence remains:
+
+- **Readable**: locators are easy for humans and agents to audit.
+- **Auditable**: the evidence is scoped to the project root.
+- **Secure**: absolute paths, `..` traversal, and symlink escapes are refused to prevent project-evidence leaks.
+
 ## Non-goals
 
 `dont` is not meant to be:

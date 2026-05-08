@@ -590,51 +590,45 @@ fn format_claim_detail(data: &Value) -> String {
     let mut out = format!(
         "{id}\n  status:     {colored_status}\n  statement:  {statement}\n  evidence:\n{evidence_str}\n  created:    {created}"
     );
-    if let Some(deps) = depends {
-        if !deps.is_empty() {
-            let dep_list: Vec<&str> = deps.iter().filter_map(Value::as_str).collect();
-            out.push_str(&format!("\n  depends_on: {}", dep_list.join(", ")));
-        }
+    if let Some(deps) = depends.filter(|d| !d.is_empty()) {
+        let dep_list: Vec<&str> = deps.iter().filter_map(Value::as_str).collect();
+        out.push_str(&format!("\n  depends_on: {}", dep_list.join(", ")));
     }
-    if let Some(atoms) = data["atoms"].as_array() {
-        if !atoms.is_empty() {
-            out.push_str("\n  atoms:");
-            for atom in atoms {
-                let idx = atom["idx"].as_u64().unwrap_or(0);
-                let text = atom["text"].as_str().unwrap_or("?");
-                let astatus = atom["status"].as_str().unwrap_or("?");
-                let colored = colorize_status(astatus);
-                out.push_str(&format!("\n    [{idx}] {text}  ({colored})"));
-                if let Some(ev) = atom["evidence"].as_array() {
-                    for e in ev {
-                        let uri = e.as_str().unwrap_or("?");
-                        out.push_str(&format!("\n        {uri}"));
-                    }
+    if let Some(atoms) = data["atoms"].as_array().filter(|a| !a.is_empty()) {
+        out.push_str("\n  atoms:");
+        for atom in atoms {
+            let idx = atom["idx"].as_u64().unwrap_or(0);
+            let text = atom["text"].as_str().unwrap_or("?");
+            let astatus = atom["status"].as_str().unwrap_or("?");
+            let colored = colorize_status(astatus);
+            out.push_str(&format!("\n    [{idx}] {text}  ({colored})"));
+            if let Some(ev) = atom["evidence"].as_array() {
+                for e in ev {
+                    let uri = e.as_str().unwrap_or("?");
+                    out.push_str(&format!("\n        {uri}"));
                 }
             }
         }
     }
-    if let Some(hyps) = data["hypotheses"].as_array() {
-        if !hyps.is_empty() {
-            out.push_str("\n  hypotheses:");
-            for hyp in hyps {
-                let idx = hyp["idx"].as_u64().unwrap_or(0);
-                let text = hyp["text"].as_str().unwrap_or("?");
-                out.push_str(&format!("\n    [{idx}] {text}"));
-                let supporting = hyp["assessment"]["supporting"].as_array();
-                let refuting = hyp["assessment"]["refuting"].as_array();
-                let sup_str = supporting
-                    .map(|v| v.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
-                    .unwrap_or_default();
-                let ref_str = refuting
-                    .map(|v| v.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
-                    .unwrap_or_default();
-                if !sup_str.is_empty() {
-                    out.push_str(&format!("\n        supporting: {sup_str}"));
-                }
-                if !ref_str.is_empty() {
-                    out.push_str(&format!("\n        refuting:   {ref_str}"));
-                }
+    if let Some(hyps) = data["hypotheses"].as_array().filter(|h| !h.is_empty()) {
+        out.push_str("\n  hypotheses:");
+        for hyp in hyps {
+            let idx = hyp["idx"].as_u64().unwrap_or(0);
+            let text = hyp["text"].as_str().unwrap_or("?");
+            out.push_str(&format!("\n    [{idx}] {text}"));
+            let supporting = hyp["assessment"]["supporting"].as_array();
+            let refuting = hyp["assessment"]["refuting"].as_array();
+            let sup_str = supporting
+                .map(|v| v.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
+                .unwrap_or_default();
+            let ref_str = refuting
+                .map(|v| v.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
+                .unwrap_or_default();
+            if !sup_str.is_empty() {
+                out.push_str(&format!("\n        supporting: {sup_str}"));
+            }
+            if !ref_str.is_empty() {
+                out.push_str(&format!("\n        refuting:   {ref_str}"));
             }
         }
     }
@@ -648,10 +642,8 @@ fn format_term_detail(data: &Value) -> String {
     let definition = data["definition"].as_str().unwrap_or("(none)");
     let colored_status = colorize_status(status);
     let mut out = format!("{id}  {curie}\n  status:      {colored_status}\n  definition:  {definition}");
-    if let Some(label) = data["label"].as_str() {
-        if !label.is_empty() {
-            out.push_str(&format!("\n  label:       {label}"));
-        }
+    if let Some(label) = data["label"].as_str().filter(|l| !l.is_empty()) {
+        out.push_str(&format!("\n  label:       {label}"));
     }
     out
 }
@@ -667,19 +659,17 @@ fn format_prime(data: &Value) -> String {
     let mut out = format!(
         "dont project  {mode} mode\n  unverified: {unverified}  doubted: {doubted}  verified: {verified}  locked: {locked}  ignored: {ignored}"
     );
-    if let Some(blocking) = data["blocking"].as_array() {
-        if !blocking.is_empty() {
-            out.push_str("\n\nblocking:");
-            for item in blocking {
-                let id = item["id"].as_str().unwrap_or("?");
-                if let Some(stmt) = item["statement"].as_str() {
-                    let truncated = if stmt.len() > 60 { &stmt[..60] } else { stmt };
-                    out.push_str(&format!("\n  {id}  [doubted]  {truncated}"));
-                } else if let Some(curie) = item["curie"].as_str() {
-                    out.push_str(&format!("\n  {id}  [doubted]  {curie}"));
-                } else {
-                    out.push_str(&format!("\n  {id}  [doubted]"));
-                }
+    if let Some(blocking) = data["blocking"].as_array().filter(|b| !b.is_empty()) {
+        out.push_str("\n\nblocking:");
+        for item in blocking {
+            let id = item["id"].as_str().unwrap_or("?");
+            if let Some(stmt) = item["statement"].as_str() {
+                let truncated = if stmt.len() > 60 { &stmt[..60] } else { stmt };
+                out.push_str(&format!("\n  {id}  [doubted]  {truncated}"));
+            } else if let Some(curie) = item["curie"].as_str() {
+                out.push_str(&format!("\n  {id}  [doubted]  {curie}"));
+            } else {
+                out.push_str(&format!("\n  {id}  [doubted]"));
             }
         }
     }
@@ -1096,12 +1086,12 @@ fn evidence_entry_source_key(v: &Value) -> String {
     if let Some(uri) = v.as_str() {
         return evidence_source_key(uri);
     }
-    if let Some(obj) = v.as_object() {
-        if obj.get("kind").and_then(Value::as_str) == Some("repo-file") {
-            if let Some(path) = obj.get("path").and_then(Value::as_str) {
-                return format!("repo-file:{path}");
-            }
-        }
+    if let Some(path) = v.as_object()
+        .filter(|obj| obj.get("kind").and_then(Value::as_str) == Some("repo-file"))
+        .and_then(|obj| obj.get("path"))
+        .and_then(Value::as_str)
+    {
+        return format!("repo-file:{path}");
     }
     v.to_string()
 }
@@ -1152,10 +1142,10 @@ fn normalize_repo_path(
             _ => {}
         }
     }
-    if let (Ok(canonical_root), Ok(canonical_target)) = (project_root.canonicalize(), full.canonicalize()) {
-        if !canonical_target.starts_with(&canonical_root) {
-            return Err("path escapes project root");
-        }
+    if let (Ok(canonical_root), Ok(canonical_target)) = (project_root.canonicalize(), full.canonicalize())
+        && !canonical_target.starts_with(&canonical_root)
+    {
+        return Err("path escapes project root");
     }
     Ok(full.strip_prefix(project_root).unwrap_or(&full).to_path_buf())
 }

@@ -47,6 +47,14 @@ When context reaches ~40%: stop and tell the user — responses degrade past
 this point. Recommend `wai close` then `/clear` to resume cleanly.
 Do NOT skip `wai close` — it enables resume detection.
 
+## Available Pipelines
+
+| Pipeline | When to Use | Start |
+|----------|-------------|-------|
+| tdd-ro5 | Feature development or bug fixes requiring test-driven discipline and quality review | `wai pipeline start tdd-ro5 --topic=<topic>` |
+
+> Pipeline steps may have gates that enforce artifact creation, review coverage, and oracle checks before advancement. Run `wai pipeline gates <name>` for details.
+
 ## Detailed Instructions
 
 Full workflow reference — session lifecycle, capturing work, command cheat
@@ -67,6 +75,8 @@ context before starting research or creating tickets.
 > **Before research or ticket creation**: always run `wai search "<topic>"` to
 > check for known patterns. Do not rediscover what is already documented.
 <!-- WAI:REFLECT:REF:END -->
+
+
 
 
 
