@@ -1,26 +1,30 @@
 # dont
 
-A specification-first repository for `dont`, a proposed CLI forcing function for autonomous LLM harnesses.
+A functional CLI forcing function for autonomous LLM harnesses.
 
 ## Purpose
 
-`dont` is designed to interrupt unsupported assertions and require grounding before claims become trusted. It is intended to work alongside:
-
-- `wai` for workflow and project context
-- `beads` for memory and task tracking
+`dont` interrupts unsupported assertions and requires grounding before claims become trusted. It provides a structured, machine-readable "Envelope" interface for agents to:
+- Conclude claims with dependency tracking.
+- Define terms with SK11 type-text validation.
+- Ground claims with structured evidence locators (file paths, line spans).
+- Audit evidence drift.
 
 ## Current state
 
-This repository currently contains design/specification documents rather than an implementation.
+Functional Rust implementation with a mature CLI surface.
 
 Key files:
-- `dont-spec-v0_3_2.md` — latest draft specification
-- `README.md` — repo overview
-- `.wai/` — workflow/project metadata
+- `src/main.rs` — CLI entry point and business logic.
+- `src/envelope.rs` — JSON Envelope and Error protocol.
+- `src/model.rs` — Epistemic state transition logic.
+- `src/store.rs` — Cozo-based persistence layer.
+- `openspec/specs/` — Formal specifications.
+- `docs/` — mdBook documentation.
 
 ## Working norms
 
-- Run `wai status` first
-- Use `wai search "topic"` before creating new artifacts
-- Prefer `just` recipes for common commands
-- Record reasoning with `wai add research|design|plan`
+- Run `wai status` first.
+- Use `dont --json` for machine-readable interaction.
+- Every error provides a `remediation` field with the next best command.
+- Follow TDD: write a failing test in `tests/` before fixing/adding logic.
