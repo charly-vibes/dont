@@ -1,5 +1,5 @@
 use crate::config::RuleClaimStructureConfig;
-use crate::store::{Store, StoreError};
+use crate::store::{Store, StoreError, StoreStatus};
 
 use super::RuleMatch;
 
@@ -19,6 +19,9 @@ pub fn check(
     let claims = store.list_claims()?;
     let mut matches = Vec::new();
     for claim in claims {
+        if claim.status == StoreStatus::Doubted {
+            continue;
+        }
         if !claim.depends_on.iter().any(|d| d == tag) {
             continue;
         }
@@ -45,7 +48,7 @@ mod rule_claim_structure {
 
     use super::*;
     use crate::config::RuleClaimStructureConfig;
-    use crate::store::Store;
+    use crate::store::{Store, StoreEvent, StoreEventKind};
 
     fn make_store(dir: &TempDir) -> Store {
         Store::open_dont_dir(dir.path()).unwrap()
@@ -179,6 +182,28 @@ mod rule_claim_structure {
             .append_claim(
                 "[TRIGGER] fires when Z\n[MODE] warn in all modes",
                 &[term.id.clone()],
+            )
+            .unwrap();
+        let config = enabled_config(&term.id);
+        assert!(check(&store, &config).unwrap().is_empty());
+    }
+
+    #[test]
+    fn silent_when_claim_is_doubted() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
+        // Create a tagged claim that is missing mandatory slots
+        let claim = store
+            .append_claim("[GUARD] no trigger or mode", &[term.id.clone()])
+            .unwrap();
+        // Doubt it — should be skipped by the rule during remediation
+        store
+            .append_status_change(
+                &claim.id,
+                StoreStatus::Unverified,
+                StoreStatus::Doubted,
+                StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
             )
             .unwrap();
         let config = enabled_config(&term.id);

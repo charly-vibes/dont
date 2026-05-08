@@ -1,7 +1,7 @@
 # How to: Rule Claims
 
 Rule claims are `dont` claims that describe the behavior of a lint rule using a
-structured six-slot schema. The schema makes rule descriptions machine-checkable
+structured slot schema. The schema makes rule descriptions machine-checkable
 by the `rule-claim-structure` rule.
 
 ## Canonical Template
@@ -16,16 +16,27 @@ by the `rule-claim-structure` rule.
 [BOUNDARY]   Does not handle: <edge cases>; defers to <other-rule>   (omit if no boundary)
 ```
 
+### Example (passing claim)
+
+```
+[TRIGGER] Fires when: a tagged rule claim is missing a mandatory slot marker
+[CONFIG] Enabled by default: no
+[MODE] In permissive mode: warn (same as strict — severity is not configurable)
+```
+
 ## Mandatory Slots
 
 | Slot | Marker | Required |
 |------|--------|----------|
 | TRIGGER CONDITION | `[TRIGGER]` | Yes |
-| CONFIG (enablement) | `[CONFIG]` | Yes — one of CONFIG or MODE |
-| MODE (severity) | `[MODE]` | Yes — one of CONFIG or MODE |
+| CONFIG or MODE | `[CONFIG]` or `[MODE]` | At least one of the two |
 
-`[CONFIG]` and `[MODE]` are distinct sub-markers. Either alone satisfies the
-CONFIG/MODE requirement; both may appear in the same claim.
+`[CONFIG]` and `[MODE]` are distinct sub-markers that together satisfy the
+mandatory CONFIG/MODE requirement. Either alone is sufficient; both may appear
+in the same claim.
+
+- **`[CONFIG]`** covers *enablement*: is the rule on by default?
+- **`[MODE]`** covers *severity behavior*: does severity differ across permissive vs strict modes?
 
 ## Optional Slots and Their Defaults
 
@@ -39,6 +50,13 @@ CONFIG/MODE requirement; both may appear in the same claim.
 Omit optional slots when their default is correct. Include them when the default
 would mislead a reader — for example, `[INVOCATION]` is required for opt-in rules
 like `lockable` that do not run with `dont prime`.
+
+## Marker Syntax
+
+Slot markers are **case-sensitive and whitespace-sensitive**. Use the exact
+uppercase form: `[TRIGGER]`, `[CONFIG]`, `[MODE]`. Lowercase variants (`[trigger]`)
+or markers with trailing spaces (`[TRIGGER ]`) will not be recognized by the
+`rule-claim-structure` validator.
 
 ## Tagging a Claim as a Rule Claim
 
@@ -67,5 +85,13 @@ setting `enabled = false`.
 
 Since `dont update` is not available, correct a flagged claim by:
 
-1. `dont trust <claim-id> --reason "missing [TRIGGER] slot"` — doubt the old version
-2. `dont conclude "..." --depends-on term:<uuid>` — create the corrected claim
+1. `dont trust <claim-id> --reason "missing [TRIGGER] slot"` — doubt the old version. (`dont trust` with a `--reason` flag marks the claim as Doubted; doubted claims are excluded from future `rule-claim-structure` evaluation.)
+2. `dont conclude "..." --depends-on term:<uuid>` — create the corrected claim.
+
+## Troubleshooting
+
+**Rule enabled but no output when you expect violations:**
+Verify `tag_term_id` matches the UUID in the claim's `depends_on` list. Run
+`dont show <claim-id>` to inspect the claim and confirm the UUID. A missing or
+wrong UUID causes the rule to silently skip all claims — it cannot distinguish
+"no tagged claims" from "wrong tag".

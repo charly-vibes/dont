@@ -295,6 +295,17 @@ mod engine {
 
         assert_eq!(engine.severity("correlated-error"), Severity::Warn);
         assert_eq!(engine.severity("ungrounded"), Severity::Warn);
+        assert_eq!(engine.severity("rule-claim-structure"), Severity::Warn);
+    }
+
+    #[test]
+    fn rule_claim_structure_dispatches_from_evaluate_shipped() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let engine = make_engine(&dir, RulesConfig::default(), false);
+        let result = engine.evaluate_shipped(&store, "rule-claim-structure");
+        assert!(result.is_some(), "rule-claim-structure should be a shipped rule");
+        assert!(result.unwrap().unwrap().is_empty());
     }
 
     #[test]
