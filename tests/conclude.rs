@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin;
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -150,4 +151,42 @@ fn conclude_outside_project_exits_3_with_config_missing() {
     // Remediation should mention 'dont init'
     let rem_str = serde_json::to_string(remediation).unwrap();
     assert!(rem_str.contains("dont init"), "remediation must mention dont init");
+}
+
+// --- Parallel execution ---
+
+#[test]
+fn conclude_produces_unique_tx_ids_under_parallel_subprocess_load() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let bin = cargo_bin("dont");
+    let dont_dir = dir.path().to_owned();
+
+    // Spawn 8 concurrent `dont conclude` subprocesses — the repro from dont-fl6.
+    let children: Vec<_> = (0..8u32)
+        .map(|i| {
+            std::process::Command::new(&bin)
+                .args(["conclude", &format!("parallel claim {i}"), "--json"])
+                .env("DONT_DIR", &dont_dir)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("spawned")
+        })
+        .collect();
+
+    let mut tx_ids: Vec<i64> = children
+        .into_iter()
+        .map(|child| {
+            let out = child.wait_with_output().expect("waited");
+            assert!(out.status.success(), "subprocess failed: {:?}", out.status);
+            let v: Value = serde_json::from_slice(&out.stdout).expect("valid json");
+            v["meta"]["tx"].as_i64().expect("meta.tx is i64")
+        })
+        .collect();
+
+    tx_ids.sort_unstable();
+    tx_ids.dedup();
+    assert_eq!(tx_ids.len(), 8, "all tx IDs must be unique; got {tx_ids:?}");
 }

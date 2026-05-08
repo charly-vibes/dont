@@ -56,6 +56,42 @@ fn append_event_persists_claim_datoms_with_monotonic_transactions() {
 }
 
 #[test]
+fn tx_ids_are_unique_across_concurrent_store_instances() {
+    use std::sync::Arc;
+    use std::thread;
+
+    let root = tempfile::tempdir().expect("temp root");
+
+    // Open multiple Store instances sequentially (simulating separate processes that have
+    // already initialized), then run their appends concurrently.
+    let stores: Vec<Arc<Store>> = (0..8)
+        .map(|_| Arc::new(Store::open_project(root.path()).expect("store opens")))
+        .collect();
+
+    let handles: Vec<_> = stores
+        .into_iter()
+        .enumerate()
+        .map(|(i, store)| {
+            thread::spawn(move || {
+                store
+                    .append_claim(&format!("claim {i}"), &[])
+                    .expect("append succeeds")
+                    .tx
+            })
+        })
+        .collect();
+
+    let mut tx_ids: Vec<i64> = handles
+        .into_iter()
+        .map(|h| h.join().expect("thread succeeded"))
+        .collect();
+
+    tx_ids.sort_unstable();
+    tx_ids.dedup();
+    assert_eq!(tx_ids.len(), 8, "all tx IDs must be unique; got {tx_ids:?}");
+}
+
+#[test]
 fn claims_persist_after_reopening_the_store() {
     let root = tempfile::tempdir().expect("temp root");
     let claim_id = {

@@ -14,6 +14,7 @@ pub struct Store {
     db: DbInstance,
     path: PathBuf,
     lock_path: PathBuf,
+    seq_path: PathBuf,
 }
 
 impl fmt::Debug for Store {
@@ -244,12 +245,14 @@ impl Store {
         std::fs::create_dir_all(dont_dir).map_err(StoreError::Io)?;
         let path = dont_dir.join("db.cozo");
         let lock_path = dont_dir.join("db.cozo.lock");
+        let seq_path = dont_dir.join("tx.seq");
         let db = DbInstance::new("sqlite", &path, "")
             .map_err(|err| StoreError::Cozo(err.to_string()))?;
         let store = Self {
             db,
             path,
             lock_path,
+            seq_path,
         };
         store.with_write_lock(|store| store.ensure_schema())?;
         Ok(store)
@@ -1259,14 +1262,26 @@ impl Store {
     }
 
     fn next_tx(&self) -> Result<i64, StoreError> {
-        let rows =
-            self.query_rows("?[max(tx)] := *datoms[entity, attribute, value, tx, assert_bit]")?;
-        let max = rows
-            .first()
-            .and_then(|row| row.first())
-            .and_then(Value::as_i64)
-            .unwrap_or(0);
-        Ok(max + 1)
+        // Read the last-used tx from the counter file, or seed it from the DB on first use.
+        // Called only inside with_write_lock, so the file lock serialises this across processes.
+        let last = if self.seq_path.exists() {
+            std::fs::read_to_string(&self.seq_path)
+                .map_err(StoreError::Io)?
+                .trim()
+                .parse::<i64>()
+                .map_err(|_| StoreError::Malformed("invalid tx counter in tx.seq".to_string()))?
+        } else {
+            let rows = self.query_rows(
+                "?[max(tx)] := *datoms[entity, attribute, value, tx, assert_bit]",
+            )?;
+            rows.first()
+                .and_then(|row| row.first())
+                .and_then(Value::as_i64)
+                .unwrap_or(0)
+        };
+        let next = last + 1;
+        std::fs::write(&self.seq_path, next.to_string()).map_err(StoreError::Io)?;
+        Ok(next)
     }
 
     fn events_for_claim(&self, claim_id: &str) -> Result<Vec<EventRecord>, StoreError> {
