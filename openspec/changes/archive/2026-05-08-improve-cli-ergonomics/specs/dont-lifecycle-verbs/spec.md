@@ -1,6 +1,6 @@
 # dont-lifecycle-verbs Deltas
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: trust registers explicit doubt
 The system SHALL provide `trust` to register explicit doubt about a claim or term. Skepticism recorded via `trust` SHALL transition an entity from `unverified` or `verified` to `doubted`.
@@ -26,15 +26,15 @@ The system SHALL provide `flag` (formerly `dismiss`) to add evidence to an entit
 - **AND** the command proceeds normally
 - **AND** the deprecation warning goes to stderr regardless of whether `--json` is set
 
-## ADDED Requirements
+## MODIFIED Requirements
 
-### Requirement: undoubt retracts explicit doubt
-The system SHALL provide `undoubt` to retract explicit doubt on an entity, transitioning it from `doubted` back to `unverified`.
+### Requirement: Undoubt retracts explicit doubt
+The system SHALL provide an `undoubt` operation that moves a `doubted` claim or term back to `unverified`, allowing the doubt to be retracted when it was registered in error or superseded. `undoubt` SHALL only target entities in the `doubted` state and SHALL refuse all other persisted statuses. Use `reopen` for `ignored` entities — `undoubt` and `reopen` are distinct recovery operations for distinct closure states.
 
-#### Scenario: undoubt retracts doubt
-- **WHEN** `dont undoubt claim:X` is invoked on a doubted claim
-- **THEN** the claim transitions to `unverified` and the retraction is recorded in the event log
+#### Scenario: undoubt moves doubted entity to unverified
+- **WHEN** an actor invokes `undoubt` on an entity whose persisted status is `doubted`
+- **THEN** the entity transitions to `unverified`
 
-#### Scenario: undoubt on non-doubted entity errors
-- **WHEN** `dont undoubt claim:X` is invoked on a claim that is not doubted
-- **THEN** the command exits non-zero with a `not-doubted` error
+#### Scenario: undoubt refuses non-doubted entities
+- **WHEN** an actor invokes `undoubt` on an entity whose persisted status is `unverified`, `verified`, `ignored`, or `locked`
+- **THEN** the command is refused

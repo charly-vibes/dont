@@ -1,6 +1,6 @@
 # dont-status-lifecycle Deltas
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Status transition terminology
 The system SHALL use the terms `trust`, `flag`, and `undoubt` to describe the primary lifecycle transitions in v0.3. Documentation and error messages SHALL reflect this terminology while acknowledging deprecated aliases.
