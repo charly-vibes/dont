@@ -6,6 +6,9 @@ use serde_json::json;
 
 use crate::store::{Store, StoreError};
 
+pub const REQUIRED_SUBDIRS: &[&str] =
+    &["seed", "vocab", "rules", "imports", "sessions", "schemas"];
+
 pub struct Project {
     pub dont_dir: PathBuf,
     pub store: Store,
@@ -15,6 +18,7 @@ pub struct Project {
 pub enum ProjectError {
     AlreadyInitialised(PathBuf),
     ConfigMissing(String),
+    LayoutInvalid(PathBuf),
     Store(StoreError),
     Io(std::io::Error),
 }
@@ -24,6 +28,11 @@ impl std::fmt::Display for ProjectError {
         match self {
             Self::AlreadyInitialised(p) => write!(f, "already initialised at {}", p.display()),
             Self::ConfigMissing(msg) => f.write_str(msg),
+            Self::LayoutInvalid(p) => write!(
+                f,
+                "project layout is corrupt: {} is missing or not a directory — run 'dont init' to repair",
+                p.display()
+            ),
             Self::Store(e) => write!(f, "store error: {e}"),
             Self::Io(e) => write!(f, "I/O error: {e}"),
         }
@@ -185,6 +194,12 @@ impl Project {
                 dont_dir.display()
             )));
         }
+        for subdir in REQUIRED_SUBDIRS {
+            let path = dont_dir.join(subdir);
+            if !path.is_dir() {
+                return Err(ProjectError::LayoutInvalid(path));
+            }
+        }
         let store = Store::open_dont_dir(&dont_dir)?;
         Ok(Self { dont_dir, store })
     }
@@ -214,7 +229,7 @@ impl Project {
         }
 
         fs::create_dir_all(&dont_dir)?;
-        for subdir in &["seed", "vocab", "rules", "imports", "sessions", "schemas"] {
+        for subdir in REQUIRED_SUBDIRS {
             fs::create_dir_all(dont_dir.join(subdir))?;
         }
         fs::write(dont_dir.join("config.toml"), minimal_config(mode))?;
