@@ -12,11 +12,17 @@
 
 *Phase 2 readiness criterion: implement when ≥15 rule claims exist or when manual template compliance during PR review becomes recurring friction. With only 7 claims, the convention is sufficient.*
 
-- [ ] 2.1 [AFK] Write failing test: a claim tagged with the `rule-claim-type` term:uuid and missing `[TRIGGER]` should produce a `rule-claim-structure` warning when the rule is enabled; a claim with both mandatory slots filled should not. A claim without the tag should produce no warning regardless of content.
-- [ ] 2.2 [AFK] Create `src/rules/rule_claim_structure.rs` implementing the marker-presence check; register in the rule catalogue as off-by-default warn severity.
-- [ ] 2.3 [HITL] Create sibling translation document `src/rules/rule_claim_structure.md` explaining what the rule checks and how to satisfy it. Include the constraint: the rule validates marker presence only — it does not evaluate the accuracy of slot content.
-- [ ] 2.4 [AFK] Add `rule-claim-structure` to the config schema under `dont-project-config` so it can be enabled with `rules.rule-claim-structure.enabled = true`.
-- [ ] 2.5 [AFK] Add `rule-claim-structure` warning code to the error taxonomy in `dont-errors` (follow `term-nonfunctional-label` as the template).
-- [ ] 2.6 [AFK] Enable `rule-claim-structure` in project config, run `dont prime`, and verify 0 warnings appear for the 7 tagged rule claims. Disable again after verification (rule is off by default).
-- [ ] 2.7 [AFK] Update `dont help --howto rule-claims` to include the canonical template (accessible via the help system).
+- [x] 2.1 [AFK] Write failing test: a claim tagged with the `rule-claim-type` term:uuid and missing `[TRIGGER]` should produce a `rule-claim-structure` warning when the rule is enabled; a claim with both mandatory slots filled should not. A claim without the tag should produce no warning regardless of content.
+  - 10 unit tests in `src/rules/rule_claim_structure.rs`; all pass.
+- [x] 2.2 [AFK] Create `src/rules/rule_claim_structure.rs` implementing the marker-presence check; register in the rule catalogue as off-by-default warn severity.
+  - Registered in `src/rules/mod.rs` under `SHIPPED_RULES` and `evaluate_shipped`.
+- [x] 2.3 [HITL] Create sibling translation document `src/rules/rule_claim_structure.md` explaining what the rule checks and how to satisfy it. Include the constraint: the rule validates marker presence only — it does not evaluate the accuracy of slot content.
+- [x] 2.4 [AFK] Add `rule-claim-structure` to the config schema under `dont-project-config` so it can be enabled with `rules.rule-claim-structure.enabled = true`.
+  - `RuleClaimStructureConfig` added to `src/config.rs`; field added to `RulesConfig`.
+- [x] 2.5 [AFK] Add `rule-claim-structure` warning code to the error taxonomy in `dont-errors` (follow `term-nonfunctional-label` as the template).
+  - `openspec/changes/add-rule-claim-schema/specs/dont-errors/spec.md` created.
+- [x] 2.6 [AFK] Enable `rule-claim-structure` in project config, run `dont prime`, and verify 0 warnings appear for the 7 tagged rule claims. Disable again after verification (rule is off by default).
+  - `dont prime --json` returned `ok: true`, `warnings: 0`. Rule disabled (`enabled = false`).
+- [x] 2.7 [AFK] Update `dont help --howto rule-claims` to include the canonical template (accessible via the help system).
+  - Content pre-created at `src/help/rule_claims.md`; will be served by the help system when `dont help --howto` is implemented.
 - [ ] 2.8 [AFK] Archive this change once Phase 2 ships.

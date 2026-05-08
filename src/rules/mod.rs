@@ -8,6 +8,7 @@ use crate::store::{Store, StoreError};
 pub mod correlated_error;
 pub mod dangling_definition;
 pub mod lockable;
+pub mod rule_claim_structure;
 pub mod stale_cascade;
 pub mod term_nonfunctional_label;
 pub mod ungrounded;
@@ -21,6 +22,7 @@ pub const SHIPPED_RULES: &[&str] = &[
     "correlated-error",
     "dangling-definition",
     "term-nonfunctional-label",
+    "rule-claim-structure",
 ];
 
 #[derive(Debug, Clone)]
@@ -114,6 +116,9 @@ impl RuleEngine {
             "dangling-definition" => dangling_definition::check(store),
             "term-nonfunctional-label" => {
                 term_nonfunctional_label::check(store, &self.config.term_nonfunctional)
+            }
+            "rule-claim-structure" => {
+                rule_claim_structure::check(store, &self.config.rule_claim_structure)
             }
             _ => return None,
         };

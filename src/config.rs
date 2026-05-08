@@ -101,6 +101,25 @@ pub struct RulesConfig {
     pub strict: Vec<String>,
     #[serde(default)]
     pub term_nonfunctional: TermNonfunctionalConfig,
+    #[serde(default)]
+    pub rule_claim_structure: RuleClaimStructureConfig,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct RuleClaimStructureConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    pub tag_term_id: Option<String>,
+}
+
+impl RuleClaimStructureConfig {
+    pub fn enabled_tag(&self) -> Option<&str> {
+        if self.enabled {
+            self.tag_term_id.as_deref()
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]
