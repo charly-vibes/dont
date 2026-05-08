@@ -16,6 +16,7 @@ use dont::model::{
     Status, flag as model_flag, ignore as model_ignore, lock as model_lock,
     reopen as model_reopen, trust as model_trust, undoubt as model_undoubt,
 };
+use dont::config::DefineShapeConfig;
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
     AppendResult, ClaimRecord, EntityResolution, EventRecord, HypothesisRecord, Store, StoreError,
@@ -273,6 +274,16 @@ enum Command {
     Hypothesis {
         #[command(subcommand)]
         action: HypothesisAction,
+    },
+
+    /// Import terms from an external ontology adapter.
+    Import {
+        /// Adapter name (obo, ols, wikidata, openalex, bioregistry, jsonld, ttl, linkml).
+        adapter: String,
+
+        /// Adapter-specific arguments.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
 }
 
@@ -1769,6 +1780,45 @@ fn label_compound_undeclared(label: &str) -> bool {
     false
 }
 
+fn label_compound_undeclared_with_markers(label: &str, shape: &DefineShapeConfig) -> bool {
+    if let Some(markers) = &shape.compound_markers {
+        if markers.is_empty() {
+            return false;
+        }
+        let lower = label.to_ascii_lowercase();
+        for prefix in markers {
+            let prefix_lower = prefix.to_ascii_lowercase();
+            if !lower.starts_with(&prefix_lower) {
+                continue;
+            }
+            let after = &lower[prefix_lower.len()..];
+            if !after.is_empty()
+                && !after.starts_with(|c: char| c.is_ascii_whitespace() || c == '(')
+            {
+                continue;
+            }
+            if let Some(open_rel) = label[prefix_lower.len()..].find('(') {
+                let open = prefix_lower.len() + open_rel;
+                if let Some(close_rel) = label[open..].find(')') {
+                    let close = open + close_rel;
+                    let var_count = label[open + 1..close]
+                        .split(',')
+                        .filter(|s| !s.trim().is_empty())
+                        .count();
+                    if var_count == 0 {
+                        return true;
+                    }
+                    continue;
+                }
+            }
+            return true;
+        }
+        false
+    } else {
+        label_compound_undeclared(label)
+    }
+}
+
 fn words_contain(set: &[&str], text: &str) -> bool {
     text.split_whitespace()
         .any(|w| set.iter().any(|&s| s == w.to_ascii_lowercase()))
@@ -1800,7 +1850,7 @@ fn label_contains_sentence_verb(label: &str) -> bool {
     }
 }
 
-fn validate_label(label: &str, curie: &str) -> Option<ErrorResult> {
+fn validate_label(label: &str, curie: &str, shape: &DefineShapeConfig) -> Option<ErrorResult> {
     if label.trim().is_empty() {
         return Some(refusal(
             "term-label-empty",
@@ -1812,7 +1862,7 @@ fn validate_label(label: &str, curie: &str) -> Option<ErrorResult> {
             }],
         ));
     }
-    if !label_has_indefinite_article(label) {
+    if shape.check_indefinite() && !label_has_indefinite_article(label) {
         let article = best_article_for(label);
         return Some(refusal(
             "term-shape-indefinite",
@@ -1826,7 +1876,7 @@ fn validate_label(label: &str, curie: &str) -> Option<ErrorResult> {
             }],
         ));
     }
-    if label_ends_with_sentence_punctuation(label) {
+    if shape.check_punctuated() && label_ends_with_sentence_punctuation(label) {
         let clean: String = label
             .chars()
             .rev()
@@ -1845,7 +1895,7 @@ fn validate_label(label: &str, curie: &str) -> Option<ErrorResult> {
             }],
         ));
     }
-    if label_compound_undeclared(label) {
+    if shape.check_compound() && label_compound_undeclared_with_markers(label, shape) {
         return Some(refusal(
             "term-compound-undeclared",
             "compound label requires a parenthesised variable list (SK11 §2.1.1(v))",
@@ -1859,7 +1909,7 @@ fn validate_label(label: &str, curie: &str) -> Option<ErrorResult> {
             }],
         ));
     }
-    if label_contains_sentence_verb(label) {
+    if shape.check_sentence() && label_contains_sentence_verb(label) {
         return Some(refusal(
             "term-label-sentence",
             "label contains a verb token outside a variable list or where-clause — rephrase as a noun phrase (SK11 §2.1)",
@@ -2181,17 +2231,18 @@ fn main() {
                 ),
             };
 
+            let project = open_project_or_exit();
+            let config = project.load_config();
+
             let warnings = match &label {
                 Some(lbl) => {
-                    if let Some(err) = validate_label(lbl, &curie) {
+                    if let Some(err) = validate_label(lbl, &curie, &config.define.shape) {
                         emit_error_and_exit(err, vec![], 1);
                     }
                     vec![]
                 }
                 None => doc_shape_warnings(&doc),
             };
-
-            let project = open_project_or_exit();
             let result = match project.store.append_term(&curie, &doc, label.as_deref()) {
                 Ok(result) => result,
                 Err(err) => handle_store_error(err, None),
@@ -3188,6 +3239,8 @@ fn main() {
             timeout_seconds,
         } => {
             let project = open_project_or_exit();
+            let config = project.load_config();
+            let effective_timeout = timeout_seconds.or(config.verify_evidence.default_timeout_s);
 
             let (entity_kind, status, evidence) = if id.starts_with("term:") {
                 match project.store.term_by_id(&id) {
@@ -3265,7 +3318,7 @@ fn main() {
             let uri_results: Vec<EvidenceCheckResult> = evidence
                 .iter()
                 .filter_map(|v| v.as_str())
-                .map(|uri| check_evidence_uri(uri, mocks.as_ref(), timeout_seconds))
+                .map(|uri| check_evidence_uri(uri, mocks.as_ref(), effective_timeout))
                 .collect();
             let warnings: Vec<Warning> = uri_results
                 .iter()
@@ -3299,7 +3352,7 @@ fn main() {
                 "entity_id": id,
                 "entity_kind": entity_kind,
                 "status": status,
-                "timeout_seconds": timeout_seconds,
+                "timeout_seconds": effective_timeout,
                 "results": results,
             });
             let env = Envelope::success(
@@ -3924,6 +3977,39 @@ fn main() {
                     emit_claim_view(&updated, &result, &project.store);
                 }
             }
+        }
+
+        Command::Import { adapter, .. } => {
+            let project = open_project_or_exit();
+            let config = project.load_config();
+            let adapter_cfg = config.import.adapters.get(&adapter).cloned().unwrap_or_default();
+            if !adapter_cfg.is_enabled() {
+                emit_error_and_exit(
+                    refusal(
+                        "adapter-disabled",
+                        &format!("adapter '{adapter}' is disabled in this project's config.toml"),
+                        None,
+                        vec![RemediationEntry {
+                            command: format!("[import.{adapter}]\nenabled = true"),
+                            description: format!(
+                                "Set enabled = true under [import.{adapter}] to re-enable this adapter"
+                            ),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+            emit_error_and_exit(
+                refusal(
+                    "not-implemented",
+                    &format!("import adapter '{adapter}' is not yet implemented"),
+                    None,
+                    vec![],
+                ),
+                vec![],
+                1,
+            );
         }
     }
 }

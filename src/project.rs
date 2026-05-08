@@ -1,7 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::config::Config;
+
 use chrono::{SecondsFormat, Utc};
+use toml;
 use serde_json::json;
 
 use crate::store::{Store, StoreError};
@@ -214,6 +217,11 @@ impl Project {
                     .map(|value| value.trim_matches('"').to_string())
             })
             .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    pub fn load_config(&self) -> Config {
+        let text = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
+        toml::from_str(&text).unwrap_or_default()
     }
 
     /// Initialize a new project. Returns `AlreadyInitialised` if `.dont/` already present.
