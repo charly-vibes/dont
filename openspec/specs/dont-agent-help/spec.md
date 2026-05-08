@@ -60,7 +60,7 @@ The system SHALL provide `dont help` as the primary agent-addressed help surface
 - **THEN** the output lists the available tutorial and how-to entry points
 
 ### Requirement: Canonical teaching artifacts
-The system SHALL ship normative teaching artifacts beyond command reference. It MUST include a worked example showing the canonical define → conclude → spawn → dismiss → lock flow, a first-session tutorial that explains why each step is taken, and goal-oriented how-to guides for project-specific rule authoring, harness integration, and `.dont/` store recovery.
+The system SHALL ship normative teaching artifacts beyond command reference. It MUST include a worked example showing the canonical define → conclude → spawn → flag → lock flow, a first-session tutorial that explains why each step is taken, and goal-oriented how-to guides for project-specific rule authoring, harness integration, and `.dont/` store recovery.
 
 #### Scenario: worked example teaches canonical flow
 - **WHEN** the caller reads the worked example artifact
@@ -99,7 +99,7 @@ The system SHALL teach `dont ground` as the fast path for recording a documented
 
 #### Scenario: tutorial presents ground as sidecar fast path
 - **WHEN** the caller reads the first-session tutorial or a repository-grounding how-to
-- **THEN** the material may recommend `dont ground` for quick documented-fact capture while still explaining that it composes the underlying `conclude` and `dismiss` semantics
+- **THEN** the material may recommend `dont ground` for quick documented-fact capture while still explaining that it composes the underlying `conclude` and `flag` semantics
 
 ### Requirement: Help recommends trace when blocker labels are not enough
 Operator-facing help and tutorials SHALL recommend `dont trace <entity-id>` as the next diagnostic step when a claim or term is blocked by dependency/support fallout and `show` or `why` alone do not explain the causal path clearly.

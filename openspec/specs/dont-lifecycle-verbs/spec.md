@@ -105,15 +105,15 @@ The system SHALL provide a `verify-evidence` operation that checks the liveness 
 - **THEN** the command fails structurally rather than recording liveness results
 
 ### Requirement: Verify-evidence is separate from flag
-The system SHALL keep evidence liveness verification separate from `flag` so that flagal remains deterministic and network-independent, and SHALL apply bounded network politeness measures when checking remote evidence.
+The system SHALL keep evidence liveness verification separate from `flag` so that the `flag` operation remains deterministic and network-independent, and SHALL apply bounded network politeness measures when checking remote evidence.
 
 #### Scenario: flag does not require live network verification
 - **WHEN** an actor invokes `flag` with well-formed evidence references
-- **THEN** flagal behavior does not depend on live network checks performed during that command
+- **THEN** `flag` behavior does not depend on live network checks performed during that command
 
 #### Scenario: verify-evidence handles network-sensitive checks
 - **WHEN** a project wants to assess whether evidence references are still reachable
-- **THEN** it uses `verify-evidence` rather than changing the flagal contract
+- **THEN** it uses `verify-evidence` rather than changing the `flag` contract
 
 #### Scenario: verify-evidence uses bounded polite network behavior
 - **WHEN** `verify-evidence` checks remote evidence references

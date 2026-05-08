@@ -16,7 +16,7 @@ This is the shortest trustworthy path for documented project facts. It records t
 
 1. `conclude` — introduce an unverified claim
 2. `trust` — register doubt
-3. `dismiss` — verify with evidence
+3. `flag` — verify with evidence
 4. `lock` — freeze a mature verified claim when the lockable gate is met
 
 Internally, `ground` composes `conclude` and `dismiss` so normal event history and status rules still apply.
@@ -27,7 +27,7 @@ For evidence inside the current project, use `--file` with an optional line span
 
 ```bash
 dont ground "The crate exposes a test recipe" --file justfile --lines 12-13
-dont dismiss <id> --file src/main.rs --lines 188-205 --anchor "Ground"
+dont flag <id> --file src/main.rs --lines 188-205 --anchor "Ground"
 ```
 
 Repository-relative locators are preferred over opaque absolute `file://` URIs because they remain readable, auditable, and scoped to the project root. Absolute paths, `..` traversal, and symlink escapes are refused for project evidence.
@@ -35,7 +35,7 @@ Repository-relative locators are preferred over opaque absolute `file://` URIs b
 Plain URI evidence is still supported for compatibility and external sources:
 
 ```bash
-dont dismiss <id> --evidence https://example.org/source
+dont flag <id> --evidence https://example.org/source
 ```
 
 ## Diagnose blockers with trace

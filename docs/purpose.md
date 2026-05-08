@@ -40,7 +40,7 @@ Instead of letting every plausible sentence become accepted project state, `dont
 - conclude a claim
 - define a term
 - trust with a reason
-- dismiss with evidence
+- flag with evidence
 - move entities through statuses like unverified, doubted, verified, or locked
 
 The point is not to make the model sound cautious. The point is to make the workflow itself require justification.
@@ -94,7 +94,7 @@ Instead, the tool can force a better path:
 
 1. the agent uses `conclude` and the claim is recorded as unverified
 2. the agent is refused when it tries to promote or rely on that claim without support
-3. the refusal tells the agent to gather evidence, use `dismiss` with evidence, or request independent verification
+3. the refusal tells the agent to gather evidence, use `flag` with evidence, or request independent verification
 4. only after that grounding step can the claim earn a more trusted state
 
 That is the point of `dont`: not better-sounding caution, but enforced epistemic process.

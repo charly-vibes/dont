@@ -1,7 +1,7 @@
 ## 1. Ergonomic Verb Renaming
 - [x] 1.1 Rename `dismiss` -> `flag` in CLI, model, store, specs, and docs. Keep `trust`. Add `undoubt` (doubted→unverified).
-- [ ] 1.2 Update `dont-lifecycle-verbs` and `dont-status-lifecycle` specs to reflect `flag` and `undoubt`
-- [ ] 1.3 Update help and tutorial documentation to reflect the new naming convention
+- [x] 1.2 Update `dont-lifecycle-verbs` and `dont-status-lifecycle` specs to reflect `flag` and `undoubt`
+- [x] 1.3 Update help and tutorial documentation to reflect the new naming convention
 
 ## 2. Human-Readable Output Mode
 - [x] 2.1 Implement a default human-mode output formatter for all subcommands

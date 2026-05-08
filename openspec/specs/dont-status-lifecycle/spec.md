@@ -96,8 +96,8 @@ The system SHALL make status transitions auditable and SHALL allow transition-sp
 - **THEN** the transition record can include the stated reason for doubt
 
 #### Scenario: flag transition records evidence references
-- **WHEN** an actor transitions an entity toward `verified` through flagal
-- **THEN** the transition record can include the evidence references used for that flagal
+- **WHEN** an actor transitions an entity toward `verified` through the `flag` operation
+- **THEN** the transition record can include the evidence references used for that `flag` operation
 
 ### Requirement: Derived assessments may inform later command policy
 The system SHALL allow derived dependency-trace assessments to inform later command warnings or refusals without treating those assessments as persisted status changes.
