@@ -23,5 +23,5 @@
 - [x] 5.3 Implement `--version --json` for structured version envelopes
 
 ## 6. Validate
-- [ ] 6.1 Run `openspec validate improve-cli-ergonomics --strict`
-- [ ] 6.2 Verify that the "Locked" state is now reachable using only CLI commands
+- [x] 6.1 Run `openspec validate improve-cli-ergonomics --strict`
+- [x] 6.2 Verify that the "Locked" state is now reachable using only CLI commands
