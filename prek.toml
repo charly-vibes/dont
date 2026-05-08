@@ -8,3 +8,9 @@ hooks = [
   { id = "check-added-large-files" },
   { id = "mixed-line-ending" },
 ]
+
+[[repos]]
+repo = "local"
+hooks = [
+  { id = "dont-prime", name = "dont: block doubted claims", entry = "just check-claims", language = "system", pass_filenames = false, always_run = true },
+]
