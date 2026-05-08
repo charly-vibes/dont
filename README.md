@@ -23,8 +23,10 @@ dont is in design phase — the spec is the artifact. Contributions to the speci
 
 Active specifications:
 
-- [`openspec/changes/add-rule-claim-schema/`](openspec/changes/add-rule-claim-schema/)
-- [`openspec/changes/add-mdbook-docs-site/`](openspec/changes/add-mdbook-docs-site/)
+- [`openspec/changes/add-rule-claim-schema/`](openspec/changes/add-rule-claim-schema/) — core: claim schema
+- [`openspec/changes/add-mdbook-docs-site/`](openspec/changes/add-mdbook-docs-site/) — infrastructure: docs deployment
+
+See [`openspec/AGENTS.md`](openspec/AGENTS.md) for the proposal workflow.
 
 ## Documentation
 
@@ -55,13 +57,7 @@ just sync        # wai sync
 just docs-build  # build the mdBook site locally
 ```
 
-For deeper project context:
-
-```bash
-wai status
-wai show
-wai search "topic"
-```
+For full output or interactive search, run `wai status`, `wai show`, or `wai search "<topic>"` directly.
 
 ---
 
