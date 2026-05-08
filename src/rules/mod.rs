@@ -82,6 +82,7 @@ impl RuleEngine {
             return Severity::Strict;
         }
         // Explicit project-level config overrides (for overridable rules only).
+        // strict takes precedence if a rule appears in both lists.
         if self.config.strict.iter().any(|r| r == rule_name) {
             return Severity::Strict;
         }
@@ -128,22 +129,37 @@ impl RuleEngine {
     pub fn evaluate(&self, store: &Store, rule_name: &str) -> Result<Vec<RuleMatch>, RuleError> {
         let path = self.rules_dir.join(format!("{rule_name}.dl"));
         let script = std::fs::read_to_string(&path).map_err(RuleError::Io)?;
-        store
+        let rows = store
             .run_rule_query(&script)
-            .map(rows_to_matches)
             .map_err(|e| RuleError::Compile {
                 rule_name: rule_name.to_string(),
                 message: e.to_string(),
-            })
+            })?;
+        rows_to_matches(rows, rule_name)
     }
 }
 
-fn rows_to_matches(rows: Vec<Vec<Value>>) -> Vec<RuleMatch> {
+fn rows_to_matches(rows: Vec<Vec<Value>>, rule_name: &str) -> Result<Vec<RuleMatch>, RuleError> {
     rows.into_iter()
-        .filter_map(|row| {
-            let entity_id = row.first()?.as_str()?.to_string();
-            let detail = row.get(1)?.as_str()?.to_string();
-            Some(RuleMatch { entity_id, detail })
+        .enumerate()
+        .map(|(i, row)| {
+            let entity_id = row
+                .first()
+                .and_then(Value::as_str)
+                .ok_or_else(|| RuleError::Compile {
+                    rule_name: rule_name.to_string(),
+                    message: format!("row {i}: entity_id must be a string"),
+                })?
+                .to_string();
+            let detail = row
+                .get(1)
+                .and_then(Value::as_str)
+                .ok_or_else(|| RuleError::Compile {
+                    rule_name: rule_name.to_string(),
+                    message: format!("row {i}: detail must be a string"),
+                })?
+                .to_string();
+            Ok(RuleMatch { entity_id, detail })
         })
         .collect()
 }
@@ -152,7 +168,7 @@ fn rows_to_matches(rows: Vec<Vec<Value>>) -> Vec<RuleMatch> {
 ///
 /// URI entries normalize to host (port stripped); repo-file objects use their
 /// path; anything else falls back to the JSON representation.
-pub(super) fn source_key(v: &Value) -> String {
+fn source_key(v: &Value) -> String {
     if let Some(uri) = v.as_str() {
         return host_from_uri(uri);
     }

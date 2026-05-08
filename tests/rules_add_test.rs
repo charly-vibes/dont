@@ -141,6 +141,87 @@ fn rules_add_nonexistent_file_emits_error_exit_1() {
     assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
 }
 
+#[test]
+fn rules_add_shipped_rule_name_emits_error() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let rule_file = dir.path().join("ungrounded.dl");
+    std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
+
+    let out = dont()
+        .args(["rules", "add", rule_file.to_str().unwrap(), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "cannot-shadow-shipped-rule");
+}
+
+#[test]
+fn rules_add_duplicate_name_without_force_emits_error() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let rule_file = dir.path().join("my-rule.dl");
+    std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
+
+    // First add succeeds.
+    dont()
+        .args(["rules", "add", rule_file.to_str().unwrap(), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    // Second add without --force fails.
+    let out = dont()
+        .args(["rules", "add", rule_file.to_str().unwrap(), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "rule-already-exists");
+}
+
+#[test]
+fn rules_add_duplicate_name_with_force_succeeds() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let rule_file = dir.path().join("my-rule.dl");
+    std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
+
+    dont()
+        .args(["rules", "add", rule_file.to_str().unwrap(), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    // Update the source and re-add with --force.
+    std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e2", "d2"]]"#).unwrap();
+
+    dont()
+        .args(["rules", "add", rule_file.to_str().unwrap(), "--force", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    // Verify the updated content is present.
+    let dest = dir.path().join("rules").join("my-rule.dl");
+    let content = std::fs::read_to_string(&dest).unwrap();
+    assert!(content.contains("e2"), "rule file should contain updated content");
+}
+
 // --- rules test ---
 
 #[test]

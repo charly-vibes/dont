@@ -18,7 +18,7 @@ use dont::model::{
 };
 use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::project::{Project, ProjectError, ProjectMode};
-use dont::rules::SHIPPED_RULES;
+use dont::rules::{RuleError, SHIPPED_RULES};
 use dont::store::{
     AppendResult, ClaimRecord, EntityResolution, EventRecord, HypothesisRecord, Store, StoreError,
     StoreEvent, StoreEventKind, StoreStatus, TermRecord,
@@ -365,6 +365,9 @@ enum RulesAction {
     Add {
         /// Path to the .dl file.
         file: PathBuf,
+        /// Overwrite an existing rule with the same name.
+        #[arg(long)]
+        force: bool,
     },
 
     /// Dry-run a rule against the current store without modifying state.
@@ -377,15 +380,15 @@ enum RulesAction {
 #[derive(Debug, Clone, Serialize)]
 struct RuleInfo {
     name: String,
-    severity: String,
-    source: String,
+    severity: &'static str,
+    source: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize)]
 struct RuleDetail {
     name: String,
-    severity: String,
-    source: String,
+    severity: &'static str,
+    source: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     datalog: Option<String>,
 }
@@ -393,7 +396,7 @@ struct RuleDetail {
 #[derive(Debug, Clone, Serialize)]
 struct RuleTestResult {
     rule_name: String,
-    severity: String,
+    severity: &'static str,
     matches: Vec<RuleMatchView>,
 }
 
@@ -1718,10 +1721,10 @@ fn entity_not_found_error(input: &str) -> (&'static str, String, Vec<Remediation
     }
 }
 
-fn severity_label(s: dont::rules::Severity) -> String {
+fn severity_label(s: dont::rules::Severity) -> &'static str {
     match s {
-        dont::rules::Severity::Strict => "strict".to_string(),
-        dont::rules::Severity::Warn => "warn".to_string(),
+        dont::rules::Severity::Strict => "strict",
+        dont::rules::Severity::Warn => "warn",
     }
 }
 
@@ -4103,9 +4106,10 @@ fn main() {
         Command::Rules { action } => {
             let project = open_project_or_exit();
             let rules_dir = project.dont_dir.join("rules");
+            let config = project.load_config();
             let engine = dont::rules::RuleEngine::new(
                 rules_dir.clone(),
-                project.load_config().rules,
+                config.rules,
                 project.mode() == "strict",
             );
 
@@ -4116,7 +4120,7 @@ fn main() {
                         .map(|name| RuleInfo {
                             name: name.to_string(),
                             severity: severity_label(engine.severity(name)),
-                            source: "shipped".to_string(),
+                            source: "shipped",
                         })
                         .collect();
 
@@ -4134,7 +4138,7 @@ fn main() {
                                 Some(RuleInfo {
                                     severity: severity_label(engine.severity(&stem)),
                                     name: stem,
-                                    source: "custom".to_string(),
+                                    source: "custom",
                                 })
                             })
                             .collect();
@@ -4150,7 +4154,7 @@ fn main() {
                         let detail = RuleDetail {
                             name: name.clone(),
                             severity: severity_label(engine.severity(&name)),
-                            source: "shipped".to_string(),
+                            source: "shipped",
                             datalog: None,
                         };
                         emit_json(&Envelope::success("rule", detail, vec![], vec![]));
@@ -4161,7 +4165,7 @@ fn main() {
                                 let detail = RuleDetail {
                                     name: name.clone(),
                                     severity: severity_label(engine.severity(&name)),
-                                    source: "custom".to_string(),
+                                    source: "custom",
                                     datalog: Some(src),
                                 };
                                 emit_json(&Envelope::success("rule", detail, vec![], vec![]));
@@ -4185,7 +4189,7 @@ fn main() {
                     }
                 }
 
-                RulesAction::Add { file } => {
+                RulesAction::Add { file, force } => {
                     let src = match std::fs::read_to_string(&file) {
                         Ok(s) => s,
                         Err(e) => emit_error_and_exit(
@@ -4203,10 +4207,38 @@ fn main() {
                         ),
                     };
 
-                    let rule_name = file
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("unknown");
+                    let rule_name = match file.file_stem().and_then(|s| s.to_str()) {
+                        Some(name) => name,
+                        None => emit_error_and_exit(
+                            refusal(
+                                "invalid-rule-filename",
+                                &format!("cannot derive rule name from {:?}", file.display()),
+                                None,
+                                vec![RemediationEntry {
+                                    command: "dont rules add <path/to/rule.dl>".to_string(),
+                                    description: "Provide a valid .dl file path".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        ),
+                    };
+
+                    if SHIPPED_RULES.contains(&rule_name) {
+                        emit_error_and_exit(
+                            refusal(
+                                "cannot-shadow-shipped-rule",
+                                &format!("rule name {rule_name:?} is reserved for a shipped rule"),
+                                None,
+                                vec![RemediationEntry {
+                                    command: "dont rules list".to_string(),
+                                    description: "See all shipped rules".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
 
                     if let Err(e) = project.store.run_rule_query(&src) {
                         emit_error_and_exit(
@@ -4215,8 +4247,8 @@ fn main() {
                                 &format!("rule {rule_name:?} failed to compile: {e}"),
                                 None,
                                 vec![RemediationEntry {
-                                    command: format!("dont rules test {rule_name}"),
-                                    description: "Fix the Datalog source and retry".to_string(),
+                                    command: format!("dont rules add {}", file.display()),
+                                    description: "Fix the Datalog syntax and retry".to_string(),
                                 }],
                             ),
                             vec![],
@@ -4225,6 +4257,27 @@ fn main() {
                     }
 
                     let dest = rules_dir.join(format!("{rule_name}.dl"));
+
+                    if !force && dest.exists() {
+                        emit_error_and_exit(
+                            refusal(
+                                "rule-already-exists",
+                                &format!("rule {rule_name:?} already exists"),
+                                None,
+                                vec![RemediationEntry {
+                                    command: format!(
+                                        "dont rules add {} --force",
+                                        file.display()
+                                    ),
+                                    description: "Use --force to overwrite the existing rule"
+                                        .to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+
                     if let Err(e) = std::fs::write(&dest, &src) {
                         emit_error_and_exit(
                             refusal(
@@ -4268,9 +4321,11 @@ fn main() {
                             vec![],
                             1,
                         ),
-                        None => {
-                            let path = rules_dir.join(format!("{name}.dl"));
-                            if !path.exists() {
+                        None => match engine.evaluate(&project.store, &name) {
+                            Ok(m) => m,
+                            Err(RuleError::Io(ref e))
+                                if e.kind() == std::io::ErrorKind::NotFound =>
+                            {
                                 emit_error_and_exit(
                                     refusal(
                                         "rule-not-found",
@@ -4283,25 +4338,22 @@ fn main() {
                                     ),
                                     vec![],
                                     1,
-                                );
+                                )
                             }
-                            match engine.evaluate(&project.store, &name) {
-                                Ok(m) => m,
-                                Err(e) => emit_error_and_exit(
-                                    refusal(
-                                        "rule-eval-error",
-                                        &e.to_string(),
-                                        None,
-                                        vec![RemediationEntry {
-                                            command: format!("dont rules show {name}"),
-                                            description: "Inspect the rule source".to_string(),
-                                        }],
-                                    ),
-                                    vec![],
-                                    1,
+                            Err(e) => emit_error_and_exit(
+                                refusal(
+                                    "rule-eval-error",
+                                    &e.to_string(),
+                                    None,
+                                    vec![RemediationEntry {
+                                        command: format!("dont rules show {name}"),
+                                        description: "Inspect the rule source".to_string(),
+                                    }],
                                 ),
-                            }
-                        }
+                                vec![],
+                                1,
+                            ),
+                        },
                     };
 
                     let result = RuleTestResult {
