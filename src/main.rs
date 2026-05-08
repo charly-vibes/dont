@@ -505,6 +505,48 @@ fn format_claim_detail(data: &Value) -> String {
             out.push_str(&format!("\n  depends_on: {}", dep_list.join(", ")));
         }
     }
+    if let Some(atoms) = data["atoms"].as_array() {
+        if !atoms.is_empty() {
+            out.push_str("\n  atoms:");
+            for atom in atoms {
+                let idx = atom["idx"].as_u64().unwrap_or(0);
+                let text = atom["text"].as_str().unwrap_or("?");
+                let astatus = atom["status"].as_str().unwrap_or("?");
+                let colored = colorize_status(astatus);
+                out.push_str(&format!("\n    [{idx}] {text}  ({colored})"));
+                if let Some(ev) = atom["evidence"].as_array() {
+                    for e in ev {
+                        let uri = e.as_str().unwrap_or("?");
+                        out.push_str(&format!("\n        {uri}"));
+                    }
+                }
+            }
+        }
+    }
+    if let Some(hyps) = data["hypotheses"].as_array() {
+        if !hyps.is_empty() {
+            out.push_str("\n  hypotheses:");
+            for hyp in hyps {
+                let idx = hyp["idx"].as_u64().unwrap_or(0);
+                let text = hyp["text"].as_str().unwrap_or("?");
+                out.push_str(&format!("\n    [{idx}] {text}"));
+                let supporting = hyp["assessment"]["supporting"].as_array();
+                let refuting = hyp["assessment"]["refuting"].as_array();
+                let sup_str = supporting
+                    .map(|v| v.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
+                    .unwrap_or_default();
+                let ref_str = refuting
+                    .map(|v| v.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
+                    .unwrap_or_default();
+                if !sup_str.is_empty() {
+                    out.push_str(&format!("\n        supporting: {sup_str}"));
+                }
+                if !ref_str.is_empty() {
+                    out.push_str(&format!("\n        refuting:   {ref_str}"));
+                }
+            }
+        }
+    }
     out
 }
 

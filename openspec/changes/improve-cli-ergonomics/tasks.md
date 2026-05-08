@@ -6,11 +6,11 @@
 ## 2. Human-Readable Output Mode
 - [x] 2.1 Implement a default human-mode output formatter for all subcommands
 - [x] 2.2 Respect `--json` and `--plain` flags as per `dont-cli-surface` requirements
-- [ ] 2.3 Ensure structured evidence (from `add-evidence-locators`) is rendered clearly in human-mode
+- [x] 2.3 Ensure structured evidence (from `add-evidence-locators`) is rendered clearly in human-mode
 
 ## 3. Core Lifecycle Accessibility (Hypotheses & Atoms)
 - [x] 3.1 Add subcommands for `hypothesis` (add, assess) and `atom` (define, dismiss) management
-- [ ] 3.2 Update `dont-payload-types` to ensure these new entities/attributes are properly exposed
+- [x] 3.2 Update `dont-payload-types` to ensure these new entities/attributes are properly exposed
 
 ## 4. Entity Lookup & ID Ergonomics
 - [ ] 4.1 Implement a CURIE-to-ULID resolver for all command arguments

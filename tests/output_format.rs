@@ -322,6 +322,113 @@ fn clicolor_force_enables_ansi() {
     );
 }
 
+// --- evidence rendering (dont-08l) ---
+
+#[test]
+fn show_human_renders_atoms_section() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_json(&dir, "claim with atoms");
+
+    dont()
+        .args(["atom", "define", &id, "--text", "sub-check alpha", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["show", &id])
+        .env("DONT_DIR", dir.path())
+        .env("NO_COLOR", "1")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        text.contains("atoms:"),
+        "human show must include 'atoms:' section, got: {text}"
+    );
+    assert!(
+        text.contains("sub-check alpha"),
+        "human show must include atom text, got: {text}"
+    );
+}
+
+#[test]
+fn show_human_renders_hypotheses_section() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_json(&dir, "claim with hypotheses");
+
+    dont()
+        .args(["hypothesis", "add", &id, "--text", "maybe it's the moon", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["show", &id])
+        .env("DONT_DIR", dir.path())
+        .env("NO_COLOR", "1")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        text.contains("hypotheses:"),
+        "human show must include 'hypotheses:' section, got: {text}"
+    );
+    assert!(
+        text.contains("maybe it's the moon"),
+        "human show must include hypothesis text, got: {text}"
+    );
+}
+
+#[test]
+fn show_json_includes_atom_and_hypothesis_fields() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_json(&dir, "claim for json fields check");
+
+    dont()
+        .args(["atom", "define", &id, "--text", "an atom", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+    dont()
+        .args(["hypothesis", "add", &id, "--text", "a hypothesis", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    let atoms = v["data"]["atoms"].as_array().expect("data.atoms must be array");
+    assert_eq!(atoms.len(), 1);
+    assert_eq!(atoms[0]["idx"], 0);
+    assert_eq!(atoms[0]["text"], "an atom");
+    assert_eq!(atoms[0]["status"], "unverified");
+
+    let hyps = v["data"]["hypotheses"].as_array().expect("data.hypotheses must be array");
+    assert_eq!(hyps.len(), 1);
+    assert_eq!(hyps[0]["idx"], 0);
+    assert_eq!(hyps[0]["text"], "a hypothesis");
+}
+
 // --- json wins when both flags are set ---
 
 #[test]
