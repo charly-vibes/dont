@@ -16,7 +16,7 @@ use dont::model::{
     Status, flag as model_flag, ignore as model_ignore, lock as model_lock,
     reopen as model_reopen, trust as model_trust, undoubt as model_undoubt,
 };
-use dont::config::DefineShapeConfig;
+use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::store::{
     AppendResult, ClaimRecord, EntityResolution, EventRecord, HypothesisRecord, Store, StoreError,
@@ -359,9 +359,10 @@ struct MockEvidenceCheckResult {
     detail: Option<String>,
 }
 
-fn contains_hedge(reason: &str) -> bool {
+fn contains_hedge(reason: &str, extra: &[String]) -> bool {
     let lower = reason.to_lowercase();
     DEFAULT_HEDGES.iter().any(|h| lower.contains(h))
+        || extra.iter().any(|h| lower.contains(h.as_str()))
 }
 
 fn cwd() -> PathBuf {
@@ -1974,6 +1975,21 @@ fn doc_shape_warnings(doc: &str) -> Vec<Warning> {
     vec![]
 }
 
+fn nonfunctional_label_warning(label: &str, cfg: &TermNonfunctionalConfig) -> Option<Warning> {
+    if cfg.matches_label(label) {
+        Some(Warning {
+            rule_name: "term-nonfunctional-label".to_string(),
+            entity_id: None,
+            message: "label suggests a non-functional relationship folded into the type; consider aspect-based decomposition".to_string(),
+            suggested_remediation: Some(
+                "Refactor the type so the relationship is expressed as an aspect rather than embedded in the label".to_string(),
+            ),
+        })
+    } else {
+        None
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -2239,7 +2255,9 @@ fn main() {
                     if let Some(err) = validate_label(lbl, &curie, &config.define.shape) {
                         emit_error_and_exit(err, vec![], 1);
                     }
-                    vec![]
+                    nonfunctional_label_warning(lbl, &config.rules.term_nonfunctional)
+                        .into_iter()
+                        .collect()
                 }
                 None => doc_shape_warnings(&doc),
             };
@@ -2279,7 +2297,10 @@ fn main() {
                 Some(r) => r,
             };
 
-            if contains_hedge(&reason) {
+            let project = open_project_or_exit();
+            let config = project.load_config();
+
+            if contains_hedge(&reason, &config.trust.hedges.patterns) {
                 emit_error_and_exit(
                     refusal(
                         "reason-not-hedge",
@@ -2294,8 +2315,6 @@ fn main() {
                     1,
                 );
             }
-
-            let project = open_project_or_exit();
             if id.starts_with("term:") {
                 let record = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
@@ -2697,7 +2716,10 @@ fn main() {
                 Some(r) => r,
             };
 
-            if contains_hedge(&reason) {
+            let project = open_project_or_exit();
+            let config = project.load_config();
+
+            if contains_hedge(&reason, &config.trust.hedges.patterns) {
                 emit_error_and_exit(
                     refusal(
                         "reason-not-hedge",
@@ -2712,8 +2734,6 @@ fn main() {
                     1,
                 );
             }
-
-            let project = open_project_or_exit();
 
             if id.starts_with("term:") {
                 let record = match project.store.term_by_id(&id) {
@@ -3370,6 +3390,7 @@ fn main() {
 
         Command::Prime => {
             let project = open_project_or_exit();
+            let prime_config = project.load_config();
             let claims = match project.store.list_claims() {
                 Ok(c) => c,
                 Err(err) => handle_store_error(err, None),
@@ -3445,7 +3466,7 @@ fn main() {
                     "dangling_dependency": ac_dangling,
                     "unresolved_term": ac_unresolved,
                 },
-                "rules": { "strict": [], "warn": [] },
+                "rules": { "strict": prime_config.rules.strict, "warn": prime_config.rules.warn },
                 "ontologies": [],
                 "blocking": blocking,
                 "pending_spawns": 0,

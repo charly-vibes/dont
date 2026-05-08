@@ -65,9 +65,6 @@ mode = "{}"
 [output]
 default_format = "json"
 
-[trust.hedges]
-patterns = ["i think", "maybe", "not sure", "probably"]
-
 [storage]
 busy_retry_attempts = 5
 busy_retry_base_ms = 100

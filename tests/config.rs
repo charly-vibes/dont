@@ -95,3 +95,107 @@ fn import_verify_shape() {
     let v3: Value = serde_json::from_slice(&output3).unwrap();
     assert_eq!(v3["ok"], true);
 }
+
+#[test]
+fn hedges_rules() {
+    // --- 1. [trust.hedges] custom pattern causes refusal ---
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    append_config(
+        &dir,
+        "[trust.hedges]\npatterns = [\"speculative at best\"]",
+    );
+
+    let claim_out = dont()
+        .args(["conclude", "a claim to trust with hedge", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let cv: Value = serde_json::from_slice(&claim_out).unwrap();
+    let id = cv["data"]["id"].as_str().unwrap().to_string();
+
+    let trust_out = dont()
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "speculative at best but worth it",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let tv: Value = serde_json::from_slice(&trust_out).unwrap();
+    assert_eq!(tv["ok"], false);
+    assert_eq!(tv["data"]["code"], "reason-not-hedge");
+
+    // --- 2. [rules.term_nonfunctional] enabled → warning emitted on define ---
+    let dir2 = TempDir::new().unwrap();
+    init_dir(&dir2);
+    append_config(
+        &dir2,
+        "[rules.term_nonfunctional]\nenabled = true\npatterns = [\"responsible for\"]",
+    );
+
+    let def_out = dont()
+        .args([
+            "define",
+            "WB:P002",
+            "--doc",
+            "A component that routes requests",
+            "--label",
+            "a component responsible for routing",
+            "--json",
+        ])
+        .env("DONT_DIR", dir2.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let dv: Value = serde_json::from_slice(&def_out).unwrap();
+    assert_eq!(dv["ok"], true);
+    let warnings = dv["warnings"].as_array().unwrap();
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w["rule_name"].as_str() == Some("term-nonfunctional-label")),
+        "expected term-nonfunctional-label warning, got: {warnings:?}"
+    );
+
+    // --- 3. term_nonfunctional disabled by default → no warning ---
+    let dir3 = TempDir::new().unwrap();
+    init_dir(&dir3);
+
+    let def_out3 = dont()
+        .args([
+            "define",
+            "WB:P003",
+            "--doc",
+            "A component that routes requests",
+            "--label",
+            "a component responsible for routing",
+            "--json",
+        ])
+        .env("DONT_DIR", dir3.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let dv3: Value = serde_json::from_slice(&def_out3).unwrap();
+    assert_eq!(dv3["ok"], true);
+    let warnings3 = dv3["warnings"].as_array().unwrap();
+    assert!(
+        !warnings3
+            .iter()
+            .any(|w| w["rule_name"].as_str() == Some("term-nonfunctional-label")),
+        "expected no term-nonfunctional-label warning, got: {warnings3:?}"
+    );
+}

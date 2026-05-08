@@ -10,6 +10,10 @@ pub struct Config {
     pub verify_evidence: VerifyEvidenceConfig,
     #[serde(default)]
     pub define: DefineTopConfig,
+    #[serde(default)]
+    pub trust: TrustConfig,
+    #[serde(default)]
+    pub rules: RulesConfig,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -74,5 +78,45 @@ impl DefineShapeConfig {
 
     pub fn check_sentence(&self) -> bool {
         self.check_sentence.unwrap_or(true)
+    }
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct TrustConfig {
+    #[serde(default)]
+    pub hedges: TrustHedgesConfig,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct TrustHedgesConfig {
+    #[serde(default)]
+    pub patterns: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct RulesConfig {
+    #[serde(default)]
+    pub warn: Vec<String>,
+    #[serde(default)]
+    pub strict: Vec<String>,
+    #[serde(default)]
+    pub term_nonfunctional: TermNonfunctionalConfig,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct TermNonfunctionalConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub patterns: Vec<String>,
+}
+
+impl TermNonfunctionalConfig {
+    pub fn matches_label(&self, label: &str) -> bool {
+        if !self.enabled || self.patterns.is_empty() {
+            return false;
+        }
+        let lower = label.to_lowercase();
+        self.patterns.iter().any(|p| lower.contains(p.as_str()))
     }
 }

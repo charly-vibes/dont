@@ -66,7 +66,6 @@ fn init_config_toml_has_required_sections() {
     let config = fs::read_to_string(dir.path().join("config.toml")).unwrap();
     assert!(config.contains("[project]"), "[project] section");
     assert!(config.contains("[output]"), "[output] section");
-    assert!(config.contains("[trust.hedges]"), "[trust.hedges] section");
     assert!(config.contains("[storage]"), "[storage] section");
 }
 
