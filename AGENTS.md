@@ -80,6 +80,24 @@ context before starting research or creating tickets.
 
 
 
+## Claim Discipline
+
+`dont` exists to prevent ungrounded assertions. When building `dont`, agents must use `dont` to track design claims before asserting them — not after. A claim made without grounding is the exact failure mode the tool is designed to catch.
+
+**When making a design or correctness assertion during development:**
+1. `dont conclude "<assertion>"` — register the claim
+2. Define any CURIEs used in the claim with `dont define`
+3. Add evidence: `dont flag <id> --file="<path>" --anchor="<section>"` or atomically: `dont ground "<assertion>" --file="..." --anchor="..."`
+4. Claims in `doubted` status block CI — `just check-claims` fails
+
+In permissive mode, `unverified` claims are allowed in CI. Only `doubted` claims are blocking. In strict mode, the tool enforces grounding at `conclude` time.
+
+**Mode × gate interaction:** `just check-claims` runs `dont prime`, which exits 1 on any doubted claim. The recipe is the pre-push check; the tool's own strict-mode enforcement is orthogonal.
+
+**Claim retirement:** when a design decision is reversed, run `dont trust <id> --reason="superseded by X"` then `dont ignore <id> --reason="superseded"`. Stale verified claims erode trust in `dont prime` output.
+
+**Success metric (30-day retrospective):** run `dont list --status=verified`. If fewer than 60% of architectural claims are verified after 30 days, simplify or drop the discipline. A claim with no evidence activity for 30+ days is a retirement candidate.
+
 ## Issue Tracking
 
 This project uses **bd** for issue tracking.

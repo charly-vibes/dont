@@ -48,9 +48,13 @@ lint:
 docs-build:
   mdbook build
 
+check-claims:
+  dont prime
+
 ci:
   just lint
   just docs-build
+  just check-claims
   wai doctor
 
 reflect:
