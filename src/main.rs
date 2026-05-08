@@ -18,6 +18,7 @@ use dont::model::{
 };
 use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::project::{Project, ProjectError, ProjectMode};
+use dont::rules::SHIPPED_RULES;
 use dont::store::{
     AppendResult, ClaimRecord, EntityResolution, EventRecord, HypothesisRecord, Store, StoreError,
     StoreEvent, StoreEventKind, StoreStatus, TermRecord,
@@ -285,6 +286,12 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+
+    /// Manage and inspect project rules.
+    Rules {
+        #[command(subcommand)]
+        action: RulesAction,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -341,6 +348,59 @@ enum HypothesisAction {
         #[arg(long)]
         refuting: Vec<String>,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum RulesAction {
+    /// List all active rules with name, severity, and source.
+    List,
+
+    /// Show details for one rule, including Datalog source for custom rules.
+    Show {
+        /// Rule name.
+        name: String,
+    },
+
+    /// Install a project-specific rule from a .dl file.
+    Add {
+        /// Path to the .dl file.
+        file: PathBuf,
+    },
+
+    /// Dry-run a rule against the current store without modifying state.
+    Test {
+        /// Rule name.
+        name: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RuleInfo {
+    name: String,
+    severity: String,
+    source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RuleDetail {
+    name: String,
+    severity: String,
+    source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    datalog: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RuleTestResult {
+    rule_name: String,
+    severity: String,
+    matches: Vec<RuleMatchView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RuleMatchView {
+    entity_id: String,
+    detail: String,
 }
 
 const DEFAULT_HEDGES: &[&str] = &["i think", "maybe", "not sure", "probably"];
@@ -1655,6 +1715,13 @@ fn entity_not_found_error(input: &str) -> (&'static str, String, Vec<Remediation
                 },
             ],
         )
+    }
+}
+
+fn severity_label(s: dont::rules::Severity) -> String {
+    match s {
+        dont::rules::Severity::Strict => "strict".to_string(),
+        dont::rules::Severity::Warn => "warn".to_string(),
     }
 }
 
@@ -4031,6 +4098,226 @@ fn main() {
                 vec![],
                 1,
             );
+        }
+
+        Command::Rules { action } => {
+            let project = open_project_or_exit();
+            let rules_dir = project.dont_dir.join("rules");
+            let engine = dont::rules::RuleEngine::new(
+                rules_dir.clone(),
+                project.load_config().rules,
+                project.mode() == "strict",
+            );
+
+            match action {
+                RulesAction::List => {
+                    let mut rules: Vec<RuleInfo> = SHIPPED_RULES
+                        .iter()
+                        .map(|name| RuleInfo {
+                            name: name.to_string(),
+                            severity: severity_label(engine.severity(name)),
+                            source: "shipped".to_string(),
+                        })
+                        .collect();
+
+                    if let Ok(entries) = std::fs::read_dir(&rules_dir) {
+                        let mut custom: Vec<RuleInfo> = entries
+                            .filter_map(|e| e.ok())
+                            .filter(|e| {
+                                e.path().extension().and_then(|x| x.to_str()) == Some("dl")
+                            })
+                            .filter_map(|e| {
+                                let stem = e.path().file_stem()?.to_str()?.to_string();
+                                if SHIPPED_RULES.contains(&stem.as_str()) {
+                                    return None;
+                                }
+                                Some(RuleInfo {
+                                    severity: severity_label(engine.severity(&stem)),
+                                    name: stem,
+                                    source: "custom".to_string(),
+                                })
+                            })
+                            .collect();
+                        custom.sort_by(|a, b| a.name.cmp(&b.name));
+                        rules.extend(custom);
+                    }
+
+                    emit_json(&Envelope::success("rule_list", rules, vec![], vec![]));
+                }
+
+                RulesAction::Show { name } => {
+                    if SHIPPED_RULES.contains(&name.as_str()) {
+                        let detail = RuleDetail {
+                            name: name.clone(),
+                            severity: severity_label(engine.severity(&name)),
+                            source: "shipped".to_string(),
+                            datalog: None,
+                        };
+                        emit_json(&Envelope::success("rule", detail, vec![], vec![]));
+                    } else {
+                        let path = rules_dir.join(format!("{name}.dl"));
+                        match std::fs::read_to_string(&path) {
+                            Ok(src) => {
+                                let detail = RuleDetail {
+                                    name: name.clone(),
+                                    severity: severity_label(engine.severity(&name)),
+                                    source: "custom".to_string(),
+                                    datalog: Some(src),
+                                };
+                                emit_json(&Envelope::success("rule", detail, vec![], vec![]));
+                            }
+                            Err(_) => {
+                                emit_error_and_exit(
+                                    refusal(
+                                        "rule-not-found",
+                                        &format!("no rule named {name:?}"),
+                                        None,
+                                        vec![RemediationEntry {
+                                            command: "dont rules list".to_string(),
+                                            description: "List available rules".to_string(),
+                                        }],
+                                    ),
+                                    vec![],
+                                    1,
+                                );
+                            }
+                        }
+                    }
+                }
+
+                RulesAction::Add { file } => {
+                    let src = match std::fs::read_to_string(&file) {
+                        Ok(s) => s,
+                        Err(e) => emit_error_and_exit(
+                            refusal(
+                                "rule-file-not-found",
+                                &format!("cannot read {}: {e}", file.display()),
+                                None,
+                                vec![RemediationEntry {
+                                    command: format!("ls {}", file.display()),
+                                    description: "Verify the file path".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        ),
+                    };
+
+                    let rule_name = file
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("unknown");
+
+                    if let Err(e) = project.store.run_rule_query(&src) {
+                        emit_error_and_exit(
+                            refusal(
+                                "rule-compile-error",
+                                &format!("rule {rule_name:?} failed to compile: {e}"),
+                                None,
+                                vec![RemediationEntry {
+                                    command: format!("dont rules test {rule_name}"),
+                                    description: "Fix the Datalog source and retry".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+
+                    let dest = rules_dir.join(format!("{rule_name}.dl"));
+                    if let Err(e) = std::fs::write(&dest, &src) {
+                        emit_error_and_exit(
+                            refusal(
+                                "rule-write-error",
+                                &format!("failed to write rule to {}: {e}", dest.display()),
+                                None,
+                                vec![RemediationEntry {
+                                    command: format!("ls {}", rules_dir.display()),
+                                    description: "Inspect the rules directory".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
+
+                    emit_json(&Envelope::success(
+                        "empty",
+                        serde_json::Value::Null,
+                        vec![],
+                        vec![HintEntry {
+                            command: "dont rules list".to_string(),
+                            description: format!("Rule {rule_name:?} is now active"),
+                        }],
+                    ));
+                }
+
+                RulesAction::Test { name } => {
+                    let matches = match engine.evaluate_shipped(&project.store, &name) {
+                        Some(Ok(m)) => m,
+                        Some(Err(e)) => emit_error_and_exit(
+                            refusal(
+                                "rule-eval-error",
+                                &e.to_string(),
+                                None,
+                                vec![RemediationEntry {
+                                    command: format!("dont rules show {name}"),
+                                    description: "Inspect the rule source".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        ),
+                        None => {
+                            let path = rules_dir.join(format!("{name}.dl"));
+                            if !path.exists() {
+                                emit_error_and_exit(
+                                    refusal(
+                                        "rule-not-found",
+                                        &format!("no rule named {name:?}"),
+                                        None,
+                                        vec![RemediationEntry {
+                                            command: "dont rules list".to_string(),
+                                            description: "List available rules".to_string(),
+                                        }],
+                                    ),
+                                    vec![],
+                                    1,
+                                );
+                            }
+                            match engine.evaluate(&project.store, &name) {
+                                Ok(m) => m,
+                                Err(e) => emit_error_and_exit(
+                                    refusal(
+                                        "rule-eval-error",
+                                        &e.to_string(),
+                                        None,
+                                        vec![RemediationEntry {
+                                            command: format!("dont rules show {name}"),
+                                            description: "Inspect the rule source".to_string(),
+                                        }],
+                                    ),
+                                    vec![],
+                                    1,
+                                ),
+                            }
+                        }
+                    };
+
+                    let result = RuleTestResult {
+                        severity: severity_label(engine.severity(&name)),
+                        rule_name: name,
+                        matches: matches
+                            .into_iter()
+                            .map(|m| RuleMatchView {
+                                entity_id: m.entity_id,
+                                detail: m.detail,
+                            })
+                            .collect(),
+                    };
+                    emit_json(&Envelope::success("rule_result", result, vec![], vec![]));
+                }
+            }
         }
     }
 }

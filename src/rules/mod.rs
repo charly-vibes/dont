@@ -13,6 +13,16 @@ pub mod term_nonfunctional_label;
 pub mod ungrounded;
 pub mod unresolved_terms;
 
+pub const SHIPPED_RULES: &[&str] = &[
+    "ungrounded",
+    "unresolved-terms",
+    "stale-cascade",
+    "lockable",
+    "correlated-error",
+    "dangling-definition",
+    "term-nonfunctional-label",
+];
+
 #[derive(Debug, Clone)]
 pub struct RuleMatch {
     pub entity_id: String,
