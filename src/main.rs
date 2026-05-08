@@ -24,10 +24,39 @@ use dont::store::{
 
 thread_local! {
     static HUMAN_MODE: Cell<bool> = const { Cell::new(false) };
+    static PLAIN_MODE: Cell<bool> = const { Cell::new(false) };
 }
 
 fn human_mode() -> bool {
     HUMAN_MODE.with(|m| m.get())
+}
+
+fn color_enabled() -> bool {
+    use std::io::IsTerminal;
+    if PLAIN_MODE.with(|m| m.get()) {
+        return false;
+    }
+    if std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty()) {
+        return false;
+    }
+    if std::env::var("CLICOLOR_FORCE").ok().as_deref() == Some("1") {
+        return true;
+    }
+    std::io::stdout().is_terminal()
+}
+
+fn colorize_status(status: &str) -> String {
+    if !color_enabled() {
+        return status.to_string();
+    }
+    match status {
+        "unverified" => format!("\x1b[33m{status}\x1b[0m"),
+        "doubted" => format!("\x1b[31m{status}\x1b[0m"),
+        "verified" => format!("\x1b[32m{status}\x1b[0m"),
+        "locked" => format!("\x1b[36m{status}\x1b[0m"),
+        "ignored" => format!("\x1b[2m{status}\x1b[0m"),
+        _ => status.to_string(),
+    }
 }
 
 #[derive(Debug, Parser)]
@@ -374,7 +403,7 @@ fn format_human(v: &Value) -> String {
             let statement = data["statement"].as_str().unwrap_or("?");
             let has_tx = v["meta"]["tx"].is_number();
             if has_tx {
-                format!("{status}  {id}\n  {statement}")
+                format!("{}  {id}\n  {statement}", colorize_status(status))
             } else {
                 format_claim_detail(data)
             }
@@ -386,7 +415,7 @@ fn format_human(v: &Value) -> String {
             let curie = data["curie"].as_str().unwrap_or("?");
             let has_tx = v["meta"]["tx"].is_number();
             if has_tx {
-                format!("{status}  {id}  {curie}")
+                format!("{}  {id}  {curie}", colorize_status(status))
             } else {
                 format_term_detail(data)
             }
@@ -414,7 +443,8 @@ fn format_claims_list(data: &Value) -> String {
             let status = item["status"].as_str().unwrap_or("?");
             let stmt = item["statement"].as_str().unwrap_or("?");
             let truncated = if stmt.len() > 70 { &stmt[..70] } else { stmt };
-            format!("{status:<12}  {id}  {truncated}")
+            let pad = " ".repeat(12usize.saturating_sub(status.len()));
+            format!("{}{}  {id}  {truncated}", colorize_status(status), pad)
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -434,7 +464,8 @@ fn format_terms_list(data: &Value) -> String {
             let id = item["id"].as_str().unwrap_or("?");
             let status = item["status"].as_str().unwrap_or("?");
             let curie = item["curie"].as_str().unwrap_or("?");
-            format!("{status:<12}  {id}  {curie}")
+            let pad = " ".repeat(12usize.saturating_sub(status.len()));
+            format!("{}{}  {id}  {curie}", colorize_status(status), pad)
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -464,8 +495,9 @@ fn format_claim_detail(data: &Value) -> String {
         _ => "    (none)".to_string(),
     };
     let depends = data["depends_on"].as_array();
+    let colored_status = colorize_status(status);
     let mut out = format!(
-        "{id}\n  status:     {status}\n  statement:  {statement}\n  evidence:\n{evidence_str}\n  created:    {created}"
+        "{id}\n  status:     {colored_status}\n  statement:  {statement}\n  evidence:\n{evidence_str}\n  created:    {created}"
     );
     if let Some(deps) = depends {
         if !deps.is_empty() {
@@ -481,7 +513,8 @@ fn format_term_detail(data: &Value) -> String {
     let status = data["status"].as_str().unwrap_or("?");
     let curie = data["curie"].as_str().unwrap_or("?");
     let definition = data["definition"].as_str().unwrap_or("(none)");
-    let mut out = format!("{id}  {curie}\n  status:      {status}\n  definition:  {definition}");
+    let colored_status = colorize_status(status);
+    let mut out = format!("{id}  {curie}\n  status:      {colored_status}\n  definition:  {definition}");
     if let Some(label) = data["label"].as_str() {
         if !label.is_empty() {
             out.push_str(&format!("\n  label:       {label}"));
@@ -1839,8 +1872,11 @@ fn main() {
         set_author(a);
     }
 
-    if cli.human && !cli.json {
+    if !cli.json {
         HUMAN_MODE.with(|m| m.set(true));
+    }
+    if cli.plain && !cli.json {
+        PLAIN_MODE.with(|m| m.set(true));
     }
 
     // --version [--json]

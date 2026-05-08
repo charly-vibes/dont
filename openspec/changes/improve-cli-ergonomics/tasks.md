@@ -4,8 +4,8 @@
 - [ ] 1.3 Update help and tutorial documentation to reflect the new naming convention
 
 ## 2. Human-Readable Output Mode
-- [ ] 2.1 Implement a default human-mode output formatter for all subcommands
-- [ ] 2.2 Respect `--json` and `--plain` flags as per `dont-cli-surface` requirements
+- [x] 2.1 Implement a default human-mode output formatter for all subcommands
+- [x] 2.2 Respect `--json` and `--plain` flags as per `dont-cli-surface` requirements
 - [ ] 2.3 Ensure structured evidence (from `add-evidence-locators`) is rendered clearly in human-mode
 
 ## 3. Core Lifecycle Accessibility (Hypotheses & Atoms)
