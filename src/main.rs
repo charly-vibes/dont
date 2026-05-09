@@ -3479,6 +3479,8 @@ fn main() {
             let mut ac_compromised = 0u32;
             let mut ac_dangling = 0u32;
             let mut ac_unresolved = 0u32;
+            let mut ac_drifted_evidence = 0u32;
+            let project_root = project_root_from_store(&project.store);
             for claim in &claims {
                 match claim.status {
                     StoreStatus::Unverified => unverified += 1,
@@ -3503,6 +3505,15 @@ fn main() {
                         _ => {}
                     }
                 }
+                let projected = project_evidence(collect_evidence(claim), &project_root);
+                if projected.iter().any(|e| {
+                    e.get("audit")
+                        .and_then(|a| a.get("status"))
+                        .and_then(|s| s.as_str())
+                        == Some("drifted")
+                }) {
+                    ac_drifted_evidence += 1;
+                }
             }
             for term in &terms {
                 match term.status {
@@ -3518,6 +3529,16 @@ fn main() {
                     StoreStatus::Verified => verified += 1,
                     StoreStatus::Ignored => ignored += 1,
                     StoreStatus::Locked => locked += 1,
+                }
+                let projected =
+                    project_evidence(collect_term_evidence(term), &project_root);
+                if projected.iter().any(|e| {
+                    e.get("audit")
+                        .and_then(|a| a.get("status"))
+                        .and_then(|s| s.as_str())
+                        == Some("drifted")
+                }) {
+                    ac_drifted_evidence += 1;
                 }
             }
             let payload = json!({
@@ -3535,6 +3556,7 @@ fn main() {
                     "compromised_support": ac_compromised,
                     "dangling_dependency": ac_dangling,
                     "unresolved_term": ac_unresolved,
+                    "drifted_evidence": ac_drifted_evidence,
                 },
                 "rules": { "strict": prime_config.rules.strict, "warn": prime_config.rules.warn },
                 "ontologies": [],

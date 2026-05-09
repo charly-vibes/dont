@@ -87,6 +87,16 @@ fn verify_evidence(root: &Path, id: &str) -> Value {
     serde_json::from_slice(&out).unwrap()
 }
 
+fn prime(root: &Path) -> Value {
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", root.join(".dont"))
+        .output()
+        .unwrap()
+        .stdout;
+    serde_json::from_slice(&out).unwrap()
+}
+
 fn why(root: &Path, id: &str) -> Value {
     let out = dont()
         .args(["why", id, "--json"])
@@ -317,4 +327,33 @@ fn verify_evidence_reports_missing_line_span_for_repo_locator() {
     assert_eq!(result["outcome"], "unresolved");
     assert_eq!(result["locator"]["path"], "README.md");
     assert!(result["detail"].as_str().unwrap().contains("line span"));
+}
+
+#[test]
+fn prime_counts_drifted_evidence_in_assessment_counts() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    init_project(&root);
+    std::fs::write(root.join("README.md"), "original content\n").unwrap();
+
+    let id = conclude_claim(&root, "README has original content");
+    dismiss_file(&root, &id, "README.md", "1");
+
+    // Before drift: drifted_evidence should be 0
+    let v = prime(&root);
+    assert_eq!(
+        v["data"]["assessment_counts"]["drifted_evidence"], 0,
+        "no drift yet: {v}"
+    );
+
+    // Mutate the file so the fingerprint drifts
+    std::fs::write(root.join("README.md"), "changed content\n").unwrap();
+
+    // After drift: drifted_evidence should be 1
+    let v = prime(&root);
+    assert_eq!(
+        v["data"]["assessment_counts"]["drifted_evidence"], 1,
+        "one drifted claim: {v}"
+    );
 }
