@@ -199,3 +199,116 @@ fn hedges_rules() {
         "expected no term-nonfunctional-label warning, got: {warnings3:?}"
     );
 }
+
+// --- [project] [output] [storage] config blocks ---
+
+#[test]
+fn config_project_output_storage_blocks_parse_without_error() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    // Overwrite config with all three blocks explicitly set
+    let config_path = dir.path().join("config.toml");
+    fs::write(
+        &config_path,
+        r#"[project]
+name = "test-project"
+mode = "permissive"
+
+[output]
+default_format = "json"
+
+[storage]
+busy_retry_attempts = 3
+busy_retry_base_ms = 50
+"#,
+    )
+    .unwrap();
+
+    // Any command should succeed without error — config is valid
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+}
+
+#[test]
+fn config_unknown_keys_emit_warning_not_failure() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    // Add an unknown top-level key — should not cause a parse failure
+    append_config(
+        &dir,
+        "[project]\nname = \"dont-project\"\nunknown_future_key = \"value\"",
+    );
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true, "unknown config key should not cause failure");
+}
+
+#[test]
+fn prime_reflects_mode_from_project_config() {
+    let dir = TempDir::new().unwrap();
+    // Init in strict mode
+    dont()
+        .args(["init", "--strict", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["mode"], "strict");
+}
+
+#[test]
+fn mode_change_via_config_is_recorded_in_event_log() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    // Change config from permissive to strict
+    let config_path = dir.path().join("config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    let updated = config.replace("mode = \"permissive\"", "mode = \"strict\"");
+    fs::write(&config_path, updated).unwrap();
+
+    // Any command should detect the mode change and record it
+    dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    // Check events.jsonl for mode_changed event
+    let events_path = dir.path().join("events.jsonl");
+    let events = fs::read_to_string(&events_path).unwrap();
+    assert!(
+        events.contains("mode_changed") || events.contains("mode.changed"),
+        "events.jsonl should contain a mode change event after config update, got:\n{events}"
+    );
+}

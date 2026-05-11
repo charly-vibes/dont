@@ -221,6 +221,37 @@ impl Project {
         toml::from_str(&text).unwrap_or_default()
     }
 
+    /// Detect if the config.toml mode differs from the last recorded mode in events.jsonl
+    /// and append a `mode.changed` event if so.
+    pub fn check_and_record_mode_change(&self) {
+        let current_mode = self.mode();
+        if current_mode == "unknown" {
+            return;
+        }
+        let events_path = self.dont_dir.join("events.jsonl");
+        let events_text = fs::read_to_string(&events_path).unwrap_or_default();
+        let last_recorded_mode = events_text
+            .lines()
+            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .filter_map(|v| v.get("mode").and_then(|m| m.as_str()).map(|s| s.to_string()))
+            .last();
+        if let Some(recorded) = last_recorded_mode {
+            if recorded != current_mode {
+                let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+                let event = json!({
+                    "kind": "mode.changed",
+                    "from": recorded,
+                    "to": current_mode,
+                    "mode": current_mode,
+                    "created_at": created_at,
+                });
+                let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
+                let _ = fs::OpenOptions::new().append(true).open(&events_path)
+                    .and_then(|mut f| { use std::io::Write; f.write_all(line.as_bytes()) });
+            }
+        }
+    }
+
     /// Initialize a new project. Returns `AlreadyInitialised` if `.dont/` already present.
     pub fn init(cwd: &Path, mode: ProjectMode) -> Result<Self, ProjectError> {
         let dont_dir = if let Ok(dir) = std::env::var("DONT_DIR") {

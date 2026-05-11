@@ -848,7 +848,10 @@ fn remediation_for_project_error(err: &ProjectError) -> Vec<RemediationEntry> {
 
 fn open_project_or_exit() -> Project {
     match Project::open(&cwd()) {
-        Ok(p) => p,
+        Ok(p) => {
+            p.check_and_record_mode_change();
+            p
+        }
         Err(err) => {
             let (code, message, exit) = project_error_to_exit(&err);
             let remediation = remediation_for_project_error(&err);

@@ -5,6 +5,12 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
+    pub project: ProjectConfig,
+    #[serde(default)]
+    pub output: OutputConfig,
+    #[serde(default)]
+    pub storage: StorageConfig,
+    #[serde(default)]
     pub import: ImportConfig,
     #[serde(default)]
     pub verify_evidence: VerifyEvidenceConfig,
@@ -14,6 +20,23 @@ pub struct Config {
     pub trust: TrustConfig,
     #[serde(default)]
     pub rules: RulesConfig,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ProjectConfig {
+    pub name: Option<String>,
+    pub mode: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct OutputConfig {
+    pub default_format: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct StorageConfig {
+    pub busy_retry_attempts: Option<u32>,
+    pub busy_retry_base_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Default)]
