@@ -235,19 +235,37 @@ impl Project {
             .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
             .filter_map(|v| v.get("mode").and_then(|m| m.as_str()).map(|s| s.to_string()))
             .last();
-        if let Some(recorded) = last_recorded_mode {
-            if recorded != current_mode {
-                let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
-                let event = json!({
-                    "kind": "mode.changed",
-                    "from": recorded,
-                    "to": current_mode,
-                    "mode": current_mode,
-                    "created_at": created_at,
-                });
-                let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
-                let _ = fs::OpenOptions::new().append(true).open(&events_path)
-                    .and_then(|mut f| { use std::io::Write; f.write_all(line.as_bytes()) });
+        let Some(recorded) = last_recorded_mode else {
+            // No mode event found — project predates mode tracking. Write a baseline
+            // so future changes are detectable without false-positives.
+            let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+            let event = json!({
+                "kind": "mode.baseline",
+                "mode": current_mode,
+                "created_at": created_at,
+            });
+            let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
+            if let Err(e) = fs::OpenOptions::new().append(true).open(&events_path)
+                .and_then(|mut f| { use std::io::Write; f.write_all(line.as_bytes()) })
+            {
+                eprintln!("dont: warning: could not write mode baseline event: {e}");
+            }
+            return;
+        };
+        if recorded != current_mode {
+            let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+            let event = json!({
+                "kind": "mode.changed",
+                "from": recorded,
+                "to": current_mode,
+                "mode": current_mode,
+                "created_at": created_at,
+            });
+            let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
+            if let Err(e) = fs::OpenOptions::new().append(true).open(&events_path)
+                .and_then(|mut f| { use std::io::Write; f.write_all(line.as_bytes()) })
+            {
+                eprintln!("dont: warning: could not write mode.changed event: {e}");
             }
         }
     }

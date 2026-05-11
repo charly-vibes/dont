@@ -1607,9 +1607,24 @@ fn check_git_provenance(
     let line = stdout.lines().next().unwrap_or("");
 
     if line.is_empty() {
-        // Clean committed file — get the blob SHA
+        // HEAD:<path> requires a path relative to the git root (not project_root),
+        // and must use forward slashes even on Windows.
+        let toplevel_out = std::process::Command::new("git")
+            .args(["-C", &root, "rev-parse", "--show-toplevel"])
+            .output();
+        let git_root = match toplevel_out {
+            Ok(o) if o.status.success() => {
+                std::path::PathBuf::from(String::from_utf8_lossy(&o.stdout).trim().to_string())
+            }
+            _ => return None,
+        };
+        let abs_path = project_root.join(rel_path);
+        let git_rel = match abs_path.strip_prefix(&git_root) {
+            Ok(p) => p.to_string_lossy().replace('\\', "/"),
+            Err(_) => return None,
+        };
         let sha_out = std::process::Command::new("git")
-            .args(["-C", &root, "rev-parse", &format!("HEAD:{rel}")])
+            .args(["-C", &root, "rev-parse", &format!("HEAD:{git_rel}")])
             .output();
         return match sha_out {
             Ok(o) if o.status.success() => {
@@ -3856,7 +3871,7 @@ fn main() {
                 let mut script_buf = Vec::new();
                 clap_complete::generate(shell, &mut cmd, "dont", &mut script_buf);
                 let script = String::from_utf8_lossy(&script_buf);
-                let shell_name = format!("{shell:?}").to_lowercase();
+                let shell_name = shell.to_string();
                 let payload = json!({
                     "shell": shell_name,
                     "script": script.as_ref(),
