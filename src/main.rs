@@ -3852,7 +3852,19 @@ fn main() {
 
         Command::Completions { shell } => {
             let mut cmd = Cli::command();
-            clap_complete::generate(shell, &mut cmd, "dont", &mut std::io::stdout());
+            if !human_mode() {
+                let mut script_buf = Vec::new();
+                clap_complete::generate(shell, &mut cmd, "dont", &mut script_buf);
+                let script = String::from_utf8_lossy(&script_buf);
+                let shell_name = format!("{shell:?}").to_lowercase();
+                let payload = json!({
+                    "shell": shell_name,
+                    "script": script.as_ref(),
+                });
+                emit_json(&Envelope::success("dont-completions", payload, vec![], vec![]));
+            } else {
+                clap_complete::generate(shell, &mut cmd, "dont", &mut std::io::stdout());
+            }
         }
 
         Command::Ground {

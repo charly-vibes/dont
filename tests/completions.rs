@@ -1,5 +1,6 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use serde_json::Value;
 
 fn dont() -> Command {
     Command::cargo_bin("dont").unwrap()
@@ -83,4 +84,42 @@ fn completions_bash_includes_forget_not_lock() {
         script.contains("forget"),
         "bash completions should include 'forget' command"
     );
+}
+
+#[test]
+fn completions_bash_json_returns_envelope_with_script() {
+    let output = dont()
+        .args(["completions", "bash", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["shell"], "bash");
+    let script = v["data"]["script"].as_str().unwrap();
+    assert!(script.contains("conclude"), "script should include conclude");
+}
+
+#[test]
+fn completions_json_envelope_is_parseable_for_all_shells() {
+    for shell in &["bash", "zsh", "fish", "powershell", "elvish"] {
+        let output = dont()
+            .args(["completions", shell, "--json"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(v["ok"], true, "shell {shell} should return ok envelope");
+        assert_eq!(v["data"]["shell"], *shell);
+        assert!(
+            v["data"]["script"].as_str().map(|s| !s.is_empty()).unwrap_or(false),
+            "shell {shell} script should be non-empty"
+        );
+    }
 }
