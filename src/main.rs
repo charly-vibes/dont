@@ -1573,6 +1573,96 @@ fn check_evidence_uri(
     }
 }
 
+/// Check git status of a repo-relative path and return `Some("git:<sha>")` if the file is
+/// committed and clean, `None` if the project is not inside a git repo, or call
+/// `emit_error_and_exit` if the file is untracked, staged, or dirty.
+fn check_git_provenance(
+    rel_path: &std::path::Path,
+    project_root: &std::path::Path,
+    entity_id: Option<&str>,
+    cmd_prefix: &str,
+) -> Option<String> {
+    let root = project_root.to_string_lossy();
+    let rel = rel_path.to_string_lossy();
+
+    let status = std::process::Command::new("git")
+        .args(["-C", &root, "status", "--porcelain", &rel])
+        .output();
+
+    let output = match status {
+        Ok(o) if o.status.success() => o,
+        _ => return None, // not a git repo or git unavailable
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let line = stdout.lines().next().unwrap_or("");
+
+    if line.is_empty() {
+        // Clean committed file — get the blob SHA
+        let sha_out = std::process::Command::new("git")
+            .args(["-C", &root, "rev-parse", &format!("HEAD:{rel}")])
+            .output();
+        return match sha_out {
+            Ok(o) if o.status.success() => {
+                let sha = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                Some(format!("git:{sha}"))
+            }
+            _ => None,
+        };
+    }
+
+    let mut chars = line.chars();
+    let index_status = chars.next().unwrap_or(' ');
+    let worktree_status = chars.next().unwrap_or(' ');
+
+    if index_status == '?' {
+        emit_error_and_exit(
+            refusal(
+                "untracked-file",
+                "file is not tracked by git; commit it before using as evidence",
+                entity_id,
+                vec![RemediationEntry {
+                    command: format!("git add {rel} && git commit"),
+                    description: "Track and commit the file first".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        );
+    }
+
+    if worktree_status != ' ' {
+        emit_error_and_exit(
+            refusal(
+                "dirty-file",
+                "file has unstaged modifications; SHA would not match current content",
+                entity_id,
+                vec![RemediationEntry {
+                    command: format!("{cmd_prefix} --file <committed-path>"),
+                    description: "Commit the modifications first".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        );
+    }
+
+    // index_status is non-space, non-? → staged but not committed
+    emit_error_and_exit(
+        refusal(
+            "staged-not-committed",
+            "file is staged but not yet committed; no SHA exists to reference",
+            entity_id,
+            vec![RemediationEntry {
+                command: "git commit".to_string(),
+                description: "Commit the staged file first".to_string(),
+            }],
+        ),
+        vec![],
+        1,
+    );
+}
+
 /// Validate and resolve a `--file` locator into a `Value` suitable for the evidence array.
 /// Calls `emit_error_and_exit` on any validation failure.
 fn resolve_file_locator(
@@ -1615,6 +1705,7 @@ fn resolve_file_locator(
             1,
         ),
     };
+    let commit_ref = check_git_provenance(&normalized, project_root, entity_id, cmd_prefix);
     let line_span = match lines.map(parse_line_span) {
         Some(Ok(span)) => Some(span),
         Some(Err(msg)) => emit_error_and_exit(
@@ -1665,6 +1756,9 @@ fn resolve_file_locator(
             "fingerprint".to_string(),
             Value::String(fingerprint_text(fingerprint_source)),
         );
+        if let Some(cref) = commit_ref {
+            obj.insert("commit_ref".to_string(), Value::String(cref));
+        }
     }
     locator
 }

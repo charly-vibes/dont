@@ -337,3 +337,109 @@ fn flag_no_evidence_without_file_flag_refused() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "no-evidence");
 }
+
+// --- Git provenance helpers ---
+
+fn init_git_repo(dir: &TempDir) {
+    let run = |args: &[&str]| {
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+    };
+    run(&["init"]);
+    run(&["config", "user.email", "test@test.com"]);
+    run(&["config", "user.name", "Test"]);
+}
+
+fn git_add_commit(dir: &TempDir, file: &str) {
+    let run = |args: &[&str]| {
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+    };
+    run(&["add", file]);
+    run(&["commit", "-m", "add test file"]);
+}
+
+fn git_stage(dir: &TempDir, file: &str) {
+    std::process::Command::new("git")
+        .args(["add", file])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+}
+
+// --- Git provenance tests ---
+
+#[test]
+fn flag_file_locator_includes_commit_ref() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    init_git_repo(&dir);
+    std::fs::write(dir.path().join("README.md"), "API docs\n").unwrap();
+    git_add_commit(&dir, "README.md");
+    let id = conclude_claim(&dir, "README documents the API");
+    let out = flag_file(&dir, &id, &["--file", "README.md"]);
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true, "flag --file should succeed for clean committed file: {v}");
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    let locator = evidence.iter().find(|e| e.is_object()).expect("should have locator");
+    let commit_ref = locator["commit_ref"].as_str().expect("commit_ref must be present for git repo");
+    assert!(commit_ref.starts_with("git:"), "commit_ref should start with 'git:': {commit_ref}");
+    assert_eq!(commit_ref.len(), 44, "commit_ref should be 'git:' + 40-char SHA: {commit_ref}");
+}
+
+#[test]
+fn flag_file_untracked_rejected() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    init_git_repo(&dir);
+    // initial commit so HEAD exists
+    std::fs::write(dir.path().join("initial.md"), "seed\n").unwrap();
+    git_add_commit(&dir, "initial.md");
+    // untracked file
+    std::fs::write(dir.path().join("untracked.md"), "not tracked\n").unwrap();
+    let id = conclude_claim(&dir, "claim needing file evidence");
+    let out = flag_file(&dir, &id, &["--file", "untracked.md"]);
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "untracked file should be rejected: {v}");
+    assert_eq!(v["data"]["code"], "untracked-file");
+}
+
+#[test]
+fn flag_file_staged_not_committed_rejected() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    init_git_repo(&dir);
+    // initial commit so HEAD exists
+    std::fs::write(dir.path().join("initial.md"), "seed\n").unwrap();
+    git_add_commit(&dir, "initial.md");
+    // staged but not committed
+    std::fs::write(dir.path().join("staged.md"), "staged content\n").unwrap();
+    git_stage(&dir, "staged.md");
+    let id = conclude_claim(&dir, "claim needing file evidence");
+    let out = flag_file(&dir, &id, &["--file", "staged.md"]);
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "staged-not-committed file should be rejected: {v}");
+    assert_eq!(v["data"]["code"], "staged-not-committed");
+}
+
+#[test]
+fn flag_file_dirty_rejected() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    init_git_repo(&dir);
+    std::fs::write(dir.path().join("dirty.md"), "original content\n").unwrap();
+    git_add_commit(&dir, "dirty.md");
+    // modify without staging
+    std::fs::write(dir.path().join("dirty.md"), "modified content\n").unwrap();
+    let id = conclude_claim(&dir, "claim needing file evidence");
+    let out = flag_file(&dir, &id, &["--file", "dirty.md"]);
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "dirty file should be rejected: {v}");
+    assert_eq!(v["data"]["code"], "dirty-file");
+}
