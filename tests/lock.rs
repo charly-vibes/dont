@@ -105,7 +105,7 @@ fn lock_verified_claim_with_sufficient_hypotheses_and_evidence_succeeds() {
     seed_assessed_hypotheses(&dir, &id, 3);
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -127,7 +127,7 @@ fn lock_unverified_claim_is_refused() {
     let id = conclude_claim(&dir, "This claim is not verified yet");
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -150,13 +150,13 @@ fn lock_already_locked_claim_is_refused() {
     seed_assessed_hypotheses(&dir, &id, 3);
 
     dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -179,7 +179,7 @@ fn lock_claim_with_too_few_hypotheses_is_refused_by_lockable_gate() {
     seed_assessed_hypotheses(&dir, &id, 2);
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -207,7 +207,7 @@ fn lock_claim_with_too_little_evidence_is_refused_by_lockable_gate() {
     seed_assessed_hypotheses(&dir, &id, 3);
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -258,7 +258,7 @@ fn lock_claim_with_unverified_term_dependency_is_refused_by_lockable_gate() {
     seed_assessed_hypotheses(&dir, &id, 3);
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -284,7 +284,7 @@ fn lock_term_is_refused_as_wrong_entity_kind() {
     let id = define_term(&dir, "WB:P001");
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -295,4 +295,49 @@ fn lock_term_is_refused_as_wrong_entity_kind() {
     let v: Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "wrong-entity-kind");
+}
+
+#[test]
+fn forget_command_succeeds_where_lock_did() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "Claim to be permanently preserved via forget");
+    dismiss_claim(&dir, &id, "https://source-one.example/evidence");
+    dismiss_claim(&dir, &id, "https://source-two.example/evidence");
+    seed_assessed_hypotheses(&dir, &id, 3);
+
+    let output = dont()
+        .args(["forget", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["status"], "locked");
+}
+
+#[test]
+fn lock_command_is_rejected_with_forget_suggestion() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "Claim via deprecated lock command");
+
+    let output = dont()
+        .args(["lock", &id])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8_lossy(&output);
+    assert!(
+        stderr.contains("dont forget"),
+        "stderr should suggest 'dont forget', got: {stderr}"
+    );
 }

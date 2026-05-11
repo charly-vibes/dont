@@ -235,7 +235,7 @@ fn lock_stdin_processes_multiple_ids() {
 
     let input = format!("{id1}\n{id2}\n");
     let raw = dont()
-        .args(["lock", "-", "--json"])
+        .args(["forget", "-", "--json"])
         .env("DONT_DIR", dir.path())
         .write_stdin(input)
         .output()

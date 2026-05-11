@@ -133,7 +133,7 @@ dont trace <id>                                       # diagnose blocker paths
 dont list                                             # list all claims
 ```
 
-`dont ground` is the preferred fast path when you already have the claim and evidence in hand. The underlying model is still conclude → trust → dismiss → lock: `ground` composes `conclude` and `dismiss` rather than bypassing the core lifecycle.
+`dont ground` is the preferred fast path when you already have the claim and evidence in hand. The underlying model is still conclude → trust → dismiss → forget: `ground` composes `conclude` and `dismiss` rather than bypassing the core lifecycle.
 
 ## Grounding claims in repository evidence
 

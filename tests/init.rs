@@ -45,7 +45,7 @@ fn init_agents_teaches_repository_grounding_workflow() {
         "AGENTS.md should teach ground as the fast path for repository facts: {agents}"
     );
     assert!(
-        agents.contains("underlying model is still conclude → trust → dismiss → lock"),
+        agents.contains("underlying model is still conclude → trust → dismiss → forget"),
         "AGENTS.md should preserve the core verb model: {agents}"
     );
     assert!(

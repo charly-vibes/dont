@@ -169,8 +169,8 @@ enum Command {
         id: String,
     },
 
-    /// Promote a verified claim to locked when the lockable gate is met.
-    Lock {
+    /// Permanently preserve a verified claim when the lockable gate is met. Read as 'dont forget' = 'do not forget it'.
+    Forget {
         /// Claim identifier.
         id: String,
     },
@@ -2155,6 +2155,15 @@ fn nonfunctional_label_warning(label: &str, cfg: &TermNonfunctionalConfig) -> Op
 }
 
 fn main() {
+    // Detect removed "lock" subcommand and suggest "forget" before clap parses.
+    let first_subcmd = std::env::args()
+        .skip(1)
+        .find(|a| !a.starts_with('-'));
+    if first_subcmd.as_deref() == Some("lock") {
+        eprintln!("error: unknown command 'lock'. Did you mean 'dont forget'?");
+        process::exit(1);
+    }
+
     let cli = Cli::parse();
 
     // Resolve author: explicit flag > $DONT_AUTHOR > $USER
@@ -2607,7 +2616,7 @@ fn main() {
             }
         }
 
-        Command::Lock { id } => {
+        Command::Forget { id } => {
             let project = open_project_or_exit();
             run_per_entity(id, |id| {
                 if id.starts_with("term:") {

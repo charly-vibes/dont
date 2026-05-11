@@ -227,7 +227,7 @@ fn lock_reachable_via_cli_hypothesis_commands() {
     }
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
