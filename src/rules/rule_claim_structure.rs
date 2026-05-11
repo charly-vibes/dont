@@ -3,6 +3,8 @@ use crate::store::{Store, StoreError, StoreStatus};
 
 use super::RuleMatch;
 
+pub const EXPLANATION: &str = include_str!("rule_claim_structure.md");
+
 /// Fires when a tagged rule claim is missing mandatory slot markers.
 ///
 /// Off by default (`config.enabled = false`). Requires `tag_term_id` to be set

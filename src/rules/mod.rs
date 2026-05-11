@@ -25,6 +25,21 @@ pub const SHIPPED_RULES: &[&str] = &[
     "rule-claim-structure",
 ];
 
+/// Returns the embedded prose explanation for a shipped rule, or `None` if unknown.
+pub fn explain(rule_name: &str) -> Option<&'static str> {
+    match rule_name {
+        "ungrounded" => Some(ungrounded::EXPLANATION),
+        "unresolved-terms" => Some(unresolved_terms::EXPLANATION),
+        "stale-cascade" => Some(stale_cascade::EXPLANATION),
+        "lockable" => Some(lockable::EXPLANATION),
+        "correlated-error" => Some(correlated_error::EXPLANATION),
+        "dangling-definition" => Some(dangling_definition::EXPLANATION),
+        "term-nonfunctional-label" => Some(term_nonfunctional_label::EXPLANATION),
+        "rule-claim-structure" => Some(rule_claim_structure::EXPLANATION),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RuleMatch {
     pub entity_id: String,

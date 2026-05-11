@@ -4,6 +4,8 @@ use serde_json::Value;
 
 use crate::store::{EventRecord, Store, StoreError};
 
+pub const EXPLANATION: &str = include_str!("correlated_error.md");
+
 use super::{source_key, RuleMatch};
 
 /// Fires when a claim's evidence items come from fewer unique sources than the total count,

@@ -2,6 +2,8 @@ use crate::store::{Store, StoreError};
 
 use super::RuleMatch;
 
+pub const EXPLANATION: &str = include_str!("dangling_definition.md");
+
 /// Fires when a claim has a `term:uuid`-format dependency that can't be resolved by ID.
 ///
 /// A dangling definition is an explicit ID reference to a term that no longer exists

@@ -2,6 +2,8 @@ use crate::store::{Store, StoreError};
 
 use super::RuleMatch;
 
+pub const EXPLANATION: &str = include_str!("ungrounded.md");
+
 /// Fires when a claim depends on a CURIE reference that can't be resolved to a known term.
 ///
 /// Only fires for CURIE-format deps (not `term:uuid` ID references — see `dangling_definition`).

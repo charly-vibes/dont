@@ -292,6 +292,12 @@ enum Command {
         #[command(subcommand)]
         action: RulesAction,
     },
+
+    /// Show the prose explanation for a rule: what it checks, why it matters, and how to satisfy it.
+    Explain {
+        /// Rule name (e.g. ungrounded, lockable, correlated-error).
+        rule: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -4497,6 +4503,46 @@ fn main() {
                     };
                     emit_json(&Envelope::success("rule_result", result, vec![], vec![]));
                 }
+            }
+        }
+
+        Command::Explain { rule } => {
+            let project = open_project_or_exit();
+            let rules_dir = project.dont_dir.join("rules");
+            let config = project.load_config();
+            let engine = dont::rules::RuleEngine::new(
+                rules_dir,
+                config.rules,
+                project.mode() == "strict",
+            );
+
+            if let Some(prose) = dont::rules::explain(&rule) {
+                let severity = severity_label(engine.severity(&rule));
+                let payload = json!({
+                    "rule_name": rule,
+                    "severity": severity,
+                    "source": "shipped",
+                    "explanation": prose,
+                });
+                if human_mode() {
+                    println!("{}", prose.trim());
+                } else {
+                    emit_json(&Envelope::success("dont-explain", payload, vec![], vec![]));
+                }
+            } else {
+                emit_error_and_exit(
+                    refusal(
+                        "rule-not-found",
+                        &format!("no rule named '{rule}'"),
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont rules list".to_string(),
+                            description: "List available rules".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
             }
         }
     }

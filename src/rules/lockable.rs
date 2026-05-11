@@ -4,6 +4,8 @@ use crate::store::{ClaimRecord, EventRecord, HypothesisRecord, Store, StoreError
 
 use super::{source_key, RuleMatch};
 
+pub const EXPLANATION: &str = include_str!("lockable.md");
+
 const MIN_ASSESSED_HYPOTHESES: usize = 3;
 const MIN_INDEPENDENT_EVIDENCE: usize = 2;
 

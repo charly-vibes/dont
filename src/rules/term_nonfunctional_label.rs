@@ -3,6 +3,8 @@ use crate::store::{Store, StoreError};
 
 use super::RuleMatch;
 
+pub const EXPLANATION: &str = include_str!("term_nonfunctional_label.md");
+
 /// Fires when a term's label matches a nonfunctional-label pattern from the config.
 ///
 /// Off by default (`config.enabled = false`). Pattern-driven via `[rules.term_nonfunctional]`.

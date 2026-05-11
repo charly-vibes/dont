@@ -2,6 +2,8 @@ use crate::store::{Store, StoreError};
 
 use super::RuleMatch;
 
+pub const EXPLANATION: &str = include_str!("unresolved_terms.md");
+
 /// Fires when any dependency reference (CURIE or `term:uuid`) can't be resolved.
 ///
 /// Always strict — blocks the verify/dismiss operation.

@@ -2,6 +2,8 @@ use crate::store::{Store, StoreError, StoreStatus};
 
 use super::RuleMatch;
 
+pub const EXPLANATION: &str = include_str!("stale_cascade.md");
+
 /// Fires when a claim depends on a term that is doubted or unverified (not yet verified).
 ///
 /// "Stale" is derived on demand — this rule does not persist any status. Cycle-safe
