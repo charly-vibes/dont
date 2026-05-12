@@ -229,4 +229,92 @@ mod rule_claim_structure {
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
     }
+
+    #[test]
+    fn whitespace_only_tagged_claim_fires_two_violations() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
+        store
+            .append_claim("   \n\t  ", &[term.id.clone()])
+            .unwrap();
+        let config = enabled_config(&term.id);
+        let matches = check(&store, &config).unwrap();
+        assert_eq!(matches.len(), 2, "expected both [TRIGGER] and [CONFIG]/[MODE] violations");
+        assert!(
+            matches.iter().any(|m| m.detail == "tagged rule claim is missing mandatory [TRIGGER] slot"),
+            "expected TRIGGER violation with exact message"
+        );
+        assert!(
+            matches.iter().any(|m| m.detail.contains("CONFIG/MODE slot")),
+            "expected CONFIG/MODE violation"
+        );
+    }
+
+    #[test]
+    fn unicode_in_claim_body_with_valid_slots_is_silent() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
+        store
+            .append_claim(
+                "règle-système: vérification\n[TRIGGER] quand X se produit\n[CONFIG] activé: oui",
+                &[term.id.clone()],
+            )
+            .unwrap();
+        let config = enabled_config(&term.id);
+        assert!(check(&store, &config).unwrap().is_empty());
+    }
+
+    #[test]
+    fn unicode_in_claim_body_without_slots_fires_two_violations() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
+        store
+            .append_claim("règle sans déclencheur ni configuration", &[term.id.clone()])
+            .unwrap();
+        let config = enabled_config(&term.id);
+        let matches = check(&store, &config).unwrap();
+        assert_eq!(matches.len(), 2, "expected both [TRIGGER] and [CONFIG]/[MODE] violations for unicode body");
+    }
+
+    #[test]
+    fn prose_use_of_trigger_text_suppresses_trigger_violation() {
+        // Documents known limitation: contains() match means prose "[TRIGGER]" counts as the slot.
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
+        store
+            .append_claim(
+                "The [TRIGGER] concept is explained here.\n[MODE] warn always",
+                &[term.id.clone()],
+            )
+            .unwrap();
+        let config = enabled_config(&term.id);
+        // Rule treats the prose [TRIGGER] as satisfying the slot requirement.
+        assert!(check(&store, &config).unwrap().is_empty());
+    }
+
+    #[test]
+    fn very_long_claim_body_does_not_panic() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
+        let long_body = "x".repeat(10_000);
+        store
+            .append_claim(&long_body, &[term.id.clone()])
+            .unwrap();
+        let config = enabled_config(&term.id);
+        let matches = check(&store, &config).unwrap();
+        assert_eq!(matches.len(), 2, "expected both violations on 10k-char body");
+        assert!(
+            matches.iter().any(|m| m.detail == "tagged rule claim is missing mandatory [TRIGGER] slot"),
+            "TRIGGER violation missing"
+        );
+        assert!(
+            matches.iter().any(|m| m.detail.contains("CONFIG/MODE slot")),
+            "CONFIG/MODE violation missing"
+        );
+    }
 }
