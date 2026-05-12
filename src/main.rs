@@ -4577,3 +4577,157 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod parse_line_span_tests {
+    use super::parse_line_span;
+
+    // Valid inputs
+    #[test]
+    fn single_line_number() {
+        assert_eq!(parse_line_span("42"), Ok((42, 42)));
+    }
+
+    #[test]
+    fn line_range() {
+        assert_eq!(parse_line_span("10-18"), Ok((10, 18)));
+    }
+
+    #[test]
+    fn single_line_one() {
+        assert_eq!(parse_line_span("1"), Ok((1, 1)));
+    }
+
+    #[test]
+    fn range_same_start_end() {
+        assert_eq!(parse_line_span("5-5"), Ok((5, 5)));
+    }
+
+    #[test]
+    fn leading_trailing_whitespace_trimmed() {
+        assert_eq!(parse_line_span(" 10 "), Ok((10, 10)));
+    }
+
+    // Invalid: zero-based lines
+    #[test]
+    fn zero_single_is_err() {
+        assert!(parse_line_span("0").is_err());
+    }
+
+    #[test]
+    fn zero_start_range_is_err() {
+        assert!(parse_line_span("0-5").is_err());
+    }
+
+    #[test]
+    fn zero_end_range_is_err() {
+        assert!(parse_line_span("1-0").is_err());
+    }
+
+    // Invalid: start > end
+    #[test]
+    fn start_greater_than_end_is_err() {
+        assert!(parse_line_span("10-5").is_err());
+    }
+
+    // Invalid: non-numeric content
+    #[test]
+    fn empty_string_is_err() {
+        assert!(parse_line_span("").is_err());
+    }
+
+    #[test]
+    fn alphabetic_is_err() {
+        assert!(parse_line_span("abc").is_err());
+    }
+
+    #[test]
+    fn alphanumeric_range_is_err() {
+        assert!(parse_line_span("10-x").is_err());
+    }
+
+    #[test]
+    fn decimal_is_err() {
+        assert!(parse_line_span("10.5").is_err());
+    }
+
+    // Invalid: negative numbers
+    #[test]
+    fn negative_single_is_err() {
+        // "-5" → split_once('-') → ("", "5") → "" parse fails
+        assert!(parse_line_span("-5").is_err());
+    }
+
+    #[test]
+    fn negative_end_is_err() {
+        // "10--2" → split_once('-') → ("10", "-2") → "-2" parse fails
+        assert!(parse_line_span("10--2").is_err());
+    }
+
+    // Invalid: structural
+    #[test]
+    fn dash_only_is_err() {
+        assert!(parse_line_span("-").is_err());
+    }
+
+    #[test]
+    fn missing_end_is_err() {
+        assert!(parse_line_span("1-").is_err());
+    }
+
+    #[test]
+    fn missing_start_is_err() {
+        assert!(parse_line_span("-1").is_err());
+    }
+
+    #[test]
+    fn triple_segment_is_err() {
+        // "1-2-3" → split_once gives ("1", "2-3") → "2-3".parse::<u32>() fails
+        assert!(parse_line_span("1-2-3").is_err());
+    }
+
+    // Invalid: overflow
+    #[test]
+    fn u32_overflow_is_err() {
+        assert!(parse_line_span("9999999999").is_err());
+    }
+
+    // Invalid: whitespace only
+    #[test]
+    fn whitespace_only_is_err() {
+        assert!(parse_line_span("   ").is_err());
+    }
+
+    // Error message quality
+    #[test]
+    fn invalid_number_error_contains_input() {
+        let err = parse_line_span("abc").unwrap_err();
+        assert!(err.contains("abc"), "error should mention the bad input: {err}");
+    }
+
+    #[test]
+    fn invalid_range_error_contains_input() {
+        let err = parse_line_span("10-x").unwrap_err();
+        assert!(err.contains("10-x"), "error should mention the bad input: {err}");
+    }
+
+    // Boundary values
+    #[test]
+    fn valid_u32_max() {
+        // u32::MAX should parse as a valid (if extreme) line number
+        assert_eq!(parse_line_span("4294967295"), Ok((4294967295, 4294967295)));
+    }
+
+    #[test]
+    fn leading_zeros_parsed_as_decimal() {
+        // Rust's u32 parse treats "01" as 1, not an error — document this behavior
+        assert_eq!(parse_line_span("01"), Ok((1, 1)));
+        assert_eq!(parse_line_span("01-02"), Ok((1, 2)));
+    }
+
+    #[test]
+    fn whitespace_around_dash_accepted() {
+        // split_once trims each segment; "10 - 20" → ("10 ", " 20") → (10, 20)
+        assert_eq!(parse_line_span("10 - 20"), Ok((10, 20)));
+    }
+}
