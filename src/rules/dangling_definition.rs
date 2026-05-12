@@ -54,11 +54,12 @@ mod dangling_definition {
     fn fires_when_term_id_dep_missing() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        store
+        let claim = store
             .append_claim("a claim", &["term:nonexistent-id".to_string()])
             .unwrap();
         let matches = check(&store).unwrap();
         assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].entity_id, claim.id);
         assert!(matches[0].detail.contains("term:nonexistent-id"));
     }
 
@@ -80,4 +81,26 @@ mod dangling_definition {
         store.append_claim("a claim", &[]).unwrap();
         assert!(check(&store).unwrap().is_empty());
     }
+
+    // Audit case 1: term defined but never referenced.
+    // Current rule only checks the "referenced but missing" direction; it has no reverse-index
+    // scan to detect unused definitions. This test documents the limitation — a term with zero
+    // incoming claim dependencies produces no violation (expected by current spec scope).
+    #[test]
+    fn defined_with_zero_references_not_detected() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        store.append_term("ns:unused-concept", "", None).unwrap();
+        // Rule fires zero violations — the unused definition is silent.
+        // A separate 'detect-unused-definitions' feature would be needed to catch this.
+        assert!(check(&store).unwrap().is_empty());
+    }
+
+    // Audit case 4: definition referenced in a comment is not structural.
+    // NOT APPLICABLE — rule only checks `depends_on` array (structured metadata).
+    // Comment text is not parsed or indexed; no test needed.
+
+    // Audit case 5: circular reference between two definitions.
+    // NOT APPLICABLE — data model prevents cycles: claims depend on terms, and terms have no
+    // `depends_on` field. Circular references are structurally impossible.
 }
