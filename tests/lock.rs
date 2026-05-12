@@ -321,6 +321,32 @@ fn forget_command_succeeds_where_lock_did() {
 }
 
 #[test]
+fn lock_nonexistent_claim_returns_not_found() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let output = dont()
+        .args(["forget", "claim:NONEXISTENT", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "claim-not-found");
+    assert!(
+        v["data"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("claim:NONEXISTENT"),
+        "error message should include the missing id"
+    );
+}
+
+#[test]
 fn lock_command_is_rejected_with_forget_suggestion() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
