@@ -4731,3 +4731,141 @@ mod parse_line_span_tests {
         assert_eq!(parse_line_span("10 - 20"), Ok((10, 20)));
     }
 }
+
+#[cfg(test)]
+mod label_validation_tests {
+    use super::*;
+
+    // --- label_has_indefinite_article ---
+
+    #[test]
+    fn article_alone_a_is_invalid() {
+        assert!(!label_has_indefinite_article("a"));
+    }
+
+    #[test]
+    fn article_alone_an_is_invalid() {
+        assert!(!label_has_indefinite_article("an"));
+    }
+
+    #[test]
+    fn article_with_word_after_is_valid() {
+        assert!(label_has_indefinite_article("  a  noun  "));
+    }
+
+    #[test]
+    fn article_mid_sentence_not_at_start_is_invalid() {
+        assert!(!label_has_indefinite_article("the a word"));
+    }
+
+    #[test]
+    fn uppercase_a_is_valid() {
+        assert!(label_has_indefinite_article("A thing"));
+    }
+
+    #[test]
+    fn uppercase_an_is_valid() {
+        assert!(label_has_indefinite_article("An event"));
+    }
+
+    // --- label_ends_with_sentence_punctuation ---
+
+    #[test]
+    fn trailing_whitespace_after_period_is_flagged() {
+        assert!(label_ends_with_sentence_punctuation("a thing.   "));
+    }
+
+    #[test]
+    fn trailing_comma_is_not_flagged() {
+        assert!(!label_ends_with_sentence_punctuation("a thing,"));
+    }
+
+    #[test]
+    fn no_punctuation_clean() {
+        assert!(!label_ends_with_sentence_punctuation("a clean label"));
+    }
+
+    // --- label_compound_undeclared ---
+
+    #[test]
+    fn pair_with_empty_parens_is_undeclared() {
+        assert!(label_compound_undeclared("a pair ()"));
+    }
+
+    #[test]
+    fn pair_with_trailing_comma_arity_one_is_undeclared() {
+        // "a pair (x,)" → filtered count = 1, required = 2 → mismatch
+        assert!(label_compound_undeclared("a pair (x,)"));
+    }
+
+    #[test]
+    fn sequence_with_empty_parens_is_undeclared() {
+        assert!(label_compound_undeclared("a sequence ()"));
+    }
+
+    #[test]
+    fn list_of_with_one_var_is_declared() {
+        assert!(!label_compound_undeclared("a list of (x)"));
+    }
+
+    #[test]
+    fn pair_with_correct_arity_is_declared() {
+        assert!(!label_compound_undeclared("a pair (x, y)"));
+    }
+
+    #[test]
+    fn triple_with_correct_arity_is_declared() {
+        assert!(!label_compound_undeclared("a triple (a, b, c)"));
+    }
+
+    #[test]
+    fn set_of_with_multiple_vars_is_declared() {
+        assert!(!label_compound_undeclared("a set of (x, y, z)"));
+    }
+
+    // --- label_contains_sentence_verb ---
+
+    #[test]
+    fn verb_after_close_paren_before_where_is_flagged() {
+        assert!(label_contains_sentence_verb("a pair (x, y) is valid"));
+    }
+
+    #[test]
+    fn verb_in_where_clause_only_is_not_flagged() {
+        assert!(!label_contains_sentence_verb(
+            "a pair (x, y) where x is an integer"
+        ));
+    }
+
+    #[test]
+    fn verb_before_open_paren_is_flagged() {
+        assert!(label_contains_sentence_verb("a thing has (x)"));
+    }
+
+    #[test]
+    fn no_verb_no_parens_is_clean() {
+        assert!(!label_contains_sentence_verb("a simple noun phrase"));
+    }
+
+    // --- best_article_for ---
+
+    #[test]
+    fn empty_string_returns_a_no_panic() {
+        assert_eq!(best_article_for(""), "a");
+    }
+
+    #[test]
+    fn vowel_start_returns_an() {
+        assert_eq!(best_article_for("umbrella"), "an");
+    }
+
+    #[test]
+    fn consonant_start_returns_a() {
+        assert_eq!(best_article_for("book"), "a");
+    }
+
+    #[test]
+    fn y_consonant_sound_returns_a() {
+        assert_eq!(best_article_for("you"), "a");
+    }
+}
