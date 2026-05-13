@@ -11,6 +11,8 @@ pub struct Config {
     #[serde(default)]
     pub storage: StorageConfig,
     #[serde(default)]
+    pub harness: HarnessConfig,
+    #[serde(default)]
     pub import: ImportConfig,
     #[serde(default)]
     pub verify_evidence: VerifyEvidenceConfig,
@@ -37,6 +39,17 @@ pub struct OutputConfig {
 pub struct StorageConfig {
     pub busy_retry_attempts: Option<u32>,
     pub busy_retry_base_ms: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct HarnessConfig {
+    #[serde(default = "default_managed_docs")]
+    pub managed_docs: Vec<String>,
+    pub spawn_timeout_hours: Option<u64>,
+}
+
+fn default_managed_docs() -> Vec<String> {
+    vec!["AGENTS.md".to_string(), "CLAUDE.md".to_string()]
 }
 
 #[derive(Debug, Deserialize, Default)]

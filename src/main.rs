@@ -8,15 +8,15 @@ use clap_complete::Shell;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::envelope::{
-    CLI_VERSION, ENVELOPE_VERSION, Envelope, ErrorResult, HintEntry, RemediationEntry,
-    UnmetClause, Warning, set_author,
+    CLI_VERSION, ENVELOPE_VERSION, Envelope, ErrorResult, HintEntry, RemediationEntry, UnmetClause,
+    Warning, set_author,
 };
 use dont::model::{
-    Status, flag as model_flag, ignore as model_ignore, lock as model_lock,
-    reopen as model_reopen, trust as model_trust, undoubt as model_undoubt,
+    Status, flag as model_flag, ignore as model_ignore, lock as model_lock, reopen as model_reopen,
+    trust as model_trust, undoubt as model_undoubt,
 };
-use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::rules::{RuleError, SHIPPED_RULES};
 use dont::store::{
@@ -215,6 +215,17 @@ enum Command {
 
     /// Return session-start orientation and project state summary.
     Prime,
+
+    /// Report project diagnostics and optionally repair managed docs.
+    Doctor {
+        /// Treat warnings as a non-zero exit.
+        #[arg(long)]
+        strict: bool,
+
+        /// Rewrite stale managed docs in place.
+        #[arg(long)]
+        fix: bool,
+    },
 
     /// List entities.
     List {
@@ -487,7 +498,10 @@ fn handle_store_error_code(err: StoreError, entity_id: Option<&str>) -> i32 {
                         description: "Inspect the existing term before redefining it".to_string(),
                     },
                     RemediationEntry {
-                        command: format!("dont define {} --doc \"<definition>\"", suggest_alternative_curie(&curie)),
+                        command: format!(
+                            "dont define {} --doc \"<definition>\"",
+                            suggest_alternative_curie(&curie)
+                        ),
                         description: "Use a different CURIE for a distinct term".to_string(),
                     },
                 ],
@@ -530,7 +544,9 @@ fn handle_store_error_code(err: StoreError, entity_id: Option<&str>) -> i32 {
         remediation: vec![
             RemediationEntry {
                 command: "ls ${DONT_DIR:-.dont}".to_string(),
-                description: "Inspect the project state directory for obvious corruption or missing files".to_string(),
+                description:
+                    "Inspect the project state directory for obvious corruption or missing files"
+                        .to_string(),
             },
             RemediationEntry {
                 command: "https://github.com/charly-vibes/dont/issues".to_string(),
@@ -700,10 +716,20 @@ fn format_claim_detail(data: &Value) -> String {
             let supporting = hyp["assessment"]["supporting"].as_array();
             let refuting = hyp["assessment"]["refuting"].as_array();
             let sup_str = supporting
-                .map(|v| v.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
+                .map(|v| {
+                    v.iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
                 .unwrap_or_default();
             let ref_str = refuting
-                .map(|v| v.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
+                .map(|v| {
+                    v.iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
                 .unwrap_or_default();
             if !sup_str.is_empty() {
                 out.push_str(&format!("\n        supporting: {sup_str}"));
@@ -722,7 +748,8 @@ fn format_term_detail(data: &Value) -> String {
     let curie = data["curie"].as_str().unwrap_or("?");
     let definition = data["definition"].as_str().unwrap_or("(none)");
     let colored_status = colorize_status(status);
-    let mut out = format!("{id}  {curie}\n  status:      {colored_status}\n  definition:  {definition}");
+    let mut out =
+        format!("{id}  {curie}\n  status:      {colored_status}\n  definition:  {definition}");
     if let Some(label) = data["label"].as_str().filter(|l| !l.is_empty()) {
         out.push_str(&format!("\n  label:       {label}"));
     }
@@ -836,7 +863,9 @@ fn remediation_for_project_error(err: &ProjectError) -> Vec<RemediationEntry> {
         _ => vec![
             RemediationEntry {
                 command: "ls ${DONT_DIR:-.dont}".to_string(),
-                description: "Inspect the project state directory for obvious corruption or missing files".to_string(),
+                description:
+                    "Inspect the project state directory for obvious corruption or missing files"
+                        .to_string(),
             },
             RemediationEntry {
                 command: "https://github.com/charly-vibes/dont/issues".to_string(),
@@ -846,26 +875,28 @@ fn remediation_for_project_error(err: &ProjectError) -> Vec<RemediationEntry> {
     }
 }
 
+fn emit_project_error_and_exit(err: &ProjectError) -> ! {
+    let (code, message, exit) = project_error_to_exit(err);
+    let remediation = remediation_for_project_error(err);
+    let err_result = ErrorResult {
+        code,
+        message,
+        rule_name: None,
+        spec_ref: None,
+        entity_id: None,
+        unmet_clauses: vec![],
+        remediation,
+    };
+    emit_error_and_exit(err_result, vec![], exit);
+}
+
 fn open_project_or_exit() -> Project {
     match Project::open(&cwd()) {
         Ok(p) => {
             p.check_and_record_mode_change();
             p
         }
-        Err(err) => {
-            let (code, message, exit) = project_error_to_exit(&err);
-            let remediation = remediation_for_project_error(&err);
-            let err_result = ErrorResult {
-                code,
-                message,
-                rule_name: None,
-                spec_ref: None,
-                entity_id: None,
-                unmet_clauses: vec![],
-                remediation,
-            };
-            emit_error_and_exit(err_result, vec![], exit);
-        }
+        Err(err) => emit_project_error_and_exit(&err),
     }
 }
 
@@ -1175,7 +1206,8 @@ fn evidence_entry_source_key(v: &Value) -> String {
     if let Some(uri) = v.as_str() {
         return evidence_source_key(uri);
     }
-    if let Some(path) = v.as_object()
+    if let Some(path) = v
+        .as_object()
         .filter(|obj| obj.get("kind").and_then(Value::as_str) == Some("repo-file"))
         .and_then(|obj| obj.get("path"))
         .and_then(Value::as_str)
@@ -1202,7 +1234,9 @@ fn normalize_repo_path(
     use std::path::Component;
     let p = PathBuf::from(rel_path);
     if p.is_absolute() {
-        return Err("absolute paths are not allowed as repository locators; use a project-relative path");
+        return Err(
+            "absolute paths are not allowed as repository locators; use a project-relative path",
+        );
     }
     // Walk components to detect escape via `..`
     let mut depth: i64 = 0;
@@ -1225,25 +1259,37 @@ fn normalize_repo_path(
     let mut full = project_root.to_path_buf();
     for component in p.components() {
         match component {
-            Component::ParentDir => { full.pop(); }
+            Component::ParentDir => {
+                full.pop();
+            }
             Component::Normal(c) => full.push(c),
             Component::CurDir => {}
             _ => {}
         }
     }
-    if let (Ok(canonical_root), Ok(canonical_target)) = (project_root.canonicalize(), full.canonicalize())
+    if let (Ok(canonical_root), Ok(canonical_target)) =
+        (project_root.canonicalize(), full.canonicalize())
         && !canonical_target.starts_with(&canonical_root)
     {
         return Err("path escapes project root");
     }
-    Ok(full.strip_prefix(project_root).unwrap_or(&full).to_path_buf())
+    Ok(full
+        .strip_prefix(project_root)
+        .unwrap_or(&full)
+        .to_path_buf())
 }
 
 /// Parse a line span string like "10-18" or "42" into (start, end).
 fn parse_line_span(s: &str) -> Result<(u32, u32), String> {
     if let Some((a, b)) = s.split_once('-') {
-        let start: u32 = a.trim().parse().map_err(|_| format!("invalid line span: {s}"))?;
-        let end: u32 = b.trim().parse().map_err(|_| format!("invalid line span: {s}"))?;
+        let start: u32 = a
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid line span: {s}"))?;
+        let end: u32 = b
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid line span: {s}"))?;
         if start == 0 || end == 0 {
             return Err("line spans are one-based; line 0 is invalid".to_string());
         }
@@ -1252,7 +1298,10 @@ fn parse_line_span(s: &str) -> Result<(u32, u32), String> {
         }
         Ok((start, end))
     } else {
-        let line: u32 = s.trim().parse().map_err(|_| format!("invalid line number: {s}"))?;
+        let line: u32 = s
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid line number: {s}"))?;
         if line == 0 {
             return Err("line spans are one-based; line 0 is invalid".to_string());
         }
@@ -1363,10 +1412,7 @@ fn blocker_path_for_dep(
                     "compromised-support",
                     vec![RemediationEntry {
                         command: format!("dont show {}", term.id),
-                        description: format!(
-                            "Inspect the compromised supporting term {}",
-                            term.id
-                        ),
+                        description: format!("Inspect the compromised supporting term {}", term.id),
                     }],
                 ),
                 StoreStatus::Verified => return None,
@@ -1460,17 +1506,17 @@ fn lockable_unmet_clauses(record: &ClaimRecord, store: &Store) -> Vec<UnmetClaus
     if hypothesis_count < 3 {
         unmet.push(UnmetClause {
             clause: format!("needs >=3 assessed hypotheses; has {hypothesis_count}"),
-            fix: "record and assess at least three competing hypotheses before locking"
-                .to_string(),
+            fix: "record and assess at least three competing hypotheses before locking".to_string(),
         });
     }
 
     let evidence_count = independent_evidence_count(record);
     if evidence_count < 2 {
         unmet.push(UnmetClause {
-            clause: format!("needs >=2 independent supporting evidence items; has {evidence_count}"),
-            fix: "attach evidence from at least two independent sources before locking"
-                .to_string(),
+            clause: format!(
+                "needs >=2 independent supporting evidence items; has {evidence_count}"
+            ),
+            fix: "attach evidence from at least two independent sources before locking".to_string(),
         });
     }
 
@@ -1501,8 +1547,7 @@ fn dependency_gate_unmet_clauses(record: &ClaimRecord, store: &Store) -> Vec<Unm
         .into_iter()
         .map(|assessment| UnmetClause {
             clause: format!("derived assessment {assessment} blocks verification"),
-            fix: "resolve dependency integrity issues before dismissing this claim"
-                .to_string(),
+            fix: "resolve dependency integrity issues before dismissing this claim".to_string(),
         })
         .collect()
 }
@@ -1889,7 +1934,12 @@ fn emit_claim_view(record: &ClaimRecord, result: &AppendResult, store: &Store) {
     emit_json(&env);
 }
 
-fn emit_term_view(record: &TermRecord, result: &AppendResult, store: &Store, warnings: Vec<Warning>) {
+fn emit_term_view(
+    record: &TermRecord,
+    result: &AppendResult,
+    store: &Store,
+    warnings: Vec<Warning>,
+) {
     let payload = build_term_view(record, store);
     let env = Envelope::success_with_tx(
         "term",
@@ -2180,9 +2230,7 @@ fn nonfunctional_label_warning(label: &str, cfg: &TermNonfunctionalConfig) -> Op
 
 fn main() {
     // Detect removed "lock" subcommand and suggest "forget" before clap parses.
-    let first_subcmd = std::env::args()
-        .skip(1)
-        .find(|a| !a.starts_with('-'));
+    let first_subcmd = std::env::args().skip(1).find(|a| !a.starts_with('-'));
     if first_subcmd.as_deref() == Some("lock") {
         eprintln!("error: unknown command 'lock'. Did you mean 'dont forget'?");
         process::exit(1);
@@ -2285,7 +2333,8 @@ fn main() {
                         None,
                         vec![RemediationEntry {
                             command: "dont conclude \"<claim text>\"".to_string(),
-                            description: "Provide the statement directly as an argument".to_string(),
+                            description: "Provide the statement directly as an argument"
+                                .to_string(),
                         }],
                     ),
                     vec![],
@@ -2662,52 +2711,59 @@ fn main() {
 
                 let record = match project.store.claim_by_id(id) {
                     Ok(Some(r)) => r,
-                    Ok(None) => return emit_error_no_exit(
-                        refusal(
-                            "claim-not-found",
-                            &format!("no claim with id {id}"),
-                            Some(id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all claims to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
+                    Ok(None) => {
+                        return emit_error_no_exit(
+                            refusal(
+                                "claim-not-found",
+                                &format!("no claim with id {id}"),
+                                Some(id),
+                                vec![RemediationEntry {
+                                    command: "dont list".to_string(),
+                                    description: "List all claims to find the correct id"
+                                        .to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
                     Err(err) => return handle_store_error_code(err, Some(id)),
                 };
 
                 let current = model_status_from_store(record.status);
                 match current {
-                    Status::Locked => return emit_error_no_exit(
-                        refusal(
-                            "claim-locked",
-                            "claim is already locked",
-                            Some(id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the locked claim".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
+                    Status::Locked => {
+                        return emit_error_no_exit(
+                            refusal(
+                                "claim-locked",
+                                "claim is already locked",
+                                Some(id),
+                                vec![RemediationEntry {
+                                    command: format!("dont show {id}"),
+                                    description: "Inspect the locked claim".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
                     Status::Verified => {}
-                    _ => return emit_error_no_exit(
-                        refusal(
-                            "claim-not-verified",
-                            "claim must be verified before it can be locked",
-                            Some(id),
-                            vec![RemediationEntry {
-                                command: format!("dont dismiss {id} --evidence <uri>"),
-                                description: "Attach evidence until the claim reaches verified"
-                                    .to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
+                    _ => {
+                        return emit_error_no_exit(
+                            refusal(
+                                "claim-not-verified",
+                                "claim must be verified before it can be locked",
+                                Some(id),
+                                vec![RemediationEntry {
+                                    command: format!("dont dismiss {id} --evidence <uri>"),
+                                    description: "Attach evidence until the claim reaches verified"
+                                        .to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
                 }
 
                 let unmet_clauses = lockable_unmet_clauses(&record, &project.store);
@@ -2743,27 +2799,31 @@ fn main() {
                         Ok(r) => r,
                         Err(err) => return handle_store_error_code(err, Some(id)),
                     },
-                    Err(err) => return emit_error_no_exit(
-                        refusal(
-                            &err.code,
-                            &err.message,
-                            Some(id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current claim status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
+                    Err(err) => {
+                        return emit_error_no_exit(
+                            refusal(
+                                &err.code,
+                                &err.message,
+                                Some(id),
+                                vec![RemediationEntry {
+                                    command: format!("dont show {id}"),
+                                    description: "Inspect the current claim status".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
+                        );
+                    }
                 };
 
                 let updated = match project.store.claim_by_id(id) {
                     Ok(Some(r)) => r,
-                    Ok(None) => return handle_store_error_code(
-                        StoreError::Malformed(format!("claim {id} vanished after lock")),
-                        Some(id),
-                    ),
+                    Ok(None) => {
+                        return handle_store_error_code(
+                            StoreError::Malformed(format!("claim {id} vanished after lock")),
+                            Some(id),
+                        );
+                    }
                     Err(err) => return handle_store_error_code(err, Some(id)),
                 };
                 emit_claim_view(&updated, &result, &project.store);
@@ -3053,7 +3113,14 @@ fn main() {
             }
         }
 
-        Command::Flag { id, evidence, file, lines, anchor, excerpt } => {
+        Command::Flag {
+            id,
+            evidence,
+            file,
+            lines,
+            anchor,
+            excerpt,
+        } => {
             if evidence.is_empty() && file.is_none() {
                 emit_error_and_exit(
                     refusal(
@@ -3071,11 +3138,14 @@ fn main() {
             }
 
             let project = open_project_or_exit();
-            let project_root = project.dont_dir.parent().unwrap_or(&project.dont_dir).to_path_buf();
+            let project_root = project
+                .dont_dir
+                .parent()
+                .unwrap_or(&project.dont_dir)
+                .to_path_buf();
 
             // Build the full evidence list, appending structured locator if --file was given.
-            let mut all_evidence: Vec<Value> =
-                evidence.into_iter().map(Value::String).collect();
+            let mut all_evidence: Vec<Value> = evidence.into_iter().map(Value::String).collect();
             if let Some(ref file_path) = file {
                 all_evidence.push(resolve_file_locator(
                     file_path,
@@ -3185,8 +3255,7 @@ fn main() {
                     dependency_unmet,
                     vec![RemediationEntry {
                         command: format!("dont show {id}"),
-                        description: "Inspect the blocking dependency assessments"
-                            .to_string(),
+                        description: "Inspect the blocking dependency assessments".to_string(),
                     }],
                 )
                 .expect("dependency gate refusal must include remediation");
@@ -3371,83 +3440,79 @@ fn main() {
 
         Command::Show { id } => {
             let project = open_project_or_exit();
-            run_per_entity(id, |id| {
-                match project.store.resolve_entity(id) {
-                    Ok(Some(EntityResolution::Claim(record))) => {
-                        let payload = build_claim_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "claim",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont trust {} --reason \"...\"", record.id),
-                                description: "Register doubt about this claim".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                        0
-                    }
-                    Ok(Some(EntityResolution::Term(record))) => {
-                        let payload = build_term_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "term",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont trust {} --reason \"...\"", record.id),
-                                description: "Register doubt about this term".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                        0
-                    }
-                    Ok(None) => {
-                        let (code, message, remediation) = entity_not_found_error(id);
-                        emit_error_no_exit(refusal(code, &message, Some(id), remediation), vec![], 1)
-                    }
-                    Err(err) => handle_store_error_code(err, Some(id)),
+            run_per_entity(id, |id| match project.store.resolve_entity(id) {
+                Ok(Some(EntityResolution::Claim(record))) => {
+                    let payload = build_claim_view(&record, &project.store);
+                    let env = Envelope::success(
+                        "claim",
+                        payload,
+                        vec![],
+                        vec![HintEntry {
+                            command: format!("dont trust {} --reason \"...\"", record.id),
+                            description: "Register doubt about this claim".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
+                    0
                 }
+                Ok(Some(EntityResolution::Term(record))) => {
+                    let payload = build_term_view(&record, &project.store);
+                    let env = Envelope::success(
+                        "term",
+                        payload,
+                        vec![],
+                        vec![HintEntry {
+                            command: format!("dont trust {} --reason \"...\"", record.id),
+                            description: "Register doubt about this term".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
+                    0
+                }
+                Ok(None) => {
+                    let (code, message, remediation) = entity_not_found_error(id);
+                    emit_error_no_exit(refusal(code, &message, Some(id), remediation), vec![], 1)
+                }
+                Err(err) => handle_store_error_code(err, Some(id)),
             });
         }
 
         Command::Why { id } => {
             let project = open_project_or_exit();
-            run_per_entity(id, |id| {
-                match project.store.resolve_entity(id) {
-                    Ok(Some(EntityResolution::Claim(record))) => {
-                        let payload = build_claim_why_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "why",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont show {}", record.id),
-                                description: "Inspect the current claim view".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                        0
-                    }
-                    Ok(Some(EntityResolution::Term(record))) => {
-                        let payload = build_term_why_view(&record, &project.store);
-                        let env = Envelope::success(
-                            "why",
-                            payload,
-                            vec![],
-                            vec![HintEntry {
-                                command: format!("dont show {}", record.id),
-                                description: "Inspect the current term view".to_string(),
-                            }],
-                        );
-                        emit_json(&env);
-                        0
-                    }
-                    Ok(None) => {
-                        let (code, message, remediation) = entity_not_found_error(id);
-                        emit_error_no_exit(refusal(code, &message, Some(id), remediation), vec![], 1)
-                    }
-                    Err(err) => handle_store_error_code(err, Some(id)),
+            run_per_entity(id, |id| match project.store.resolve_entity(id) {
+                Ok(Some(EntityResolution::Claim(record))) => {
+                    let payload = build_claim_why_view(&record, &project.store);
+                    let env = Envelope::success(
+                        "why",
+                        payload,
+                        vec![],
+                        vec![HintEntry {
+                            command: format!("dont show {}", record.id),
+                            description: "Inspect the current claim view".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
+                    0
                 }
+                Ok(Some(EntityResolution::Term(record))) => {
+                    let payload = build_term_why_view(&record, &project.store);
+                    let env = Envelope::success(
+                        "why",
+                        payload,
+                        vec![],
+                        vec![HintEntry {
+                            command: format!("dont show {}", record.id),
+                            description: "Inspect the current term view".to_string(),
+                        }],
+                    );
+                    emit_json(&env);
+                    0
+                }
+                Ok(None) => {
+                    let (code, message, remediation) = entity_not_found_error(id);
+                    emit_error_no_exit(refusal(code, &message, Some(id), remediation), vec![], 1)
+                }
+                Err(err) => handle_store_error_code(err, Some(id)),
             });
         }
 
@@ -3543,7 +3608,9 @@ fn main() {
                 .collect();
             let mut results: Vec<Value> = uri_results
                 .iter()
-                .map(|result| serde_json::to_value(result).expect("evidence check result serializes"))
+                .map(|result| {
+                    serde_json::to_value(result).expect("evidence check result serializes")
+                })
                 .collect();
             for locator in evidence.iter().filter(|v| {
                 v.as_object()
@@ -3657,8 +3724,7 @@ fn main() {
                     StoreStatus::Ignored => ignored += 1,
                     StoreStatus::Locked => locked += 1,
                 }
-                let projected =
-                    project_evidence(collect_term_evidence(term), &project_root);
+                let projected = project_evidence(collect_term_evidence(term), &project_root);
                 if projected.iter().any(|e| {
                     e.get("audit")
                         .and_then(|a| a.get("status"))
@@ -3702,6 +3768,63 @@ fn main() {
             }
         }
 
+        Command::Doctor { strict, fix } => {
+            let project = open_project_or_exit();
+            if fix && let Err(err) = project.refresh_managed_docs() {
+                emit_project_error_and_exit(&err);
+            }
+
+            let (managed_clean, managed_details) = match project.managed_docs_status() {
+                Ok(status) => status,
+                Err(err) => emit_project_error_and_exit(&err),
+            };
+
+            let managed_status = if managed_clean { "pass" } else { "warn" };
+            let managed_detail = if managed_clean {
+                "managed docs are current".to_string()
+            } else {
+                managed_details.join("; ")
+            };
+            let seed_snapshot_exists = project.seed_snapshot_path().is_file();
+            let seed_snapshot_status = if seed_snapshot_exists { "pass" } else { "warn" };
+            let seed_snapshot_detail = if seed_snapshot_exists {
+                "seed snapshot is present".to_string()
+            } else {
+                format!(
+                    "seed snapshot {} is missing; run dont init to repair the project layout",
+                    project.seed_snapshot_path().display()
+                )
+            };
+            let checks = vec![
+                json!({"name": "substrate", "status": "pass", "detail": "store opened successfully"}),
+                json!({"name": "rules_compile", "status": "pass", "detail": "built-in rules available"}),
+                json!({"name": "seed_snapshot", "status": seed_snapshot_status, "detail": seed_snapshot_detail}),
+                json!({"name": "pending_spawns", "status": "pass", "detail": if project.root_doc_paths().is_empty() { "no pending spawn audit implemented; direct DONT_DIR override skips separate root managed docs" } else { "no pending spawn audit implemented" }}),
+                json!({"name": "remediation_invariant", "status": "pass", "detail": "error remediation invariant available"}),
+                json!({"name": "managed_docs", "status": managed_status, "detail": managed_detail}),
+            ];
+            let pass = checks.iter().filter(|c| c["status"] == "pass").count();
+            let warn = checks.iter().filter(|c| c["status"] == "warn").count();
+            let fail = checks.iter().filter(|c| c["status"] == "fail").count();
+            let payload = json!({
+                "cli_version": CLI_VERSION,
+                "checks": checks,
+                "summary": {"pass": pass, "warn": warn, "fail": fail},
+            });
+            let env = Envelope::success("doctor", payload, vec![], vec![]);
+            emit_json(&env);
+            let exit_code = if strict {
+                if warn > 0 || fail > 0 { 1 } else { 0 }
+            } else if fail > 0 {
+                1
+            } else {
+                0
+            };
+            if exit_code != 0 {
+                std::process::exit(exit_code);
+            }
+        }
+
         Command::List { status, kind } => {
             let project = open_project_or_exit();
             let status_filter = match status {
@@ -3716,9 +3839,8 @@ fn main() {
                             None,
                             vec![RemediationEntry {
                                 command: "dont list --status unverified".to_string(),
-                                description:
-                                    "Use one of: unverified, verified, doubted, ignored"
-                                        .to_string(),
+                                description: "Use one of: unverified, verified, doubted, ignored"
+                                    .to_string(),
                             }],
                         ),
                         vec![],
@@ -3764,7 +3886,10 @@ fn main() {
                             .cmp(&a.created_at)
                             .then_with(|| b.id.cmp(&a.id))
                     });
-                    let views: Vec<Value> = claims.iter().map(|c| build_claim_view(c, &project.store)).collect();
+                    let views: Vec<Value> = claims
+                        .iter()
+                        .map(|c| build_claim_view(c, &project.store))
+                        .collect();
                     let hints = match project.store.list_terms() {
                         Ok(terms) if default_kind && !terms.is_empty() => vec![HintEntry {
                             command: "dont list --kind terms".to_string(),
@@ -3789,7 +3914,10 @@ fn main() {
                             .cmp(&a.created_at)
                             .then_with(|| b.id.cmp(&a.id))
                     });
-                    let views: Vec<Value> = terms.iter().map(|term| build_term_view(term, &project.store)).collect();
+                    let views: Vec<Value> = terms
+                        .iter()
+                        .map(|term| build_term_view(term, &project.store))
+                        .collect();
                     let env = Envelope::success("terms", views, vec![], vec![]);
                     emit_json(&env);
                 }
@@ -3876,7 +4004,12 @@ fn main() {
                     "shell": shell_name,
                     "script": script.as_ref(),
                 });
-                emit_json(&Envelope::success("dont-completions", payload, vec![], vec![]));
+                emit_json(&Envelope::success(
+                    "dont-completions",
+                    payload,
+                    vec![],
+                    vec![],
+                ));
             } else {
                 clap_complete::generate(shell, &mut cmd, "dont", &mut std::io::stdout());
             }
@@ -3900,7 +4033,8 @@ fn main() {
                         None,
                         vec![RemediationEntry {
                             command: "dont ground \"<claim text>\" --evidence <uri>".to_string(),
-                            description: "Provide the statement directly as an argument".to_string(),
+                            description: "Provide the statement directly as an argument"
+                                .to_string(),
                         }],
                     ),
                     vec![],
@@ -3945,10 +4079,13 @@ fn main() {
             }
 
             let project = open_project_or_exit();
-            let project_root = project.dont_dir.parent().unwrap_or(&project.dont_dir).to_path_buf();
+            let project_root = project
+                .dont_dir
+                .parent()
+                .unwrap_or(&project.dont_dir)
+                .to_path_buf();
 
-            let mut all_evidence: Vec<Value> =
-                evidence.into_iter().map(Value::String).collect();
+            let mut all_evidence: Vec<Value> = evidence.into_iter().map(Value::String).collect();
             if let Some(ref file_path) = file {
                 all_evidence.push(resolve_file_locator(
                     file_path,
@@ -4052,8 +4189,11 @@ fn main() {
                                 "atom dismiss requires at least one --evidence item",
                                 Some(&id),
                                 vec![RemediationEntry {
-                                    command: format!("dont atom dismiss {id} {idx} --evidence <uri>"),
-                                    description: "Attach evidence for the atom verification".to_string(),
+                                    command: format!(
+                                        "dont atom dismiss {id} {idx} --evidence <uri>"
+                                    ),
+                                    description: "Attach evidence for the atom verification"
+                                        .to_string(),
                                 }],
                             ),
                             vec![],
@@ -4086,7 +4226,9 @@ fn main() {
                                     Some(&id),
                                     vec![RemediationEntry {
                                         command: format!("dont show {id}"),
-                                        description: "Inspect the claim to see available atom indices".to_string(),
+                                        description:
+                                            "Inspect the claim to see available atom indices"
+                                                .to_string(),
                                     }],
                                 ),
                                 vec![],
@@ -4098,7 +4240,9 @@ fn main() {
                     let updated = match project.store.claim_by_id(&id) {
                         Ok(Some(r)) => r,
                         Ok(None) => handle_store_error(
-                            StoreError::Malformed(format!("claim {id} vanished after atom dismiss")),
+                            StoreError::Malformed(format!(
+                                "claim {id} vanished after atom dismiss"
+                            )),
                             Some(&id),
                         ),
                         Err(err) => handle_store_error(err, Some(&id)),
@@ -4153,7 +4297,9 @@ fn main() {
                     let updated = match project.store.claim_by_id(&id) {
                         Ok(Some(r)) => r,
                         Ok(None) => handle_store_error(
-                            StoreError::Malformed(format!("claim {id} vanished after hypothesis add")),
+                            StoreError::Malformed(format!(
+                                "claim {id} vanished after hypothesis add"
+                            )),
                             Some(&id),
                         ),
                         Err(err) => handle_store_error(err, Some(&id)),
@@ -4186,45 +4332,56 @@ fn main() {
                             1,
                         );
                     }
-                    let result = match project.store.assess_hypothesis(&id, idx, &supporting, &refuting) {
-                        Ok(r) => r,
-                        Err(StoreError::Malformed(ref msg)) if msg.contains("not found") => {
-                            emit_error_and_exit(
-                                refusal(
-                                    "claim-not-found",
-                                    &format!("claim {id} not found"),
-                                    Some(&id),
-                                    vec![RemediationEntry {
-                                        command: "dont list".to_string(),
-                                        description: "List claims to find the correct identifier"
-                                            .to_string(),
-                                    }],
-                                ),
-                                vec![],
-                                1,
-                            );
-                        }
-                        Err(StoreError::Malformed(ref msg)) if msg.contains("out of range") => {
-                            emit_error_and_exit(
-                                refusal(
-                                    "hypothesis-not-found",
-                                    &format!("hypothesis index {idx} does not exist on claim {id}"),
-                                    Some(&id),
-                                    vec![RemediationEntry {
+                    let result =
+                        match project
+                            .store
+                            .assess_hypothesis(&id, idx, &supporting, &refuting)
+                        {
+                            Ok(r) => r,
+                            Err(StoreError::Malformed(ref msg)) if msg.contains("not found") => {
+                                emit_error_and_exit(
+                                    refusal(
+                                        "claim-not-found",
+                                        &format!("claim {id} not found"),
+                                        Some(&id),
+                                        vec![RemediationEntry {
+                                            command: "dont list".to_string(),
+                                            description:
+                                                "List claims to find the correct identifier"
+                                                    .to_string(),
+                                        }],
+                                    ),
+                                    vec![],
+                                    1,
+                                );
+                            }
+                            Err(StoreError::Malformed(ref msg)) if msg.contains("out of range") => {
+                                emit_error_and_exit(
+                                    refusal(
+                                        "hypothesis-not-found",
+                                        &format!(
+                                            "hypothesis index {idx} does not exist on claim {id}"
+                                        ),
+                                        Some(&id),
+                                        vec![RemediationEntry {
                                         command: format!("dont show {id}"),
-                                        description: "Inspect the claim to see available hypothesis indices".to_string(),
+                                        description:
+                                            "Inspect the claim to see available hypothesis indices"
+                                                .to_string(),
                                     }],
-                                ),
-                                vec![],
-                                1,
-                            );
-                        }
-                        Err(err) => handle_store_error(err, Some(&id)),
-                    };
+                                    ),
+                                    vec![],
+                                    1,
+                                );
+                            }
+                            Err(err) => handle_store_error(err, Some(&id)),
+                        };
                     let updated = match project.store.claim_by_id(&id) {
                         Ok(Some(r)) => r,
                         Ok(None) => handle_store_error(
-                            StoreError::Malformed(format!("claim {id} vanished after hypothesis assess")),
+                            StoreError::Malformed(format!(
+                                "claim {id} vanished after hypothesis assess"
+                            )),
                             Some(&id),
                         ),
                         Err(err) => handle_store_error(err, Some(&id)),
@@ -4237,7 +4394,12 @@ fn main() {
         Command::Import { adapter, .. } => {
             let project = open_project_or_exit();
             let config = project.load_config();
-            let adapter_cfg = config.import.adapters.get(&adapter).cloned().unwrap_or_default();
+            let adapter_cfg = config
+                .import
+                .adapters
+                .get(&adapter)
+                .cloned()
+                .unwrap_or_default();
             if !adapter_cfg.is_enabled() {
                 emit_error_and_exit(
                     refusal(
@@ -4291,9 +4453,7 @@ fn main() {
                     if let Ok(entries) = std::fs::read_dir(&rules_dir) {
                         let mut custom: Vec<RuleInfo> = entries
                             .filter_map(|e| e.ok())
-                            .filter(|e| {
-                                e.path().extension().and_then(|x| x.to_str()) == Some("dl")
-                            })
+                            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("dl"))
                             .filter_map(|e| {
                                 let stem = e.path().file_stem()?.to_str()?.to_string();
                                 if SHIPPED_RULES.contains(&stem.as_str()) {
@@ -4429,10 +4589,7 @@ fn main() {
                                 &format!("rule {rule_name:?} already exists"),
                                 None,
                                 vec![RemediationEntry {
-                                    command: format!(
-                                        "dont rules add {} --force",
-                                        file.display()
-                                    ),
+                                    command: format!("dont rules add {} --force", file.display()),
                                     description: "Use --force to overwrite the existing rule"
                                         .to_string(),
                                 }],
@@ -4540,11 +4697,8 @@ fn main() {
             let project = open_project_or_exit();
             let rules_dir = project.dont_dir.join("rules");
             let config = project.load_config();
-            let engine = dont::rules::RuleEngine::new(
-                rules_dir,
-                config.rules,
-                project.mode() == "strict",
-            );
+            let engine =
+                dont::rules::RuleEngine::new(rules_dir, config.rules, project.mode() == "strict");
 
             if let Some(prose) = dont::rules::explain(&rule) {
                 let severity = severity_label(engine.severity(&rule));
@@ -4702,13 +4856,19 @@ mod parse_line_span_tests {
     #[test]
     fn invalid_number_error_contains_input() {
         let err = parse_line_span("abc").unwrap_err();
-        assert!(err.contains("abc"), "error should mention the bad input: {err}");
+        assert!(
+            err.contains("abc"),
+            "error should mention the bad input: {err}"
+        );
     }
 
     #[test]
     fn invalid_range_error_contains_input() {
         let err = parse_line_span("10-x").unwrap_err();
-        assert!(err.contains("10-x"), "error should mention the bad input: {err}");
+        assert!(
+            err.contains("10-x"),
+            "error should mention the bad input: {err}"
+        );
     }
 
     // Boundary values

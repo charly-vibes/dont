@@ -2,15 +2,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::config::Config;
+use crate::managed_block::{
+    file_matches, render_root_block, replace_or_prepend_root_block, root_block_matches,
+    write_canonical,
+};
 
 use chrono::{SecondsFormat, Utc};
-use toml;
 use serde_json::json;
+use toml;
 
 use crate::store::{Store, StoreError};
 
-pub const REQUIRED_SUBDIRS: &[&str] =
-    &["seed", "vocab", "rules", "imports", "sessions", "schemas"];
+pub const REQUIRED_SUBDIRS: &[&str] = &["seed", "vocab", "rules", "imports", "sessions", "schemas"];
 
 pub struct Project {
     pub dont_dir: PathBuf,
@@ -68,6 +71,10 @@ default_format = "json"
 [storage]
 busy_retry_attempts = 5
 busy_retry_base_ms = 100
+
+[harness]
+managed_docs = ["AGENTS.md", "CLAUDE.md"]
+spawn_timeout_hours = 24
 "#,
         mode.as_str()
     )
@@ -115,7 +122,7 @@ terms:
     status: locked
 "#;
 
-const AGENTS_MD: &str = r#"# dont
+const AGENTS_MD_BODY: &str = r#"# dont
 
 This project uses `dont` for epistemic claim tracking.
 
@@ -166,6 +173,17 @@ pub fn resolve_dont_dir(cwd: &Path) -> Option<PathBuf> {
     find_dont_dir_by_walking(cwd)
 }
 
+pub fn project_root_from_dont_dir(dont_dir: &Path) -> PathBuf {
+    if dont_dir.file_name().and_then(|name| name.to_str()) == Some(".dont") {
+        dont_dir
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| dont_dir.to_path_buf())
+    } else {
+        dont_dir.to_path_buf()
+    }
+}
+
 fn find_dont_dir_by_walking(start: &Path) -> Option<PathBuf> {
     let mut current = start;
     loop {
@@ -178,6 +196,18 @@ fn find_dont_dir_by_walking(start: &Path) -> Option<PathBuf> {
             None => return None,
         }
     }
+}
+
+fn canonical_agents_content() -> String {
+    format!(
+        "# dont managed instructions\n\n> This file is managed by `dont init` and `dont doctor --fix`. Do not edit manually.\n\n{AGENTS_MD_BODY}\n"
+    )
+}
+
+fn root_block_content() -> String {
+    render_root_block(
+        "# DONT MANAGED BLOCK — DO NOT EDIT\n\nThis project uses `dont` for grounded-claim workflow.\n\nAt session start run `dont prime --json`.\n\nCanonical agent instructions: `.dont/AGENTS.md`.\n\nEdits inside this managed block will be overwritten by `dont doctor --fix`.",
+    )
 }
 
 impl Project {
@@ -221,6 +251,73 @@ impl Project {
         toml::from_str(&text).unwrap_or_default()
     }
 
+    pub fn project_root(&self) -> PathBuf {
+        project_root_from_dont_dir(&self.dont_dir)
+    }
+
+    fn uses_separate_root_docs(&self) -> bool {
+        // Compatibility path: many tests and direct overrides point DONT_DIR at a standalone
+        // state directory rather than a real `<project>/.dont` folder. In that mode the
+        // canonical AGENTS file would collide with a root AGENTS.md, so we only manage root
+        // documents when the state directory is literally named `.dont`.
+        self.dont_dir.file_name().and_then(|name| name.to_str()) == Some(".dont")
+    }
+
+    pub fn seed_snapshot_path(&self) -> PathBuf {
+        self.dont_dir.join("seed/dont-seed.yaml")
+    }
+
+    pub fn canonical_agents_path(&self) -> PathBuf {
+        self.dont_dir.join("AGENTS.md")
+    }
+
+    pub fn root_doc_paths(&self) -> Vec<PathBuf> {
+        if !self.uses_separate_root_docs() {
+            return vec![];
+        }
+        let root = self.project_root();
+        self.load_config()
+            .harness
+            .managed_docs
+            .into_iter()
+            .map(|doc| root.join(doc))
+            .collect()
+    }
+
+    pub fn refresh_managed_docs(&self) -> Result<(), ProjectError> {
+        let canonical = canonical_agents_content();
+        write_canonical(&self.canonical_agents_path(), &canonical)?;
+        let root_block = root_block_content();
+        for path in self.root_doc_paths() {
+            replace_or_prepend_root_block(&path, &root_block)?;
+        }
+        Ok(())
+    }
+
+    pub fn managed_docs_status(&self) -> Result<(bool, Vec<String>), ProjectError> {
+        let mut clean = true;
+        let mut details = Vec::new();
+        let canonical = canonical_agents_content();
+        if !file_matches(&self.canonical_agents_path(), &canonical)? {
+            clean = false;
+            details.push(format!(
+                "canonical file {} is stale; run dont doctor --fix",
+                self.canonical_agents_path().display()
+            ));
+        }
+        let root_block = root_block_content();
+        for path in self.root_doc_paths() {
+            if !root_block_matches(&path, &root_block)? {
+                clean = false;
+                details.push(format!(
+                    "managed block in {} is missing or stale; run dont doctor --fix",
+                    path.display()
+                ));
+            }
+        }
+        Ok((clean, details))
+    }
+
     /// Detect if the config.toml mode differs from the last recorded mode in events.jsonl
     /// and append a `mode.changed` event if so.
     pub fn check_and_record_mode_change(&self) {
@@ -233,7 +330,11 @@ impl Project {
         let last_recorded_mode = events_text
             .lines()
             .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-            .filter_map(|v| v.get("mode").and_then(|m| m.as_str()).map(|s| s.to_string()))
+            .filter_map(|v| {
+                v.get("mode")
+                    .and_then(|m| m.as_str())
+                    .map(|s| s.to_string())
+            })
             .last();
         let Some(recorded) = last_recorded_mode else {
             // No mode event found — project predates mode tracking. Write a baseline
@@ -245,8 +346,13 @@ impl Project {
                 "created_at": created_at,
             });
             let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
-            if let Err(e) = fs::OpenOptions::new().append(true).open(&events_path)
-                .and_then(|mut f| { use std::io::Write; f.write_all(line.as_bytes()) })
+            if let Err(e) = fs::OpenOptions::new()
+                .append(true)
+                .open(&events_path)
+                .and_then(|mut f| {
+                    use std::io::Write;
+                    f.write_all(line.as_bytes())
+                })
             {
                 eprintln!("dont: warning: could not write mode baseline event: {e}");
             }
@@ -262,8 +368,13 @@ impl Project {
                 "created_at": created_at,
             });
             let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
-            if let Err(e) = fs::OpenOptions::new().append(true).open(&events_path)
-                .and_then(|mut f| { use std::io::Write; f.write_all(line.as_bytes()) })
+            if let Err(e) = fs::OpenOptions::new()
+                .append(true)
+                .open(&events_path)
+                .and_then(|mut f| {
+                    use std::io::Write;
+                    f.write_all(line.as_bytes())
+                })
             {
                 eprintln!("dont: warning: could not write mode.changed event: {e}");
             }
@@ -287,7 +398,6 @@ impl Project {
             fs::create_dir_all(dont_dir.join(subdir))?;
         }
         fs::write(dont_dir.join("config.toml"), minimal_config(mode))?;
-        fs::write(dont_dir.join("AGENTS.md"), AGENTS_MD)?;
         fs::write(dont_dir.join("seed/dont-seed.yaml"), SEED_VOCABULARY)?;
         fs::write(dont_dir.join("events.jsonl"), init_event(mode))?;
         if std::env::var("DONT_DIR").is_err() {
@@ -295,7 +405,9 @@ impl Project {
         }
 
         let store = Store::open_dont_dir(&dont_dir)?;
-        Ok(Self { dont_dir, store })
+        let project = Self { dont_dir, store };
+        project.refresh_managed_docs()?;
+        Ok(project)
     }
 }
 
@@ -306,7 +418,10 @@ fn init_event(mode: ProjectMode) -> String {
         "mode": mode.as_str(),
         "created_at": created_at,
     });
-    format!("{}\n", serde_json::to_string(&event).expect("project init event serializes"))
+    format!(
+        "{}\n",
+        serde_json::to_string(&event).expect("project init event serializes")
+    )
 }
 
 fn ensure_dont_gitignore_entry(project_root: &Path) -> Result<(), ProjectError> {
