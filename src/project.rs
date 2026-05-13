@@ -26,7 +26,11 @@ pub enum ProjectError {
     ConfigMissing(String),
     LayoutInvalid(PathBuf),
     Store(StoreError),
-    Io(std::io::Error),
+    Io {
+        op: Option<&'static str>,
+        path: Option<PathBuf>,
+        source: std::io::Error,
+    },
 }
 
 impl std::fmt::Display for ProjectError {
@@ -40,7 +44,10 @@ impl std::fmt::Display for ProjectError {
                 p.display()
             ),
             Self::Store(e) => write!(f, "store error: {e}"),
-            Self::Io(e) => write!(f, "I/O error: {e}"),
+            Self::Io { op, path, source } => match (op, path) {
+                (Some(op), Some(path)) => write!(f, "failed to {op} {}: {source}", path.display()),
+                _ => write!(f, "I/O error: {source}"),
+            },
         }
     }
 }
@@ -55,7 +62,19 @@ impl From<StoreError> for ProjectError {
 
 impl From<std::io::Error> for ProjectError {
     fn from(e: std::io::Error) -> Self {
-        Self::Io(e)
+        Self::Io {
+            op: None,
+            path: None,
+            source: e,
+        }
+    }
+}
+
+fn io_error(op: &'static str, path: impl Into<PathBuf>, source: std::io::Error) -> ProjectError {
+    ProjectError::Io {
+        op: Some(op),
+        path: Some(path.into()),
+        source,
     }
 }
 
@@ -393,13 +412,17 @@ impl Project {
             return Err(ProjectError::AlreadyInitialised(dont_dir));
         }
 
-        fs::create_dir_all(&dont_dir)?;
+        fs::create_dir_all(&dont_dir).map_err(|err| io_error("create", &dont_dir, err))?;
         for subdir in REQUIRED_SUBDIRS {
-            fs::create_dir_all(dont_dir.join(subdir))?;
+            let path = dont_dir.join(subdir);
+            fs::create_dir_all(&path).map_err(|err| io_error("create", &path, err))?;
         }
-        fs::write(dont_dir.join("config.toml"), minimal_config(mode))?;
-        fs::write(dont_dir.join("seed/dont-seed.yaml"), SEED_VOCABULARY)?;
-        fs::write(dont_dir.join("events.jsonl"), init_event(mode))?;
+        let config_path = dont_dir.join("config.toml");
+        fs::write(&config_path, minimal_config(mode)).map_err(|err| io_error("write", &config_path, err))?;
+        let seed_path = dont_dir.join("seed/dont-seed.yaml");
+        fs::write(&seed_path, SEED_VOCABULARY).map_err(|err| io_error("write", &seed_path, err))?;
+        let events_path = dont_dir.join("events.jsonl");
+        fs::write(&events_path, init_event(mode)).map_err(|err| io_error("write", &events_path, err))?;
         if std::env::var("DONT_DIR").is_err() {
             ensure_dont_gitignore_entry(cwd)?;
         }
@@ -413,14 +436,10 @@ impl Project {
 
 fn init_event(mode: ProjectMode) -> String {
     let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
-    let event = json!({
-        "kind": "project.initialized",
-        "mode": mode.as_str(),
-        "created_at": created_at,
-    });
     format!(
-        "{}\n",
-        serde_json::to_string(&event).expect("project init event serializes")
+        "{{\"kind\":\"project.initialized\",\"mode\":\"{}\",\"created_at\":\"{}\"}}\n",
+        mode.as_str(),
+        created_at,
     )
 }
 
@@ -434,6 +453,6 @@ fn ensure_dont_gitignore_entry(project_root: &Path) -> Result<(), ProjectError> 
         content.push('\n');
     }
     content.push_str(".dont/\n");
-    fs::write(path, content)?;
+    fs::write(&path, content).map_err(|err| io_error("write", &path, err))?;
     Ok(())
 }

@@ -318,6 +318,40 @@ fn internal_project_errors_do_not_suggest_dont_doctor() {
 }
 
 #[test]
+fn init_source_has_no_expect_calls_in_project_init_paths() {
+    let source = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/project.rs")).unwrap();
+    assert!(
+        !source.contains(".expect("),
+        "project.rs should avoid expect() in init-related code paths"
+    );
+}
+
+#[test]
+fn init_io_failures_name_target_path_in_structured_error() {
+    let dir = TempDir::new().unwrap();
+    let blocked = dir.path().join("blocked-target");
+    fs::write(&blocked, "not a directory").unwrap();
+
+    let output = dont()
+        .arg("init")
+        .arg("--json")
+        .env("DONT_DIR", &blocked)
+        .assert()
+        .code(4)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    let message = v["data"]["message"].as_str().unwrap();
+    assert!(message.contains(blocked.to_string_lossy().as_ref()), "message should name failing path: {message}");
+    assert!(
+        message.contains("create") || message.contains("write"),
+        "message should name the failed operation: {message}"
+    );
+}
+
+#[test]
 fn prime_blocking_includes_doubted_terms() {
     let dir = TempDir::new().unwrap();
     init_in(&dir).success();

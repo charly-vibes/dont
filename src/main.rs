@@ -859,7 +859,7 @@ fn project_error_to_exit(err: &ProjectError) -> (String, String, i32) {
         ProjectError::ConfigMissing(msg) => ("config-missing".to_string(), msg.clone(), 3),
         ProjectError::LayoutInvalid(_) => ("layout-invalid".to_string(), err.to_string(), 3),
         ProjectError::Store(_) => ("internal".to_string(), err.to_string(), 4),
-        ProjectError::Io(_) => ("internal".to_string(), err.to_string(), 4),
+        ProjectError::Io { .. } => ("internal".to_string(), err.to_string(), 4),
     }
 }
 
