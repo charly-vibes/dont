@@ -222,3 +222,22 @@ fn doctor_fix_restores_stale_docs_and_is_idempotent() {
         before_second_fix_canonical
     );
 }
+
+#[test]
+fn doctor_fix_reports_managed_doc_write_failures_with_path_context() {
+    let root = TempDir::new().unwrap();
+    init_project(&root).success();
+
+    let canonical_path = root.path().join(".dont/AGENTS.md");
+    fs::remove_file(&canonical_path).unwrap();
+    fs::create_dir(&canonical_path).unwrap();
+
+    let output = doctor_fix(&root).code(4).get_output().stdout.clone();
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    let message = v["data"]["message"].as_str().unwrap();
+    assert!(
+        message.contains(canonical_path.to_string_lossy().as_ref()),
+        "message should name failing managed-doc path: {message}"
+    );
+    assert!(message.contains("write"), "message should name write operation: {message}");
+}

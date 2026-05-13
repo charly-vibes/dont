@@ -318,11 +318,11 @@ fn internal_project_errors_do_not_suggest_dont_doctor() {
 }
 
 #[test]
-fn init_source_has_no_expect_calls_in_project_init_paths() {
+fn project_source_has_no_expect_calls() {
     let source = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/project.rs")).unwrap();
     assert!(
         !source.contains(".expect("),
-        "project.rs should avoid expect() in init-related code paths"
+        "project.rs should avoid expect() calls"
     );
 }
 
@@ -349,6 +349,50 @@ fn init_io_failures_name_target_path_in_structured_error() {
         message.contains("create") || message.contains("write"),
         "message should name the failed operation: {message}"
     );
+}
+
+#[test]
+fn init_treats_malformed_existing_config_as_already_initialised() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("config.toml"), "not valid toml = [[").unwrap();
+
+    let output = dont()
+        .arg("init")
+        .arg("--json")
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(3)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["data"]["code"], "already-initialised");
+}
+
+#[test]
+fn init_reports_late_gitignore_write_failures_with_path_context() {
+    let root = TempDir::new().unwrap();
+    fs::create_dir(root.path().join(".gitignore")).unwrap();
+
+    let output = dont()
+        .arg("init")
+        .arg("--json")
+        .current_dir(root.path())
+        .assert()
+        .code(4)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    let message = v["data"]["message"].as_str().unwrap();
+    let gitignore = root.path().join(".gitignore");
+    assert!(
+        message.contains(gitignore.to_string_lossy().as_ref()),
+        "message should name failing gitignore path: {message}"
+    );
+    assert!(message.contains("write"), "message should name write operation: {message}");
 }
 
 #[test]

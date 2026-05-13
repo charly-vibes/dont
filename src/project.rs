@@ -305,10 +305,13 @@ impl Project {
 
     pub fn refresh_managed_docs(&self) -> Result<(), ProjectError> {
         let canonical = canonical_agents_content();
-        write_canonical(&self.canonical_agents_path(), &canonical)?;
+        let canonical_path = self.canonical_agents_path();
+        write_canonical(&canonical_path, &canonical)
+            .map_err(|err| io_error("write", &canonical_path, err))?;
         let root_block = root_block_content();
         for path in self.root_doc_paths() {
-            replace_or_prepend_root_block(&path, &root_block)?;
+            replace_or_prepend_root_block(&path, &root_block)
+                .map_err(|err| io_error("write", &path, err))?;
         }
         Ok(())
     }
