@@ -119,6 +119,26 @@ fn direct_flag_is_accepted_without_error() {
         .success();
 }
 
+#[test]
+fn deprecated_lock_with_json_emits_error_envelope() {
+    let out = dont()
+        .args(["--json", "lock", "claim:123"])
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["envelope_kind"], "error");
+    assert_eq!(v["envelope_version"], "0.2");
+    assert!(v["data"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("dont forget"));
+}
+
 // --- -j short flag for --json ---
 
 #[test]

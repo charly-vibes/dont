@@ -449,6 +449,23 @@ fn cwd() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
+fn arg_present(args: &[String], long: &str, short: &str) -> bool {
+    args.iter().any(|arg| arg == long || arg == short)
+}
+
+fn author_from_args(args: &[String]) -> Option<String> {
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if arg == "--author" || arg == "-a" {
+            return iter.next().cloned();
+        }
+        if let Some(value) = arg.strip_prefix("--author=") {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
 fn emit_json<T: serde::Serialize>(envelope: &T) {
     if human_mode() {
         let v = serde_json::to_value(envelope).unwrap();
@@ -2230,9 +2247,34 @@ fn nonfunctional_label_warning(label: &str, cfg: &TermNonfunctionalConfig) -> Op
 
 fn main() {
     // Detect removed "lock" subcommand and suggest "forget" before clap parses.
-    let first_subcmd = std::env::args().skip(1).find(|a| !a.starts_with('-'));
-    if first_subcmd.as_deref() == Some("lock") {
-        eprintln!("error: unknown command 'lock'. Did you mean 'dont forget'?");
+    let raw_args: Vec<String> = std::env::args().collect();
+    let first_subcmd = raw_args.iter().skip(1).find(|a| !a.starts_with('-'));
+    if first_subcmd.is_some_and(|arg| arg == "lock") {
+        let json_requested = arg_present(&raw_args, "--json", "-j");
+        if json_requested {
+            if let Some(author) = author_from_args(&raw_args)
+                .or_else(|| std::env::var("DONT_AUTHOR").ok())
+                .or_else(|| std::env::var("USER").ok())
+            {
+                set_author(author);
+            }
+            let envelope = Envelope::error(
+                refusal(
+                    "unknown-command",
+                    "unknown command 'lock'. Did you mean 'dont forget'?",
+                    None,
+                    vec![RemediationEntry {
+                        command: "dont forget <claim-id>".to_string(),
+                        description: "Use the renamed subcommand for locking verified claims"
+                            .to_string(),
+                    }],
+                ),
+                vec![],
+            );
+            println!("{}", serde_json::to_string(&envelope).unwrap());
+        } else {
+            eprintln!("error: unknown command 'lock'. Did you mean 'dont forget'?");
+        }
         process::exit(1);
     }
 
