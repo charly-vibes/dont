@@ -324,3 +324,54 @@ fn trust_ignored_claim_is_refused() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "invalid-transition");
 }
+
+// Spec (Requirement: Rule outcomes and error taxonomy boundary):
+// "Verb-level validators such as reason-required, reason-not-hedge, ... MUST use their own
+//  dedicated error codes and MUST set rule_name to null."
+#[test]
+fn trust_reason_not_hedge_has_null_rule_name() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "a claim for rule_name null check");
+    let out = dont()
+        .args(["trust", &id, "--reason", "I think this is wrong", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["code"], "reason-not-hedge");
+    // Verb-level validators MUST have rule_name: null (not a rule-layer error).
+    assert!(
+        v["data"]["rule_name"].is_null(),
+        "reason-not-hedge must have rule_name: null, got: {}",
+        v["data"]["rule_name"]
+    );
+}
+
+// Spec (Requirement: Rule outcomes and error taxonomy boundary):
+// "Verb-level validators such as reason-required ... MUST set rule_name to null."
+#[test]
+fn trust_reason_required_has_null_rule_name() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "a claim for reason-required null check");
+    let out = dont()
+        .args(["trust", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["code"], "reason-required");
+    // Verb-level validators MUST have rule_name: null (not a rule-layer error).
+    assert!(
+        v["data"]["rule_name"].is_null(),
+        "reason-required must have rule_name: null, got: {}",
+        v["data"]["rule_name"]
+    );
+}

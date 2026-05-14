@@ -117,4 +117,77 @@ mod stale_cascade {
             .unwrap();
         assert!(check(&store).unwrap().is_empty());
     }
+
+    // Spec: "locked and ignored entities are exempt from derived stale output"
+    #[test]
+    fn silent_for_locked_claim_with_doubted_dep() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let term = store.append_term("ns:concept", "", None).unwrap();
+        store
+            .append_term_status_change(
+                &term.id,
+                StoreStatus::Unverified,
+                StoreStatus::Doubted,
+                StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
+            )
+            .unwrap();
+        let claim = store
+            .append_claim("a locked claim", &["ns:concept".to_string()], None)
+            .unwrap();
+        // Transition claim to Locked (from Verified, as lock requires verified status)
+        store
+            .append_status_change(
+                &claim.id,
+                StoreStatus::Unverified,
+                StoreStatus::Verified,
+                StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
+            )
+            .unwrap();
+        store
+            .append_status_change(
+                &claim.id,
+                StoreStatus::Verified,
+                StoreStatus::Locked,
+                StoreEvent { kind: StoreEventKind::Locked, note: None, evidence: vec![] },
+            )
+            .unwrap();
+        // Locked claims must be exempt from stale-cascade output.
+        assert!(
+            check(&store).unwrap().is_empty(),
+            "locked claim should be exempt from stale-cascade"
+        );
+    }
+
+    // Spec: "locked and ignored entities are exempt from derived stale output"
+    #[test]
+    fn silent_for_ignored_claim_with_doubted_dep() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let term = store.append_term("ns:concept", "", None).unwrap();
+        store
+            .append_term_status_change(
+                &term.id,
+                StoreStatus::Unverified,
+                StoreStatus::Doubted,
+                StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
+            )
+            .unwrap();
+        let claim = store
+            .append_claim("an ignored claim", &["ns:concept".to_string()], None)
+            .unwrap();
+        store
+            .append_status_change(
+                &claim.id,
+                StoreStatus::Unverified,
+                StoreStatus::Ignored,
+                StoreEvent { kind: StoreEventKind::Ignored, note: None, evidence: vec![] },
+            )
+            .unwrap();
+        // Ignored claims must be exempt from stale-cascade output.
+        assert!(
+            check(&store).unwrap().is_empty(),
+            "ignored claim should be exempt from stale-cascade"
+        );
+    }
 }

@@ -424,6 +424,69 @@ mod engine {
             );
         }
     }
+
+    // Spec (Requirement: Vague-reason migration boundary):
+    // "The system SHALL treat the v0.2 vague-reason rule as removed from the shipped rule set."
+    #[test]
+    fn vague_reason_is_not_in_shipped_rules() {
+        assert!(
+            !SHIPPED_RULES.contains(&"vague-reason"),
+            "vague-reason must not appear in SHIPPED_RULES — it was removed in v0.3 \
+             and replaced by verb-level validators"
+        );
+    }
+
+    // Spec (Requirement: Shipped rule catalogue — lockable scenario):
+    // "lockable MUST remain a manual gate evaluated only on dont lock."
+    // Verifying lockable does not block non-lock operations by running evaluate_shipped
+    // on a store with a verified claim that lacks hypotheses/evidence.
+    // The rule fires (lists unmet conditions), but the engine does NOT act on that firing
+    // unless the caller is handling a lock operation. This test verifies evaluate_shipped
+    // returns a match (data available) rather than an error, leaving enforcement to the caller.
+    #[test]
+    fn lockable_evaluate_shipped_returns_ok_on_any_store_state() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let engine = make_engine(&dir, RulesConfig::default(), false);
+
+        // Insert a claim with no hypotheses or evidence — lockable would flag it.
+        store.append_claim("a claim with nothing", &[], None).unwrap();
+
+        // evaluate_shipped must succeed (Ok) — lockable is advisory, not a hard engine failure.
+        let result = engine.evaluate_shipped(&store, "lockable");
+        assert!(result.is_some(), "lockable must be a shipped rule");
+        assert!(
+            result.unwrap().is_ok(),
+            "lockable evaluate_shipped must return Ok (matches list), never Err"
+        );
+    }
+
+    // Spec (Requirement: Severity defaults and override boundaries):
+    // "lockable MUST remain a manual gate evaluated only on dont lock" — verifying
+    // that its severity is reported as warn (not strict) so it cannot autonomously block
+    // non-lock operations.
+    #[test]
+    fn lockable_default_severity_is_warn_not_strict() {
+        let dir = TempDir::new().unwrap();
+        let engine = make_engine(&dir, RulesConfig::default(), false);
+        assert_eq!(
+            engine.severity("lockable"),
+            Severity::Warn,
+            "lockable must default to warn severity — it is a manual gate, not a background refusal"
+        );
+    }
+
+    // Spec: "correlated-error MUST default to warn in both modes and remain overridable."
+    #[test]
+    fn correlated_error_defaults_to_warn_in_strict_mode() {
+        let dir = TempDir::new().unwrap();
+        let engine = make_engine(&dir, RulesConfig::default(), true); // strict mode
+        assert_eq!(
+            engine.severity("correlated-error"),
+            Severity::Warn,
+            "correlated-error must default to warn even in strict mode"
+        );
+    }
 }
 
 #[cfg(test)]
