@@ -35,55 +35,9 @@ phase: implement
 ### git_status
 
 ```
- M .wai/projects/dont/.pending-resume
 ?? .claude/worktrees/
-?? .wai/.pipeline-run
-?? .wai/pipeline-runs/
-?? .wai/projects/dont/handoffs/2026-05-12-session-end.md
-?? .wai/projects/dont/handoffs/2026-05-13-session-end.md
-?? .wai/projects/dont/plans/2026-05-12-dont-4k5-10-sk11-label-validation-edge-cases-audi.md
-?? .wai/projects/dont/plans/2026-05-12-dont-4k5-11-mode-enforcement-boundary-audit-au.md
-?? .wai/projects/dont/plans/2026-05-12-dont-4k5-12-lock-unlock-pre-conditions-audit-plan.md
-?? .wai/projects/dont/plans/2026-05-12-dont-4k5-13-dangling-definition-audit-plan-audit.md
-?? .wai/projects/dont/plans/2026-05-12-dont-4k5-14-claim-structure-rule-edge-cases-audit.md
-?? .wai/projects/dont/plans/2026-05-12-dont-4k5-9-evidence-locator-parsing-robustness.md
-?? .wai/projects/dont/plans/2026-05-12-red-phase-21-unit-tests-written-for-label-validat.md
-?? .wai/projects/dont/plans/2026-05-12-red-phase-23-unit-tests-written-for-parse-line-sp.md
-?? .wai/projects/dont/plans/2026-05-12-red-phase-4-integration-tests-added-to-tests-mode.md
-?? .wai/projects/dont/plans/2026-05-12-test-cases-implemented-2-integration-tests-added.md
-?? .wai/projects/dont/plans/2026-05-12-test-cases-implemented-3-unit-tests-added-for-aud.md
-?? .wai/projects/dont/plans/2026-05-12-test-cases-implemented-5-unit-tests-added-for-rul.md
-?? .wai/projects/dont/plans/2026-05-13-dont-4k5-8-audit-plan-inspect-src-project-rs-init.md
-?? .wai/projects/dont/plans/2026-05-13-implement-replace-sync-docs-with-doctor-fix-in-fou.md
-?? .wai/projects/dont/plans/2026-05-13-red-phase-complete-for-managed-docs-refresh-added.md
-?? .wai/projects/dont/plans/2026-05-13-red-phase-for-dont-4k5-8-added-failing-tests-in-t.md
-?? .wai/projects/dont/plans/2026-05-13-refactor-assessment-for-dont-4k5-8-no-additional.md
-?? .wai/projects/dont/plans/2026-05-14-epic-dont-4k5-work-queue-dont-4k5-1-dont-4k5-2.md
-?? .wai/projects/dont/research/2026-05-12-cycle-complete-26-unit-tests-added-for-parse-line.md
-?? .wai/projects/dont/research/2026-05-12-cycle-complete-dont-4k5-11-mode-enforcement-bound.md
-?? .wai/projects/dont/research/2026-05-12-cycle-complete-for-dont-4k5-10-24-unit-tests-adde.md
-?? .wai/projects/dont/research/2026-05-12-cycle-complete-for-dont-4k5-12-lock-unlock-pre-co.md
-?? .wai/projects/dont/research/2026-05-12-cycle-complete-for-dont-4k5-13-audit-verdict-da.md
-?? .wai/projects/dont/research/2026-05-12-cycle-complete-for-dont-4k5-14-5-unit-tests-added.md
-?? .wai/projects/dont/research/2026-05-12-review-findings-addressed-added-3-boundary-tests.md
-?? .wai/projects/dont/research/2026-05-12-review-findings-addressed-for-dont-4k5-10-renamed.md
-?? .wai/projects/dont/research/2026-05-12-review-findings-addressed-for-dont-4k5-11-high-e.md
-?? .wai/projects/dont/research/2026-05-12-review-findings-addressed-for-dont-4k5-12-high-fi.md
-?? .wai/projects/dont/research/2026-05-12-review-findings-addressed-for-dont-4k5-14-all-hig.md
-?? .wai/projects/dont/research/2026-05-12-review-findings-addressed-merged-entity-id-assert.md
-?? .wai/projects/dont/research/2026-05-12-ro5-review-dont-4k5-13-3-low-findings-two-new-t.md
-?? .wai/projects/dont/research/2026-05-12-ro5-review-findings-dont-4k5-11-mode-enforcement.md
-?? .wai/projects/dont/research/2026-05-12-ro5-review-findings-for-dont-4k5-14-rule-claim-str.md
-?? .wai/projects/dont/research/2026-05-12-ro5-review-of-label-validation-tests-dont-4k5-10.md
-?? .wai/projects/dont/research/2026-05-12-ro5-review-parse-line-span-tests-pass-a.md
-?? .wai/projects/dont/research/2026-05-13-audit-burndown-dont-4k5-7-found-pre-clap-deprecat.md
-?? .wai/projects/dont/research/2026-05-13-cycle-complete-implemented-managed-docs-refresh-v.md
-?? .wai/projects/dont/research/2026-05-13-review-findings-addressed-for-managed-docs-refresh.md
-?? .wai/projects/dont/research/2026-05-14-epic-dont-4k5-shipped-14-14-tickets-closed-all-t.md
-?? .wai/projects/dont/research/2026-05-14-epic-dont-4k5-verified-complete-14-14-tickets-clo.md
-?? .wai/projects/dont/research/2026-05-14-processed-tickets-for-epic-dont-4k5-dont-4k5-6-r.md
-?? .wai/projects/dont/reviews/
-?? .wai/resources/pipelines/.last-run
+?? .wai/pipeline-runs/epic-tdd-ro5-2026-05-14-spec-align.yml
+?? .wai/projects/dont/plans/2026-05-14-epic-spec-align-work-queue-dont-1uyq-dont-4jjk.md
 ```
 
 ### open_issues
@@ -115,19 +69,19 @@ phase: implement
 ○ dont-d1kw ● P2 [CI-CD-AUDIT] Build pipeline health
 ○ dont-d4e8 ● P2 [TEST-QUALITY] Audit test isolation failures in existing tests
 ○ dont-d6ie ● P2 [TEST-QUALITY] Audit test naming clarity in existing tests
-○ dont-dj1v ● P2 [SPEC-ALIGN] dont-linkml-import: verify implementation matches spec
 ○ dont-eqsz ● P2 [DOCS-QUALITY] Audit lib.rs public API for documentation coverage
 ○ dont-f64i ● P2 [DOCS-QUALITY] Verify contributing guide presence and accuracy
 ○ dont-getq ● P2 [CI-CD-AUDIT] Test execution in CI
 ○ dont-idda ● P2 [DOCS-QUALITY] Verify rule documentation cross-references are correct
+○ dont-jgs6 ● P2 [CLI-CONSISTENCY] Positional argument conventions consistent across commands
 ○ dont-lc2z ● P2 [SPEC-ALIGN] dont-core: verify implementation matches spec
 ○ dont-lott ● P2 [ROBUSTNESS] Unicode in claim names — non-ASCII identifiers handled correctly
 ○ dont-mjd6 ● P2 [SECURITY-AUDIT] Injection in claim names
 ○ dont-moi2 ● P2 [SECURITY-AUDIT] Path traversal in evidence locators
 ○ dont-mz46 ● P2 [SPEC-ALIGN] dont-cli-surface: verify implementation matches spec
-○ dont-nolt ● P2 [SPEC-ALIGN] dont-agent-help: verify implementation matches spec
 ○ dont-nwck ● P2 Explore feedback loop: log rejected-claim patterns to inform future research
 ○ dont-ogxm ● P2 [TEST-COVERAGE] stdin pipe with multiple items — batch processing
+○ dont-p0ow ● P2 [CLI-CONSISTENCY] Completions accuracy — output matches actual CLI surface
 ○ dont-pzao ● P2 [TEST-QUALITY] Audit implementation coupling in existing tests
 ○ dont-qcjm ● P2 [DOCS-QUALITY] Verify hypotheses.md lifecycle matches implementation
 ○ dont-qxrz ● P2 [ROBUSTNESS] Permission errors — read-only filesystem handled gracefully
