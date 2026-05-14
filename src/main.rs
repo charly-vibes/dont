@@ -505,7 +505,7 @@ const HELP_TUTORIAL: &[&str] = &[
     "Supply `--label '<a noun phrase>'` alongside `--doc`.\n\n",
     "## 4. Record a claim\n\n",
     "    dont conclude \"claim text\"\n\n",
-    "Core lifecycle verbs: conclude, trust, dismiss (=flag), forget (=lock).\n\n",
+    "Core four verbs: conclude, define, trust, dismiss. Lifecycle verbs: lock, reopen, ignore, verify-evidence.\n\n",
     "## 5. Ground a documented fact (fast path)\n\n",
     "    dont ground \"documented fact\" --file README.md --lines 10-18\n\n",
     "## 6. Handle refusals\n\n",
@@ -555,10 +555,50 @@ const HELP_HOWTO_STORE_RECOVERY: &str = concat!(
     "Run `dont prime --json` afterwards to confirm the project is healthy.\n"
 );
 
+const HELP_HOWTO_RULE_CLAIMS: &str = concat!(
+    "# How-to: Author a rule claim\n\n",
+    "Document a `dont` rule's behavior as a structured claim using the canonical\n",
+    "slot-marker template. The `rule-claim-structure` rule validates mandatory slots.\n\n",
+    "## Canonical template\n\n",
+    "```\n",
+    "[INVOCATION] <rule-name> runs as: background lint | opt-in via `dont check --<flag>`\n",
+    "[CONFIG]     Enabled by default: yes | no\n",
+    "[MODE]       In permissive mode: warn | strict | same as strict | n/a\n",
+    "[TRIGGER]    Fires when: <condition>\n",
+    "[GUARD]      Silently skips: <inputs>   (omit if no guard)\n",
+    "[EVAL]       Evaluation model: stateless demand | event-driven on <event>   (omit if stateless demand)\n",
+    "[BOUNDARY]   Does not handle: <edge cases>; defers to <other-rule>   (omit if no boundary)\n",
+    "```\n\n",
+    "## Slot reference\n\n",
+    "| Slot | Marker | Mandatory | Default when omitted |\n",
+    "|------|--------|-----------|----------------------|\n",
+    "| INVOCATION MODEL | [INVOCATION] | No | background lint, runs with `dont prime` |\n",
+    "| TRIGGER CONDITION | [TRIGGER] | Yes | — |\n",
+    "| PRECONDITION GUARD | [GUARD] | No | evaluates all inputs; no silent skip |\n",
+    "| EVALUATION MODEL | [EVAL] | No | stateless demand-evaluated |\n",
+    "| CONFIG (enablement) | [CONFIG] | Yes — one of CONFIG or MODE | — |\n",
+    "| MODE (severity) | [MODE] | Yes — one of CONFIG or MODE | — |\n",
+    "| BOUNDARY | [BOUNDARY] | No | no explicit boundary with sibling rules |\n\n",
+    "## Mandatory slots\n\n",
+    "[TRIGGER] and at least one of [CONFIG] or [MODE] are required.\n",
+    "Omitting both is a schema violation flagged by `rule-claim-structure`.\n\n",
+    "## Optional slots — when they become load-bearing\n\n",
+    "- [INVOCATION]: required when the rule is opt-in (background-lint default is wrong for opt-in rules).\n",
+    "- [GUARD]: required when the rule silently skips a non-obvious subset of inputs.\n",
+    "- [EVAL]: required when evaluation is event-driven or stateful.\n",
+    "- [BOUNDARY]: required when scope is defined by exclusion from a sibling rule.\n\n",
+    "## Tagging rule claims\n\n",
+    "Tag every rule claim with the `rule-claim-type` term UUID in `--depends-on`:\n\n",
+    "    dont conclude \"...\" --depends-on term:<uuid-of-rule-claim-type>\n\n",
+    "Do not use the bare CURIE `local:rule-claim-type` — that triggers `unresolved-terms`.\n\n",
+    "See `.dont/AGENTS.md` for the full rule claim authoring guide.\n"
+);
+
 const HOWTO_TOPICS: &[(&str, &str)] = &[
     ("harness-integration", "Integrate dont into a new agent harness"),
     ("authoring-rules", "Author a project-specific Datalog rule"),
     ("store-recovery", "Recover a corrupted .dont/ store"),
+    ("rule-claims", "Author a structured rule-describing claim"),
 ];
 
 fn howto_content(topic: &str) -> Option<&'static str> {
@@ -566,6 +606,7 @@ fn howto_content(topic: &str) -> Option<&'static str> {
         "harness-integration" => Some(HELP_HOWTO_HARNESS_INTEGRATION),
         "authoring-rules" => Some(HELP_HOWTO_AUTHORING_RULES),
         "store-recovery" => Some(HELP_HOWTO_STORE_RECOVERY),
+        "rule-claims" => Some(HELP_HOWTO_RULE_CLAIMS),
         _ => None,
     }
 }
