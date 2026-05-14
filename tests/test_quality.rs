@@ -279,6 +279,111 @@ fn collect_isolation_violations(dir: &std::path::Path, out: &mut Vec<String>) {
     }
 }
 
+/// Implementation-coupling audit: integration tests must only import public API.
+///
+/// In Rust, integration tests under `tests/` access the crate as an external
+/// consumer would. Any `use dont::<module>` where `<module>` is NOT listed as
+/// a `pub mod` in `src/lib.rs` is implementation coupling — the test reaches
+/// into internals that could change without breaking the observable behaviour.
+///
+/// Public modules declared in `src/lib.rs` (2026-05-14):
+///   config, envelope, linkml, managed_block, model, project, rules, store
+///
+/// Audit result (2026-05-14): all `use dont::` imports in `tests/` use only
+/// these public modules. No integration test reaches a private internal path.
+#[test]
+fn no_implementation_coupling_in_integration_tests() {
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let tests_dir = manifest.join("tests");
+
+    // These are the modules declared `pub mod` in src/lib.rs.
+    // Any `use dont::<other>` would be reaching a private path.
+    let public_modules: &[&str] = &[
+        "config",
+        "envelope",
+        "linkml",
+        "managed_block",
+        "model",
+        "project",
+        "rules",
+        "store",
+    ];
+
+    let mut violations: Vec<String> = Vec::new();
+    collect_coupling_violations(&tests_dir, public_modules, &mut violations);
+
+    assert!(
+        violations.is_empty(),
+        "Integration tests import non-public crate internals.\n\
+         Only modules declared `pub mod` in src/lib.rs are part of the public API.\n\
+         Reaching into private modules couples tests to internal layout and breaks\n\
+         on refactors that preserve observable behaviour.\n\
+         Fix: rewrite using `Command::cargo_bin(\"dont\")` subprocesses instead.\n\
+         Violations:\n{}",
+        violations.join("\n")
+    );
+}
+
+fn collect_coupling_violations(
+    dir: &std::path::Path,
+    public_modules: &[&str],
+    out: &mut Vec<String>,
+) {
+    use std::fs;
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_coupling_violations(&path, public_modules, out);
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        for (i, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            // Skip comments
+            if trimmed.starts_with("//") {
+                continue;
+            }
+            // Match `use dont::<module>` imports
+            if let Some(rest) = trimmed
+                .strip_prefix("use dont::")
+                .or_else(|| trimmed.strip_prefix("use dont :: "))
+            {
+                // Extract the top-level module name (before `::` or `{` or `;`)
+                let top_module = rest
+                    .split("::")
+                    .next()
+                    .unwrap_or("")
+                    .split('{')
+                    .next()
+                    .unwrap_or("")
+                    .split(';')
+                    .next()
+                    .unwrap_or("")
+                    .trim();
+                if !top_module.is_empty() && !public_modules.contains(&top_module) {
+                    out.push(format!(
+                        "  {}:{}: `use dont::{}` — `{}` is not a public module",
+                        path.display(),
+                        i + 1,
+                        rest.split(';').next().unwrap_or("").trim(),
+                        top_module
+                    ));
+                }
+            }
+        }
+    }
+}
+
 fn collect_violations(dir: &std::path::Path, anti_patterns: &[&str], out: &mut Vec<String>) {
     use std::fs;
     let entries = match fs::read_dir(dir) {
