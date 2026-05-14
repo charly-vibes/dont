@@ -1,4 +1,7 @@
 use assert_cmd::Command;
+use dont::store::{
+    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, StoreStatus,
+};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -269,4 +272,87 @@ fn prime_status_counts_includes_ignored() {
     assert_eq!(v["data"]["status_counts"]["ignored"], 2);
     assert_eq!(v["data"]["status_counts"]["unverified"], 0);
     assert_eq!(v["data"]["status_counts"]["locked"], 0);
+}
+
+// --- Locked-entity transition refusals ---
+
+fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[&str]) {
+    let store = Store::open_dont_dir(dir.path()).unwrap();
+    let first = evidence.first().expect("at least one evidence item");
+    store
+        .append_status_change(
+            claim_id,
+            StoreStatus::Unverified,
+            StoreStatus::Verified,
+            StoreEvent {
+                kind: StoreEventKind::Flagged,
+                note: None,
+                evidence: vec![serde_json::Value::String((*first).to_string())],
+            },
+        )
+        .unwrap();
+    for uri in &evidence[1..] {
+        store
+            .append_evidence_event(
+                claim_id,
+                StoreEvent {
+                    kind: StoreEventKind::Flagged,
+                    note: None,
+                    evidence: vec![serde_json::Value::String((*uri).to_string())],
+                },
+            )
+            .unwrap();
+    }
+}
+
+fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
+    let store = Store::open_dont_dir(dir.path()).unwrap();
+    let hypotheses: Vec<HypothesisRecord> = (0..count)
+        .map(|idx| HypothesisRecord {
+            idx,
+            text: format!("hypothesis {}", idx + 1),
+            assessment: HypothesisAssessment {
+                supporting: vec![format!("support-{}", idx + 1)],
+                refuting: vec![],
+            },
+        })
+        .collect();
+    store.set_claim_hypotheses_for_test(claim_id, &hypotheses).unwrap();
+}
+
+fn lock_claim(dir: &TempDir, id: &str) {
+    seed_verified_claim_with_evidence(
+        dir,
+        id,
+        &[
+            "https://source-one.example/evidence",
+            "https://source-two.example/evidence",
+        ],
+    );
+    seed_assessed_hypotheses(dir, id, 3);
+    dont()
+        .args(["forget", id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn ignore_locked_claim_is_refused() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "A locked claim that cannot be ignored");
+    lock_claim(&dir, &id);
+
+    let output = dont()
+        .args(["ignore", &id, "--reason", "seems irrelevant now", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "invalid-transition");
 }
