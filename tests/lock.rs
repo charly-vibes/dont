@@ -347,23 +347,26 @@ fn lock_nonexistent_claim_returns_not_found() {
 }
 
 #[test]
-fn lock_command_is_rejected_with_forget_suggestion() {
+fn lock_command_rejects_unverified_claim() {
+    // lock is now a real alias for forget; locking an unverified claim must fail
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
-    let id = conclude_claim(&dir, "Claim via deprecated lock command");
+    let id = conclude_claim(&dir, "Claim via lock command on unverified state");
 
     let output = dont()
-        .args(["lock", &id])
+        .args(["lock", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
         .get_output()
-        .stderr
+        .stdout
         .clone();
 
-    let stderr = String::from_utf8_lossy(&output);
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false, "lock on unverified claim must fail");
+    let code = v["data"]["code"].as_str().unwrap_or("");
     assert!(
-        stderr.contains("dont forget"),
-        "stderr should suggest 'dont forget', got: {stderr}"
+        code.contains("verified") || code.contains("lockable") || code.contains("not-"),
+        "error code should indicate locking precondition not met, got: {code}"
     );
 }

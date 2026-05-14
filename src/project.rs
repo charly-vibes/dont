@@ -180,6 +180,33 @@ dont dismiss <id> --evidence https://external-source.example/ref
 Repository-relative locators resolve against the project root regardless of the caller's working directory. Paths that escape the project root (via `..` traversal or symlink escape) are refused.
 
 When `show` or `why` reports stale, unresolved, or otherwise confusing blockers, run `dont trace <id>` to see the blocker path that explains what dependency or support fallout needs attention.
+
+## Modes
+
+`dont` operates in two modes:
+
+- **permissive** — allows claims to progress with weaker evidence; suitable for exploratory work.
+- **strict** — enforces full evidence and lifecycle requirements before dismissal.
+
+Run `dont prime --json` to see the current mode. To change mode, edit `mode = "permissive"` or `mode = "strict"` in `.dont/config.toml`.
+
+## Error recovery
+
+When a command returns `"ok": false`, read `data.remediation[0].command` from the JSON envelope and run it exactly as printed. Do not guess reformulations — the remediation field is authoritative.
+
+## Defining terms
+
+Before running `dont define`, run `dont suggest-term "<description>"` to check for an existing term that fits. When defining, always supply both `--label "<a noun phrase>"` and `--doc "<definition text>"` together.
+
+## Spawn
+
+When `dont` requests a sub-agent via a spawn envelope, the harness is responsible for fulfilling the spawn. Run the spawn command from the envelope's `data.command` field and feed its output back to the calling agent.
+
+## Help
+
+Run `dont help --tutorial` for the first-session walkthrough.
+Run `dont help --topics` to list all how-to guides.
+Run `dont help --howto <topic>` to read a specific guide.
 "#;
 
 /// Resolves the `.dont` directory for a command invocation.

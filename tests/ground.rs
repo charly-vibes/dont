@@ -84,7 +84,7 @@ fn ground_without_evidence_leaves_no_partial_claim() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let claims = v["data"].as_array().unwrap();
+    let claims = v["data"]["claims"].as_array().unwrap();
     assert!(
         claims.is_empty(),
         "failed ground must not leave a partial claim, found: {:?}",
@@ -240,7 +240,7 @@ fn ground_refuses_unreadable_file_locator_without_partial_claim() {
         .stdout
         .clone();
     let listed: Value = serde_json::from_slice(&out).unwrap();
-    assert!(listed["data"].as_array().unwrap().is_empty());
+    assert!(listed["data"]["claims"].as_array().unwrap().is_empty());
 }
 
 #[test]

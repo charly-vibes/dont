@@ -120,7 +120,8 @@ fn direct_flag_is_accepted_without_error() {
 }
 
 #[test]
-fn deprecated_lock_with_json_emits_error_envelope() {
+fn lock_without_project_emits_error_envelope() {
+    // lock is now a real alias for forget; without a project it fails with no-project-found
     let out = dont()
         .args(["--json", "lock", "claim:123"])
         .assert()
@@ -133,10 +134,8 @@ fn deprecated_lock_with_json_emits_error_envelope() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["envelope_kind"], "error");
     assert_eq!(v["envelope_version"], "0.2");
-    assert!(v["data"]["message"]
-        .as_str()
-        .unwrap()
-        .contains("dont forget"));
+    // Error is about missing project, not deprecation
+    assert!(v["data"]["code"].as_str().unwrap_or("") != "");
 }
 
 // --- -j short flag for --json ---

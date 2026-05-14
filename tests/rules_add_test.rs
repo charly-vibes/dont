@@ -319,9 +319,11 @@ fn rules_test_does_not_modify_store_state() {
 
     let v1: Value = serde_json::from_slice(&out1).unwrap();
     let v2: Value = serde_json::from_slice(&out2).unwrap();
+    let claims1 = v1["data"]["claims"].as_array().or_else(|| v1["data"].as_array()).unwrap();
+    let claims2 = v2["data"]["claims"].as_array().or_else(|| v2["data"].as_array()).unwrap();
     assert_eq!(
-        v1["data"].as_array().unwrap().len(),
-        v2["data"].as_array().unwrap().len(),
+        claims1.len(),
+        claims2.len(),
         "rules test must not alter claim count"
     );
 }

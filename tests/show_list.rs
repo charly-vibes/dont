@@ -233,7 +233,7 @@ fn list_returns_claims_envelope_kind() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["envelope_kind"], "claims");
-    assert!(v["data"].is_array());
+    assert!(v["data"]["claims"].is_array());
 }
 
 #[test]
@@ -253,7 +253,7 @@ fn list_returns_all_concluded_claims() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let claims = v["data"].as_array().unwrap();
+    let claims = v["data"]["claims"].as_array().unwrap();
     let ids: Vec<&str> = claims.iter().filter_map(|c| c["id"].as_str()).collect();
     assert!(ids.contains(&id1.as_str()), "alpha claim missing");
     assert!(ids.contains(&id2.as_str()), "beta claim missing");
@@ -276,7 +276,7 @@ fn list_claims_sorted_by_created_at_descending() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let claims = v["data"].as_array().unwrap();
+    let claims = v["data"]["claims"].as_array().unwrap();
     assert!(claims.len() >= 2);
     // Most recent first
     let ids: Vec<&str> = claims.iter().filter_map(|c| c["id"].as_str()).collect();
@@ -302,7 +302,7 @@ fn list_empty_project_returns_empty_array() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["envelope_kind"], "claims");
-    assert_eq!(v["data"].as_array().unwrap().len(), 0);
+    assert_eq!(v["data"]["claims"].as_array().unwrap().len(), 0);
 }
 
 #[test]
@@ -347,7 +347,7 @@ fn list_status_filter_returns_only_matching_claims() {
             .clone();
 
         let v: Value = serde_json::from_slice(&out).unwrap();
-        let claims = v["data"].as_array().unwrap();
+        let claims = v["data"]["claims"].as_array().unwrap();
         assert_eq!(claims.len(), 1, "status={status}");
         assert_eq!(claims[0]["id"], expected_id, "status={status}");
         assert_eq!(claims[0]["status"], status, "status={status}");
@@ -418,7 +418,7 @@ fn list_kind_claims_retains_current_behavior() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["envelope_kind"], "claims");
-    let claims = v["data"].as_array().unwrap();
+    let claims = v["data"]["claims"].as_array().unwrap();
     assert_eq!(claims.len(), 1);
     assert_eq!(claims[0]["id"], claim_id);
     assert_eq!(claims[0]["entity_kind"], "claim");

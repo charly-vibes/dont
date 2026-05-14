@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
+use dont::linkml as linkml_adapter;
 use dont::envelope::{
     CLI_VERSION, ENVELOPE_VERSION, Envelope, ErrorResult, HintEntry, RemediationEntry, UnmetClause,
     Warning, set_author,
@@ -64,6 +65,7 @@ fn colorize_status(status: &str) -> String {
 #[derive(Debug, Parser)]
 #[command(name = "dont")]
 #[command(disable_version_flag = true)]
+#[command(disable_help_subcommand = true)]
 #[command(about = "Epistemic forcing-function CLI for grounded claims")]
 struct Cli {
     /// Print version information. Combine with --json for machine-readable output.
@@ -137,9 +139,35 @@ enum Command {
         reason: Option<String>,
     },
 
-    /// Verify a claim with evidence. Read as 'dont flag' = 'do not flag it as a concern'.
+    /// Verify a claim with evidence. Read as 'dont flag' = 'do not flag it as a concern'. Alias: dismiss.
     Flag {
         /// Claim identifier.
+        id: String,
+
+        /// Evidence URI or reference.
+        #[arg(long, short)]
+        evidence: Vec<String>,
+
+        /// Repository-relative file path for a structured evidence locator.
+        #[arg(long)]
+        file: Option<String>,
+
+        /// Line span within the file, e.g. "10-18" or "42".
+        #[arg(long)]
+        lines: Option<String>,
+
+        /// Named anchor within the file.
+        #[arg(long)]
+        anchor: Option<String>,
+
+        /// Captured excerpt from the referenced source for later audit.
+        #[arg(long)]
+        excerpt: Option<String>,
+    },
+
+    /// Verify a claim or term with evidence. Canonical glossary core-four verb; alias for flag.
+    Dismiss {
+        /// Claim or term identifier.
         id: String,
 
         /// Evidence URI or reference.
@@ -169,8 +197,14 @@ enum Command {
         id: String,
     },
 
-    /// Permanently preserve a verified claim when the lockable gate is met. Read as 'dont forget' = 'do not forget it'.
+    /// Permanently preserve a verified claim when the lockable gate is met. Read as 'dont forget' = 'do not forget it'. Alias: lock.
     Forget {
+        /// Claim identifier.
+        id: String,
+    },
+
+    /// Permanently preserve a verified claim when the lockable gate is met. Canonical glossary lifecycle verb; alias for forget.
+    Lock {
         /// Claim identifier.
         id: String,
     },
@@ -309,6 +343,24 @@ enum Command {
         /// Rule name (e.g. ungrounded, lockable, correlated-error).
         rule: String,
     },
+
+    /// Show agent-addressed help: command reference, first-session tutorial, and how-to guides.
+    Help {
+        /// Command name to show help for (same output as <cmd> --help).
+        command: Option<String>,
+
+        /// Print the first-session tutorial walkthrough.
+        #[arg(long, conflicts_with_all = ["howto", "topics"])]
+        tutorial: bool,
+
+        /// List the available tutorial and how-to topic names.
+        #[arg(long, conflicts_with_all = ["tutorial", "howto"])]
+        topics: bool,
+
+        /// Print the goal-oriented how-to guide for the named topic.
+        #[arg(long, value_name = "TOPIC", conflicts_with_all = ["tutorial", "topics"])]
+        howto: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -439,10 +491,204 @@ struct MockEvidenceCheckResult {
     detail: Option<String>,
 }
 
+
+const HELP_TUTORIAL: &[&str] = &[
+    "# dont -- First-Session Tutorial\n\n",
+    "This walkthrough explains the orient, search, coin, conclude, and spawn loop.\n",
+    "Use `dont help <cmd>` for quick reference after the first read.\n\n",
+    "## 1. Orient\n\n",
+    "Run `dont prime --json` at session start.\n\n",
+    "## 2. Search before coining\n\n",
+    "Before coining a new term run `dont suggest-term \"<rough concept>\"`.\n\n",
+    "## 3. Coin a term\n\n",
+    "    dont define WB:P001 --label \"a repository commit\" --doc \"A single atomic change...\"\n\n",
+    "Supply `--label '<a noun phrase>'` alongside `--doc`.\n\n",
+    "## 4. Record a claim\n\n",
+    "    dont conclude \"claim text\"\n\n",
+    "Core lifecycle verbs: conclude, trust, dismiss (=flag), forget (=lock).\n\n",
+    "## 5. Ground a documented fact (fast path)\n\n",
+    "    dont ground \"documented fact\" --file README.md --lines 10-18\n\n",
+    "## 6. Handle refusals\n\n",
+    "When a command is refused, read `data.remediation[0].command`.\n\n",
+    "## 7. Spawn requests\n\n",
+    "When a refusal contains a spawn_request envelope, invoke the harness sub-agent.\n\n",
+    "## 8. Diagnose blockers\n\n",
+    "Run `dont trace <entity-id>` to see the causal path to the root blocker.\n\n",
+    "## Further reading\n\n",
+    "- `dont help <cmd>` -- per-command reference\n",
+    "- `dont help --topics` -- list all how-to topics\n",
+    "- `dont help --howto harness-integration` -- integrate dont into a new harness\n",
+    "- `.dont/AGENTS.md` -- canonical orientation document\n"
+];
+
+const HELP_HOWTO_HARNESS_INTEGRATION: &str = concat!(
+    "# How-to: Integrate dont into a new harness\n\n",
+    "Wire `dont` commands into an existing CI / agent harness so that spawn requests\n",
+    "are fulfilled automatically and structured JSON output is routed correctly.\n\n",
+    "1. Set DONT_DIRECT=1 (or pass --direct) in the orchestration layer.\n",
+    "2. Parse JSON envelopes: check `ok`, then `data`, hints and `remediation`.\n",
+    "3. Fulfil spawn requests: when `data.spawn_request` is non-null, launch a sub-agent.\n",
+    "4. Surface remediation: on `ok: false`, read `data.remediation[0].command`.\n",
+    "5. Run `dont prime --json` at session start to get blocking entities and mode.\n\n",
+    "See `.dont/AGENTS.md` for the full orientation document.\n"
+);
+
+const HELP_HOWTO_AUTHORING_RULES: &str = concat!(
+    "# How-to: Author a project-specific rule\n\n",
+    "Add a custom Datalog rule that enforces a project convention.\n\n",
+    "1. Create a .dl file, e.g. rules/my-rule.dl.\n",
+    "2. Install: dont rules add rules/my-rule.dl\n",
+    "3. Test without modifying state: dont rules test my-rule\n",
+    "4. Adjust severity in config.toml under [rules] if needed.\n\n",
+    "See `dont explain <rule>` for prose explanations of the shipped rules.\n"
+);
+
+const HELP_HOWTO_STORE_RECOVERY: &str = concat!(
+    "# How-to: Recover a corrupted .dont/ store\n\n",
+    "Restore a project whose .dont/ directory is damaged or inconsistent.\n\n",
+    "1. Run `dont doctor --json` to identify which checks fail.\n",
+    "2. For stale managed docs run `dont doctor --fix`.\n",
+    "3. If db.cozo is corrupt, remove the file and run `dont init`.\n",
+    "   Note: this loses all claim and term history in that database.\n",
+    "4. The seed snapshot is regenerated by `dont init`.\n",
+    "5. If config.toml is missing, recreate via `dont init`.\n\n",
+    "Run `dont prime --json` afterwards to confirm the project is healthy.\n"
+);
+
+const HOWTO_TOPICS: &[(&str, &str)] = &[
+    ("harness-integration", "Integrate dont into a new agent harness"),
+    ("authoring-rules", "Author a project-specific Datalog rule"),
+    ("store-recovery", "Recover a corrupted .dont/ store"),
+];
+
+fn howto_content(topic: &str) -> Option<&'static str> {
+    match topic {
+        "harness-integration" => Some(HELP_HOWTO_HARNESS_INTEGRATION),
+        "authoring-rules" => Some(HELP_HOWTO_AUTHORING_RULES),
+        "store-recovery" => Some(HELP_HOWTO_STORE_RECOVERY),
+        _ => None,
+    }
+}
+
 fn contains_hedge(reason: &str, extra: &[String]) -> bool {
     let lower = reason.to_lowercase();
     DEFAULT_HEDGES.iter().any(|h| lower.contains(h))
         || extra.iter().any(|h| lower.contains(h.as_str()))
+}
+
+/// Handle `dont import linkml <schema.yaml>` by delegating to the linkml adapter.
+fn handle_linkml_import(args: &[String], project: &Project) {
+    let schema_path = match args.first() {
+        Some(p) => std::path::Path::new(p),
+        None => {
+            emit_error_and_exit(
+                refusal(
+                    "usage",
+                    "usage: dont import linkml <schema.yaml>",
+                    None,
+                    vec![RemediationEntry {
+                        command: "dont import linkml <schema.yaml>".to_string(),
+                        description: "Provide a LinkML schema file path".to_string(),
+                    }],
+                ),
+                vec![],
+                2,
+            );
+        }
+    };
+    let content = match std::fs::read_to_string(schema_path) {
+        Ok(s) => s,
+        Err(e) => {
+            emit_error_and_exit(
+                refusal(
+                    "io-error",
+                    &format!("cannot read schema file {}: {e}", schema_path.display()),
+                    None,
+                    vec![RemediationEntry {
+                        command: "dont import linkml <schema.yaml>".to_string(),
+                        description: "Ensure the file exists and is readable".to_string(),
+                    }],
+                ),
+                vec![],
+                1,
+            );
+        }
+    };
+    let schema_name = schema_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("schema");
+    match linkml_adapter::import_schema(schema_name, &content) {
+        Err(err) => {
+            let unmet: Vec<UnmetClause> = err
+                .offending
+                .iter()
+                .map(|o: &String| UnmetClause {
+                    clause: o.clone(),
+                    fix: "Remove or simplify this construct".to_string(),
+                })
+                .collect();
+            emit_error_and_exit(
+                ErrorResult {
+                    code: "linkml-unsupported-feature".to_string(),
+                    message: format!(
+                        "LinkML schema contains unsupported constructs: {}",
+                        err.offending.join(", ")
+                    ),
+                    rule_name: None,
+                    spec_ref: None,
+                    entity_id: None,
+                    unmet_clauses: unmet,
+                    remediation: vec![RemediationEntry {
+                        command: "dont import linkml <schema.yaml>".to_string(),
+                        description: "Simplify the schema to remove unsupported features"
+                            .to_string(),
+                    }],
+                },
+                vec![],
+                1,
+            );
+        }
+        Ok(result) => {
+            let mut stored = 0u32;
+            let mut warnings: Vec<Warning> = result
+                .warnings
+                .iter()
+                .map(|w| Warning {
+                    rule_name: format!("linkml-approximate-{}", w.feature),
+                    entity_id: None,
+                    message: w.message.clone(),
+                    suggested_remediation: Some(format!(
+                        "Review `{}` usage in {} — dont imports this approximately",
+                        w.feature, w.source_name
+                    )),
+                })
+                .collect();
+            for term in &result.terms {
+                match project.store.append_term(&term.curie, &term.definition, Some(&term.label)) {
+                    Ok(_) => stored += 1,
+                    Err(StoreError::CurieConflict { .. }) => {
+                        // Idempotent re-import: term already exists, skip silently.
+                    }
+                    Err(e) => {
+                        warnings.push(Warning {
+                            rule_name: "linkml-store-warn".to_string(),
+                            entity_id: Some(term.curie.clone()),
+                            message: format!("could not store term {}: {e}", term.curie),
+                            suggested_remediation: None,
+                        });
+                    }
+                }
+            }
+            let payload = json!({
+                "adapter": "linkml",
+                "schema_name": schema_name,
+                "stored": stored,
+            });
+            let env = Envelope::success("empty", payload, warnings, vec![]);
+            emit_json(&env);
+        }
+    }
 }
 
 fn cwd() -> PathBuf {
@@ -634,7 +880,7 @@ fn format_human(v: &Value) -> String {
 }
 
 fn format_claims_list(data: &Value) -> String {
-    let items = match data.as_array() {
+    let items = match data["claims"].as_array().or_else(|| data.as_array()) {
         Some(arr) => arr,
         None => return "(no claims)".to_string(),
     };
@@ -1128,6 +1374,8 @@ fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
         "statement": record.statement,
         "status": format!("{:?}", record.status).to_lowercase(),
         "derived_assessments": derived_assessments_for_claim(record, store),
+        "confidence": Value::Null,
+        "provenance": Value::Null,
         "atoms": record.atoms,
         "hypotheses": record.hypotheses,
         "evidence": evidence,
@@ -1144,13 +1392,8 @@ fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
 fn build_term_view(record: &TermRecord, store: &Store) -> Value {
     let project_root = project_root_from_store(store);
     let evidence = project_evidence(collect_term_evidence(record), &project_root);
-    let updated_at = record
-        .events
-        .iter()
-        .map(|e| &e.created_at)
-        .max()
-        .cloned()
-        .unwrap_or_else(|| record.created_at.clone());
+    // Note: TermView intentionally omits `updated_at` per spec — term status
+    // transitions are tracked through the event history (see `dont why`).
     json!({
         "id": record.id,
         "entity_kind": "term",
@@ -1165,7 +1408,6 @@ fn build_term_view(record: &TermRecord, store: &Store) -> Value {
         "provenance": Value::Null,
         "evidence": evidence,
         "created_at": record.created_at,
-        "updated_at": updated_at,
         "applicable_rules": {},
     })
 }
@@ -2256,38 +2498,6 @@ fn nonfunctional_label_warning(label: &str, cfg: &TermNonfunctionalConfig) -> Op
 }
 
 fn main() {
-    // Detect removed "lock" subcommand and suggest "forget" before clap parses.
-    let raw_args: Vec<String> = std::env::args().collect();
-    let first_subcmd = raw_args.iter().skip(1).find(|a| !a.starts_with('-'));
-    if first_subcmd.is_some_and(|arg| arg == "lock") {
-        let json_requested = arg_present(&raw_args, "--json", "-j");
-        if json_requested {
-            if let Some(author) = author_from_args(&raw_args)
-                .or_else(|| std::env::var("DONT_AUTHOR").ok())
-                .or_else(|| std::env::var("USER").ok())
-            {
-                set_author(author);
-            }
-            let envelope = Envelope::error(
-                refusal(
-                    "unknown-command",
-                    "unknown command 'lock'. Did you mean 'dont forget'?",
-                    None,
-                    vec![RemediationEntry {
-                        command: "dont forget <claim-id>".to_string(),
-                        description: "Use the renamed subcommand for locking verified claims"
-                            .to_string(),
-                    }],
-                ),
-                vec![],
-            );
-            println!("{}", serde_json::to_string(&envelope).unwrap());
-        } else {
-            eprintln!("error: unknown command 'lock'. Did you mean 'dont forget'?");
-        }
-        process::exit(1);
-    }
-
     let cli = Cli::parse();
 
     // Resolve author: explicit flag > $DONT_AUTHOR > $USER
@@ -2332,6 +2542,28 @@ fn main() {
             let _ = Cli::command().print_help();
             process::exit(0);
         }
+    };
+
+    // Normalize canonical-name aliases to implementation equivalents.
+    // `dismiss` is the spec-canonical fourth core verb; `flag` is the implementation name.
+    // `lock`    is the spec-canonical lifecycle verb;  `forget` is the implementation name.
+    let command = match command {
+        Command::Dismiss { id, evidence, file, lines, anchor, excerpt } => {
+            Command::Flag { id, evidence, file, lines, anchor, excerpt }
+        }
+        Command::Lock { id } => Command::Forget { id },
+        other => other,
+    };
+
+    // Normalize canonical-name aliases to their implementation equivalents.
+    // `dismiss` is the spec-canonical fourth core verb; `flag` is the implementation name.
+    // `lock`    is the spec-canonical lifecycle verb;  `forget` is the implementation name.
+    let command = match command {
+        Command::Dismiss { id, evidence, file, lines, anchor, excerpt } => {
+            Command::Flag { id, evidence, file, lines, anchor, excerpt }
+        }
+        Command::Lock { id } => Command::Forget { id },
+        other => other,
     };
 
     match command {
@@ -3798,9 +4030,9 @@ fn main() {
                 },
                 "assessment_counts": {
                     "stale": ac_stale,
-                    "compromised_support": ac_compromised,
-                    "dangling_dependency": ac_dangling,
-                    "unresolved_term": ac_unresolved,
+                    "compromised-support": ac_compromised,
+                    "dangling-dependency": ac_dangling,
+                    "unresolved-term": ac_unresolved,
                     "drifted_evidence": ac_drifted_evidence,
                 },
                 "rules": { "strict": prime_config.rules.strict, "warn": prime_config.rules.warn },
@@ -3950,7 +4182,13 @@ fn main() {
                         Ok(_) => vec![],
                         Err(err) => handle_store_error(err, None),
                     };
-                    let env = Envelope::success("claims", views, vec![], hints);
+                    let count = views.len();
+                    let payload = json!({
+                        "as_of": chrono::Utc::now().to_rfc3339(),
+                        "count": count,
+                        "claims": views,
+                    });
+                    let env = Envelope::success("claims", payload, vec![], hints);
                     emit_json(&env);
                 }
                 ListKind::Terms => {
@@ -4443,7 +4681,11 @@ fn main() {
             }
         }
 
-        Command::Import { adapter, .. } => {
+        Command::Import { adapter, args } => {
+            // --json may be captured as trailing var-arg if placed after the schema path
+            if args.iter().any(|a| a == "--json") {
+                HUMAN_MODE.with(|m| m.set(false));
+            }
             let project = open_project_or_exit();
             let config = project.load_config();
             let adapter_cfg = config
@@ -4469,16 +4711,20 @@ fn main() {
                     1,
                 );
             }
-            emit_error_and_exit(
-                refusal(
-                    "not-implemented",
-                    &format!("import adapter '{adapter}' is not yet implemented"),
-                    None,
+            if adapter == "linkml" {
+                handle_linkml_import(&args, &project);
+            } else {
+                emit_error_and_exit(
+                    refusal(
+                        "not-implemented",
+                        &format!("import adapter '{adapter}' is not yet implemented"),
+                        None,
+                        vec![],
+                    ),
                     vec![],
-                ),
-                vec![],
-                1,
-            );
+                    1,
+                );
+            }
         }
 
         Command::Rules { action } => {
@@ -4779,6 +5025,52 @@ fn main() {
                     vec![],
                     1,
                 );
+            }
+        }
+        // Dismiss and Lock are normalized to Flag and Forget above; these arms
+        // are unreachable but required for exhaustiveness.
+        Command::Dismiss { .. } | Command::Lock { .. } => {
+            unreachable!("Dismiss/Lock aliases are normalized before this match")
+        }
+
+        // Help: agent-addressed help, tutorial, and how-to guides (dont-nolt).
+        Command::Help { command: cmd_name, tutorial, topics, howto } => {
+            if tutorial {
+                let text: String = HELP_TUTORIAL.iter().map(|s| s.to_string()).collect();
+                print!("{text}");
+            } else if topics {
+                print!("tutorial");
+                for (name, desc) in HOWTO_TOPICS {
+                    print!("\nhowto:{name}  -- {desc}");
+                }
+                println!();
+            } else if let Some(topic) = howto {
+                match howto_content(&topic) {
+                    Some(guide) => print!("{guide}"),
+                    None => {
+                        eprintln!("dont: no how-to guide for topic '{topic}'; run `dont help --topics`");
+                        process::exit(1);
+                    }
+                }
+            } else if let Some(name) = cmd_name {
+                let mut app = Cli::command();
+                if let Some(sub) = app.find_subcommand_mut(&name) {
+                    let _ = sub.print_help();
+                } else {
+                    eprintln!("dont: no command named '{name}'");
+                    process::exit(1);
+                }
+            } else {
+                // Bare `dont help` — print the topics list plus a tutorial pointer
+                println!("Use `dont help --tutorial` for the first-session walkthrough.");
+                println!("Use `dont help --topics` to list all how-to guides.");
+                println!("Use `dont help --howto <topic>` to read a specific guide.");
+                println!();
+                print!("tutorial  -- First-session walkthrough");
+                for (name, desc) in HOWTO_TOPICS {
+                    print!("\nhowto:{name}  -- {desc}");
+                }
+                println!();
             }
         }
     }
