@@ -163,6 +163,7 @@ pub struct ClaimRecord {
     pub hypotheses: Vec<HypothesisRecord>,
     pub created_at: String,
     pub events: Vec<EventRecord>,
+    pub confidence: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -515,6 +516,7 @@ impl Store {
         &self,
         statement: &str,
         depends_on: &[String],
+        confidence: Option<f64>,
     ) -> Result<AppendResult, StoreError> {
         self.with_write_lock(|store| {
             let tx = store.next_tx()?;
@@ -561,6 +563,14 @@ impl Store {
                     depends_on.iter().map(|c| Value::String(c.clone())).collect(),
                 );
                 datoms.push(Datom::assert(&claim_id, "depends_on", arr, tx));
+            }
+            if let Some(conf) = confidence {
+                datoms.push(Datom::assert(
+                    &claim_id,
+                    "confidence",
+                    serde_json::json!(conf),
+                    tx,
+                ));
             }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
@@ -914,7 +924,12 @@ impl Store {
                 .map(|d| hypotheses_from_value(&d.value))
                 .transpose()?
                 .unwrap_or_default();
-            records.push(ClaimRecord { id, statement, status, depends_on, atoms, hypotheses, created_at, events });
+            let confidence = datoms
+                .iter()
+                .filter(|d| d.attribute == "confidence" && d.assert_bit)
+                .max_by_key(|d| d.tx)
+                .and_then(|d| d.value.as_f64());
+            records.push(ClaimRecord { id, statement, status, depends_on, atoms, hypotheses, created_at, events, confidence });
         }
         Ok(records)
     }
@@ -1054,6 +1069,8 @@ impl Store {
             .map(hypotheses_from_value)
             .transpose()?
             .unwrap_or_default();
+        let confidence = latest_asserted_value(&datoms, "confidence")
+            .and_then(Value::as_f64);
         let mut events = self.events_for_claim(claim_id)?;
         events.sort_by_key(|event| event.tx);
         Ok(Some(ClaimRecord {
@@ -1065,6 +1082,7 @@ impl Store {
             hypotheses,
             created_at,
             events,
+            confidence,
         }))
     }
 

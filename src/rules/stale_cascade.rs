@@ -60,7 +60,7 @@ mod stale_cascade {
             )
             .unwrap();
         store
-            .append_claim("a claim", &["ns:concept".to_string()])
+            .append_claim("a claim", &["ns:concept".to_string()], None)
             .unwrap();
         assert!(check(&store).unwrap().is_empty());
     }
@@ -71,7 +71,7 @@ mod stale_cascade {
         let store = make_store(&dir);
         store.append_term("ns:concept", "", None).unwrap(); // stays unverified
         store
-            .append_claim("a claim", &["ns:concept".to_string()])
+            .append_claim("a claim", &["ns:concept".to_string()], None)
             .unwrap();
         let matches = check(&store).unwrap();
         assert_eq!(matches.len(), 1);
@@ -92,7 +92,7 @@ mod stale_cascade {
             )
             .unwrap();
         store
-            .append_claim("a claim", &["ns:concept".to_string()])
+            .append_claim("a claim", &["ns:concept".to_string()], None)
             .unwrap();
         let matches = check(&store).unwrap();
         assert_eq!(matches.len(), 1);
@@ -103,7 +103,7 @@ mod stale_cascade {
     fn silent_when_no_deps() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        store.append_claim("a claim", &[]).unwrap();
+        store.append_claim("a claim", &[], None).unwrap();
         assert!(check(&store).unwrap().is_empty());
     }
 
@@ -113,7 +113,7 @@ mod stale_cascade {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         store
-            .append_claim("a claim", &["ns:nonexistent".to_string()])
+            .append_claim("a claim", &["ns:nonexistent".to_string()], None)
             .unwrap();
         assert!(check(&store).unwrap().is_empty());
     }

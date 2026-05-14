@@ -113,6 +113,10 @@ enum Command {
         /// CURIE of a term this claim depends on. May be repeated.
         #[arg(long)]
         depends_on: Vec<String>,
+
+        /// LLM-authored confidence score (0.0–1.0). Stored as-is; null if omitted.
+        #[arg(long)]
+        confidence: Option<f64>,
     },
 
     /// Introduce an unverified coined term.
@@ -1409,13 +1413,17 @@ fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
             })
         })
         .collect();
+    let confidence_val = match record.confidence {
+        Some(c) => serde_json::json!(c),
+        None => Value::Null,
+    };
     json!({
         "id": record.id,
         "entity_kind": "claim",
         "statement": record.statement,
         "status": format!("{:?}", record.status).to_lowercase(),
         "derived_assessments": derived_assessments_for_claim(record, store),
-        "confidence": Value::Null,
+        "confidence": confidence_val,
         "provenance": Value::Null,
         "atoms": record.atoms,
         "hypotheses": record.hypotheses,
@@ -2647,6 +2655,7 @@ fn main() {
         Command::Conclude {
             statement,
             depends_on,
+            confidence,
         } => {
             let project = open_project_or_exit();
 
@@ -2752,7 +2761,7 @@ fn main() {
                 .chain(unresolved.iter())
                 .cloned()
                 .collect();
-            match project.store.append_claim(&statement, &all_depends_on) {
+            match project.store.append_claim(&statement, &all_depends_on, confidence) {
                 Ok(result) => {
                     let payload = json!({
                         "id": result.id,
@@ -4430,7 +4439,7 @@ fn main() {
             }
 
             // Write claim then immediately verify — both or neither.
-            let conclude_result = match project.store.append_claim(&statement, &[]) {
+            let conclude_result = match project.store.append_claim(&statement, &[], None) {
                 Ok(r) => r,
                 Err(err) => handle_store_error(err, None),
             };

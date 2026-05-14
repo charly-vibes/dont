@@ -373,7 +373,7 @@ mod engine {
         let engine = make_engine(&dir, RulesConfig::default(), false);
 
         // Insert a claim and verify the rule can see it via datoms.
-        let result = store.append_claim("a verifiable claim", &[]).unwrap();
+        let result = store.append_claim("a verifiable claim", &[], None).unwrap();
         let claim_id = result.id.clone();
 
         // Rule that finds all entities with a "statement" attribute.

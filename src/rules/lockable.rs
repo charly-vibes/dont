@@ -137,7 +137,7 @@ mod lockable {
     fn fires_when_hypotheses_below_threshold() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        let result = store.append_claim("a claim", &[]).unwrap();
+        let result = store.append_claim("a claim", &[], None).unwrap();
         let matches = check(&store).unwrap();
         assert!(
             matches.iter().any(|m| m.entity_id == result.id
@@ -150,7 +150,7 @@ mod lockable {
     fn fires_when_evidence_below_threshold() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        let result = store.append_claim("a claim", &[]).unwrap();
+        let result = store.append_claim("a claim", &[], None).unwrap();
         add_hypotheses(&store, &result.id);
         // Only one evidence source
         add_evidence(&store, &result.id, &["https://source-a.example.com/page"]);
@@ -167,7 +167,7 @@ mod lockable {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         let result = store
-            .append_claim("a claim", &["ns:missing".to_string()])
+            .append_claim("a claim", &["ns:missing".to_string()], None)
             .unwrap();
         add_hypotheses(&store, &result.id);
         add_evidence(
@@ -187,7 +187,7 @@ mod lockable {
     fn silent_when_all_conditions_met() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        let result = store.append_claim("a claim", &[]).unwrap();
+        let result = store.append_claim("a claim", &[], None).unwrap();
         add_hypotheses(&store, &result.id);
         add_evidence(
             &store,

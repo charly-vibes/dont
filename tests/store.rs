@@ -30,10 +30,10 @@ fn append_event_persists_claim_datoms_with_monotonic_transactions() {
     let store = Store::open_project(root.path()).expect("store opens");
 
     let first = store
-        .append_claim("unsupported assertions need grounding", &[])
+        .append_claim("unsupported assertions need grounding", &[], None)
         .expect("first claim appends");
     let second = store
-        .append_claim("sources should be explicit", &[])
+        .append_claim("sources should be explicit", &[], None)
         .expect("second claim appends");
 
     assert!(first.id.starts_with("claim:"));
@@ -74,7 +74,7 @@ fn tx_ids_are_unique_across_concurrent_store_instances() {
         .map(|(i, store)| {
             thread::spawn(move || {
                 store
-                    .append_claim(&format!("claim {i}"), &[])
+                    .append_claim(&format!("claim {i}"), &[], None)
                     .expect("append succeeds")
                     .tx
             })
@@ -97,7 +97,7 @@ fn claims_persist_after_reopening_the_store() {
     let claim_id = {
         let store = Store::open_project(root.path()).expect("store opens");
         store
-            .append_claim("memory survives process boundaries", &[])
+            .append_claim("memory survives process boundaries", &[], None)
             .expect("claim appends")
             .id
     };
@@ -117,7 +117,7 @@ fn status_changes_are_stored_as_retraction_and_assertion_datoms() {
     let root = tempfile::tempdir().expect("temp root");
     let store = Store::open_project(root.path()).expect("store opens");
 
-    let claim = store.append_claim("truth needs pressure", &[]).expect("claim");
+    let claim = store.append_claim("truth needs pressure", &[], None).expect("claim");
     let event = StoreEvent {
         kind: StoreEventKind::Trusted,
         note: Some("source is ambiguous".to_string()),
@@ -169,7 +169,7 @@ fn claim_events_are_replayed_in_tx_insertion_order() {
     let store = Store::open_project(root.path()).expect("store opens");
 
     let claim = store
-        .append_claim("ordering must be deterministic", &[])
+        .append_claim("ordering must be deterministic", &[], None)
         .expect("claim appends");
 
     let flag_result = store
@@ -236,7 +236,7 @@ fn list_claims_events_are_in_tx_order() {
     let store = Store::open_project(root.path()).expect("store opens");
 
     let c1 = store
-        .append_claim("first ordering claim", &[])
+        .append_claim("first ordering claim", &[], None)
         .expect("first claim");
 
     // Two status changes on the same claim
@@ -352,7 +352,7 @@ fn event_order_is_stable_across_store_reopen() {
     let (claim_id, expected_kinds) = {
         let store = Store::open_project(root.path()).expect("store opens");
         let claim = store
-            .append_claim("replay must be deterministic", &[])
+            .append_claim("replay must be deterministic", &[], None)
             .expect("claim");
         store
             .append_status_change(

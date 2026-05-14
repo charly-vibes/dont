@@ -69,7 +69,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[CONFIG] Enabled: yes", &[term.id.clone()])
+            .append_claim("[CONFIG] Enabled: yes", &[term.id.clone()], None)
             .unwrap();
         let config = RuleClaimStructureConfig {
             enabled: false,
@@ -84,7 +84,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("no trigger or mode here", &[term.id.clone()])
+            .append_claim("no trigger or mode here", &[term.id.clone()], None)
             .unwrap();
         let config = RuleClaimStructureConfig {
             enabled: true,
@@ -98,7 +98,7 @@ mod rule_claim_structure {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
-        store.append_claim("no trigger, no mode", &[]).unwrap();
+        store.append_claim("no trigger, no mode", &[], None).unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
     }
@@ -109,7 +109,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[CONFIG] Enabled by default: yes", &[term.id.clone()])
+            .append_claim("[CONFIG] Enabled by default: yes", &[term.id.clone()], None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -123,7 +123,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[TRIGGER] fires when X happens", &[term.id.clone()])
+            .append_claim("[TRIGGER] fires when X happens", &[term.id.clone()], None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -138,7 +138,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[GUARD] silently skips empty inputs", &[term.id.clone()])
+            .append_claim("[GUARD] silently skips empty inputs", &[term.id.clone()], None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -154,7 +154,8 @@ mod rule_claim_structure {
             .append_claim(
                 "[TRIGGER] fires when X\n[CONFIG] Enabled by default: yes",
                 &[term.id.clone()],
-            )
+                None,
+)
             .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
@@ -169,7 +170,8 @@ mod rule_claim_structure {
             .append_claim(
                 "[TRIGGER] fires when Y\n[MODE] In permissive mode: warn",
                 &[term.id.clone()],
-            )
+                None,
+)
             .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
@@ -184,7 +186,8 @@ mod rule_claim_structure {
             .append_claim(
                 "[TRIGGER] fires when Z\n[MODE] warn in all modes",
                 &[term.id.clone()],
-            )
+                None,
+)
             .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
@@ -197,7 +200,7 @@ mod rule_claim_structure {
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         // Create a tagged claim that is missing mandatory slots
         let claim = store
-            .append_claim("[GUARD] no trigger or mode", &[term.id.clone()])
+            .append_claim("[GUARD] no trigger or mode", &[term.id.clone()], None)
             .unwrap();
         // Doubt it — should be skipped by the rule during remediation
         store
@@ -222,10 +225,11 @@ mod rule_claim_structure {
             .append_claim(
                 "[TRIGGER] complete\n[CONFIG] yes",
                 &[term.id.clone()],
-            )
+                None,
+)
             .unwrap();
         // Untagged claim: would violate if evaluated
-        store.append_claim("no trigger, no mode", &[]).unwrap();
+        store.append_claim("no trigger, no mode", &[], None).unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
     }
@@ -236,7 +240,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("   \n\t  ", &[term.id.clone()])
+            .append_claim("   \n\t  ", &[term.id.clone()], None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -260,7 +264,8 @@ mod rule_claim_structure {
             .append_claim(
                 "règle-système: vérification\n[TRIGGER] quand X se produit\n[CONFIG] activé: oui",
                 &[term.id.clone()],
-            )
+                None,
+)
             .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
@@ -272,7 +277,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("règle sans déclencheur ni configuration", &[term.id.clone()])
+            .append_claim("règle sans déclencheur ni configuration", &[term.id.clone()], None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -289,7 +294,8 @@ mod rule_claim_structure {
             .append_claim(
                 "The [TRIGGER] concept is explained here.\n[MODE] warn always",
                 &[term.id.clone()],
-            )
+                None,
+)
             .unwrap();
         let config = enabled_config(&term.id);
         // Rule treats the prose [TRIGGER] as satisfying the slot requirement.
@@ -303,7 +309,7 @@ mod rule_claim_structure {
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         let long_body = "x".repeat(10_000);
         store
-            .append_claim(&long_body, &[term.id.clone()])
+            .append_claim(&long_body, &[term.id.clone()], None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();

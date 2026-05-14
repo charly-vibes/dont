@@ -45,7 +45,7 @@ mod dangling_definition {
         let store = make_store(&dir);
         let term = store.append_term("ns:concept", "", None).unwrap();
         store
-            .append_claim("a claim", &[term.id.clone()])
+            .append_claim("a claim", &[term.id.clone()], None)
             .unwrap();
         assert!(check(&store).unwrap().is_empty());
     }
@@ -55,7 +55,7 @@ mod dangling_definition {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         let claim = store
-            .append_claim("a claim", &["term:nonexistent-id".to_string()])
+            .append_claim("a claim", &["term:nonexistent-id".to_string()], None)
             .unwrap();
         let matches = check(&store).unwrap();
         assert_eq!(matches.len(), 1);
@@ -69,7 +69,7 @@ mod dangling_definition {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         store
-            .append_claim("a claim", &["ns:missing".to_string()])
+            .append_claim("a claim", &["ns:missing".to_string()], None)
             .unwrap();
         assert!(check(&store).unwrap().is_empty());
     }
@@ -78,7 +78,7 @@ mod dangling_definition {
     fn silent_when_no_deps() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        store.append_claim("a claim", &[]).unwrap();
+        store.append_claim("a claim", &[], None).unwrap();
         assert!(check(&store).unwrap().is_empty());
     }
 

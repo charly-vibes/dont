@@ -77,7 +77,7 @@ mod correlated_error {
     fn silent_when_evidence_from_independent_sources() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        let result = store.append_claim("a claim", &[]).unwrap();
+        let result = store.append_claim("a claim", &[], None).unwrap();
         add_evidence(
             &store,
             &result.id,
@@ -93,7 +93,7 @@ mod correlated_error {
     fn fires_when_evidence_from_same_host() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        let result = store.append_claim("a claim", &[]).unwrap();
+        let result = store.append_claim("a claim", &[], None).unwrap();
         add_evidence(
             &store,
             &result.id,
@@ -111,7 +111,7 @@ mod correlated_error {
     fn silent_when_single_evidence_item() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        let result = store.append_claim("a claim", &[]).unwrap();
+        let result = store.append_claim("a claim", &[], None).unwrap();
         add_evidence(&store, &result.id, &["https://example.com/only-one"]);
         assert!(check(&store).unwrap().is_empty());
     }
@@ -120,7 +120,7 @@ mod correlated_error {
     fn silent_when_no_evidence() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
-        store.append_claim("a claim", &[]).unwrap();
+        store.append_claim("a claim", &[], None).unwrap();
         assert!(check(&store).unwrap().is_empty());
     }
 
@@ -132,7 +132,7 @@ mod correlated_error {
         let store = make_store(&dir);
         store.append_term("ns:concept", "", None).unwrap();
         let result = store
-            .append_claim("a claim", &["ns:concept".to_string()])
+            .append_claim("a claim", &["ns:concept".to_string()], None)
             .unwrap();
         add_evidence(
             &store,

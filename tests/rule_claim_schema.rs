@@ -163,7 +163,7 @@ fn canonical_template_claim_passes_rule_claim_structure() {
     );
 
     store
-        .append_claim(canonical_claim, &[tag_term.id.clone()])
+        .append_claim(canonical_claim, &[tag_term.id.clone()], None)
         .unwrap();
 
     let config = RuleClaimStructureConfig {

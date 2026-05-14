@@ -308,7 +308,7 @@ fn trace_self_referential_dependency_terminates_with_bounded_output() {
     // the CLI's term-resolution layer (which only accepts term CURIEs).
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let result = store
-        .append_claim("self-referential claim for cycle test", &[])
+        .append_claim("self-referential claim for cycle test", &[], None)
         .unwrap();
     let claim_id = result.id.clone();
 
@@ -326,7 +326,7 @@ fn trace_self_referential_dependency_terminates_with_bounded_output() {
     // inserts the start entity into `visited` before iterating, a dep equal to
     // the start entity ID is always skipped.
     let claim_with_self_dep = store
-        .append_claim("claim that lists itself as a dep", &self_dep)
+        .append_claim("claim that lists itself as a dep", &self_dep, None)
         .unwrap();
     let cyclic_id = claim_with_self_dep.id.clone();
 
