@@ -5102,7 +5102,19 @@ fn main() {
                     process::exit(1);
                 }
             } else {
-                // Bare `dont help` — print the topics list plus a tutorial pointer
+                // Bare `dont help` — list subcommands, then tutorial/how-to entry points.
+                // Spec dont-cli-surface: "bare help lists available commands"
+                let mut app = Cli::command();
+                println!("Commands:");
+                for sub in app.get_subcommands_mut() {
+                    let name = sub.get_name().to_string();
+                    let about = sub
+                        .get_about()
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    println!("  {name:<20} {about}");
+                }
+                println!();
                 println!("Use `dont help --tutorial` for the first-session walkthrough.");
                 println!("Use `dont help --topics` to list all how-to guides.");
                 println!("Use `dont help --howto <topic>` to read a specific guide.");
