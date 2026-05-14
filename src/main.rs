@@ -2594,21 +2594,14 @@ fn main() {
     };
 
     // Normalize canonical-name aliases to implementation equivalents.
-    // `dismiss` is the spec-canonical fourth core verb; `flag` is the implementation name.
+    // `dismiss` is the spec-canonical fourth core verb (deprecated in v0.3 — use `flag`).
     // `lock`    is the spec-canonical lifecycle verb;  `forget` is the implementation name.
     let command = match command {
         Command::Dismiss { id, evidence, file, lines, anchor, excerpt } => {
-            Command::Flag { id, evidence, file, lines, anchor, excerpt }
-        }
-        Command::Lock { id } => Command::Forget { id },
-        other => other,
-    };
-
-    // Normalize canonical-name aliases to their implementation equivalents.
-    // `dismiss` is the spec-canonical fourth core verb; `flag` is the implementation name.
-    // `lock`    is the spec-canonical lifecycle verb;  `forget` is the implementation name.
-    let command = match command {
-        Command::Dismiss { id, evidence, file, lines, anchor, excerpt } => {
+            eprintln!(
+                "warning: `dismiss` is deprecated and will be removed in a future version. \
+                 Use `flag` instead."
+            );
             Command::Flag { id, evidence, file, lines, anchor, excerpt }
         }
         Command::Lock { id } => Command::Forget { id },
