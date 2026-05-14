@@ -233,6 +233,57 @@ fn trace_unknown_entity_returns_error() {
     assert_eq!(v["data"]["code"], "claim-not-found");
 }
 
+// --- spec: trace SHALL work for terms as well as claims ---
+
+#[test]
+fn trace_term_entity_returns_empty_blockers() {
+    // Spec: "dont trace <entity-id> ... for a claim or term"
+    // A defined term has no depends_on, so trace returns empty blockers.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let term_id = define_term(&dir, "EX:TRACED");
+
+    let out = dont()
+        .args(["trace", &term_id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "trace");
+    assert_eq!(v["data"]["entity_id"], term_id.as_str());
+    assert!(
+        v["data"]["blockers"].as_array().unwrap().is_empty(),
+        "a standalone defined term has no dependency blockers"
+    );
+    assert!(v["data"]["as_of"].as_str().unwrap().contains('T'));
+}
+
+#[test]
+fn trace_unknown_term_returns_error() {
+    // Spec: trace SHALL identify the starting entity — so an unknown term-id
+    // must return a structured error, not silently succeed.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["trace", "term:nonexistent-term-id", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "term-not-found");
+}
+
 #[test]
 fn trace_duplicate_dependency_is_reported_once() {
     // Validates deduplication: if the same term appears multiple times in depends_on,
