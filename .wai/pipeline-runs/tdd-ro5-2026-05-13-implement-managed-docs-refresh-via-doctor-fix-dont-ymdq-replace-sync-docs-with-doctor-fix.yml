@@ -1,0 +1,6 @@
+run_id: tdd-ro5-2026-05-13-implement-managed-docs-refresh-via-doctor-fix-dont-ymdq-replace-sync-docs-with-doctor-fix
+pipeline: tdd-ro5
+topic: implement managed docs refresh via doctor --fix (dont-ymdq / replace-sync-docs-with-doctor-fix)
+created_at: '2026-05-13T15:39:52.730419762+00:00'
+current_step: 6
+approvals: {}

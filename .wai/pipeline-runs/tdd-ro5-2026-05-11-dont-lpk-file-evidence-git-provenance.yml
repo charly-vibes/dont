@@ -1,0 +1,6 @@
+run_id: tdd-ro5-2026-05-11-dont-lpk-file-evidence-git-provenance
+pipeline: tdd-ro5
+topic: 'dont-lpk: --file evidence git provenance'
+created_at: '2026-05-11T19:02:01.613476308+00:00'
+current_step: 0
+approvals: {}

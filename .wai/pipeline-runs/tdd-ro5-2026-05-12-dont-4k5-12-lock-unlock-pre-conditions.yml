@@ -1,0 +1,6 @@
+run_id: tdd-ro5-2026-05-12-dont-4k5-12-lock-unlock-pre-conditions
+pipeline: tdd-ro5
+topic: dont-4k5.12 lock/unlock pre-conditions
+created_at: '2026-05-12T18:53:37.293969764+00:00'
+current_step: 6
+approvals: {}
