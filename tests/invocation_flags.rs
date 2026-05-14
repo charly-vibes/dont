@@ -90,7 +90,7 @@ fn author_flag_overrides_dont_author_env() {
 }
 
 #[test]
-fn author_short_flag_works() {
+fn author_short_flag_sets_author_in_response_meta() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 

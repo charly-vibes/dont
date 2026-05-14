@@ -97,7 +97,7 @@ fn import_verify_shape() {
 }
 
 #[test]
-fn hedges_rules() {
+fn trust_hedges_and_term_nonfunctional_config_rules_take_effect_at_runtime() {
     // --- 1. [trust.hedges] custom pattern causes refusal ---
     let dir = TempDir::new().unwrap();
     init_dir(&dir);

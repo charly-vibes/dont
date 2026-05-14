@@ -1533,7 +1533,7 @@ mod data_model {
     use tempfile::TempDir;
 
     #[test]
-    fn curie_uniqueness() {
+    fn duplicate_curie_insert_returns_curie_conflict_error() {
         let dir = TempDir::new().unwrap();
         let store = Store::open_dont_dir(dir.path()).unwrap();
 

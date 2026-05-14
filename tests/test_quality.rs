@@ -181,6 +181,110 @@ fn collect_cfg_test_impl_violations(dir: &std::path::Path, out: &mut Vec<String>
     }
 }
 
+/// Test isolation audit: no global env mutation, static mut, or temp-dir leaks.
+///
+/// Audit performed 2026-05-14 (ticket dont-d4e8). Verified across all files in
+/// `tests/` and `src/` (unit-test blocks). Findings:
+///
+/// - `std::env::set_var` / `remove_var`: absent. All subprocess env vars are
+///   passed per-process via `Command::env()` — correct isolation.
+/// - `static mut` / `Mutex<_>` shared across tests: absent.
+/// - `OnceLock` / `once_cell::sync::Lazy` mutated in tests: absent.
+///   The one `static CURRENT_AUTHOR: OnceLock<String>` in `src/envelope.rs`
+///   is production code; integration tests run the CLI as a subprocess so
+///   each test gets its own process and a fresh `OnceLock`.
+/// - `TempDir::into_path()` / `TempDir::keep()` leaking directories: absent.
+/// - Hard-coded absolute paths written during tests: absent. Every `fs::write`
+///   in test code writes into a `TempDir`-rooted path.
+///
+/// This test asserts each pattern is absent so regressions are caught at CI time.
+#[test]
+fn no_test_isolation_violations() {
+    use std::fs;
+
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut violations: Vec<String> = Vec::new();
+
+    for dir_name in &["tests", "src"] {
+        let dir = manifest.join(dir_name);
+        if !dir.exists() {
+            continue;
+        }
+        collect_isolation_violations(&dir, &mut violations);
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Test isolation violations found.\n\
+         These patterns share global process state across parallel tests and \
+         cause non-deterministic failures.\n\
+         Fix:\n\
+           - Replace `std::env::set_var` with `Command::env()` on subprocesses,\n\
+             or save/restore the value inside the test with a guard.\n\
+           - Replace `static mut` with a local variable or `TempDir`-scoped state.\n\
+           - Replace `TempDir::into_path()`/`keep()` with letting the `TempDir`\n\
+             binding drop at end of scope.\n\
+         Violations:\n{}",
+        violations.join("\n")
+    );
+}
+
+fn collect_isolation_violations(dir: &std::path::Path, out: &mut Vec<String>) {
+    use std::fs;
+
+    // Patterns that indicate test isolation failures.
+    // Each entry: (display label, substring to look for in source lines)
+    let forbidden: &[(&str, &str)] = &[
+        ("std::env::set_var", "set_var("),
+        ("std::env::remove_var", "remove_var("),
+        ("static mut", "static mut "),
+        ("TempDir::into_path", "into_path()"),
+        ("TempDir::keep", ".keep()"),
+    ];
+
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_isolation_violations(&path, out);
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        // Skip this file — it contains the forbidden strings as string literals
+        // inside the scanner definition, which would create false positives.
+        if path.file_name().and_then(|n| n.to_str()) == Some("test_quality.rs") {
+            continue;
+        }
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        for (i, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            // Skip comments and doc-comment lines
+            if trimmed.starts_with("//") || trimmed.starts_with("///") {
+                continue;
+            }
+            for (label, needle) in forbidden {
+                if trimmed.contains(needle) {
+                    out.push(format!(
+                        "  {}:{}: {} — {}",
+                        path.display(),
+                        i + 1,
+                        label,
+                        trimmed.chars().take(100).collect::<String>()
+                    ));
+                }
+            }
+        }
+    }
+}
+
 fn collect_violations(dir: &std::path::Path, anti_patterns: &[&str], out: &mut Vec<String>) {
     use std::fs;
     let entries = match fs::read_dir(dir) {

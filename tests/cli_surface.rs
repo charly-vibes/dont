@@ -101,7 +101,7 @@ fn completions_unknown_shell_exits_2() {
 
 /// Spec: widely reused per-command short flags: -r for --reason on trust
 #[test]
-fn trust_short_r_flag_works() {
+fn trust_short_r_flag_transitions_claim_to_doubted() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "short flag trust test");
@@ -122,7 +122,7 @@ fn trust_short_r_flag_works() {
 
 /// Spec: widely reused per-command short flags: -r for --reason on ignore
 #[test]
-fn ignore_short_r_flag_works() {
+fn ignore_short_r_flag_transitions_claim_to_ignored() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "short flag ignore test");
@@ -143,7 +143,7 @@ fn ignore_short_r_flag_works() {
 
 /// Spec: widely reused per-command short flags: -e for --evidence on flag
 #[test]
-fn flag_short_e_flag_works() {
+fn flag_short_e_flag_transitions_claim_to_verified() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "short flag flag test");
@@ -164,7 +164,7 @@ fn flag_short_e_flag_works() {
 
 /// Spec: widely reused per-command short flags: -e for --evidence on dismiss
 #[test]
-fn dismiss_short_e_flag_works() {
+fn dismiss_short_e_flag_transitions_claim_to_verified() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "short flag dismiss test");

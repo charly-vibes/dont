@@ -5142,7 +5142,7 @@ mod parse_line_span_tests {
     }
 
     #[test]
-    fn line_range() {
+    fn parse_line_span_range_string_returns_start_and_end() {
         assert_eq!(parse_line_span("10-18"), Ok((10, 18)));
     }
 
