@@ -1413,17 +1413,13 @@ fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
             })
         })
         .collect();
-    let confidence_val = match record.confidence {
-        Some(c) => serde_json::json!(c),
-        None => Value::Null,
-    };
     json!({
         "id": record.id,
         "entity_kind": "claim",
         "statement": record.statement,
         "status": format!("{:?}", record.status).to_lowercase(),
         "derived_assessments": derived_assessments_for_claim(record, store),
-        "confidence": confidence_val,
+        "confidence": record.confidence.map_or(Value::Null, |c| serde_json::json!(c)),
         "provenance": Value::Null,
         "atoms": record.atoms,
         "hypotheses": record.hypotheses,
