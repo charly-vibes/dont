@@ -52,6 +52,7 @@ check-claims:
   dont prime
 
 ci:
+  just test
   just lint
   just docs-build
   just check-claims
