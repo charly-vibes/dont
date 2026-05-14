@@ -1,0 +1,119 @@
+# Epic TDD + Rule of 5 Pipeline
+#
+# Orchestrates a full epic by iterating through all tickets, applying the
+# tdd-ro5 cycle to each one via dedicated subagents. The orchestrator handles
+# discovery and sequencing; each ticket's implementation is isolated.
+#
+# Designed for: epics with multiple tickets that each require TDD discipline
+# and quality review. Respects dependency order across tickets.
+#
+# Usage: wai pipeline start epic-tdd-ro5 --topic="<epic-id>"
+
+[pipeline]
+name = "epic-tdd-ro5"
+description = "Iterate all tickets in an epic, applying tdd-ro5 per ticket via subagents"
+
+[pipeline.metadata]
+when = "Working through an epic where each ticket requires full TDD discipline and quality review"
+skills = ["tdd", "rule-of-5-universal"]
+
+[[steps]]
+id = "discover"
+prompt = """
+{topic}: Discover all tickets in the epic and build a work queue.
+
+1. Run `bd show {topic}` to see the epic and its linked tickets
+2. For each ticket: record ID, title, current status, and blockers
+3. Filter to only open/unstarted tickets — skip closed or in_progress ones
+4. Order by dependency graph: tickets with no unresolved blockers first
+5. Note any tickets that can be processed in parallel (no shared files/deps)
+
+Deliverable: a plan artifact listing tickets in execution order with their IDs.
+
+Record the work queue: `wai add plan "epic {topic} work queue: <ordered-ticket-list>"`
+Advance: `wai pipeline next`
+"""
+
+[steps.gate.structural]
+min_artifacts = 1
+types = ["plan"]
+
+[[steps]]
+id = "process"
+prompt = """
+{topic}: Process each ticket from the work queue via dedicated subagents.
+
+For each ticket in the ordered work queue (from the discover step):
+
+1. Spawn a subagent using the Agent tool with this briefing:
+   - Ticket ID and title
+   - Instruction to follow the full tdd-ro5 cycle:
+     plan → red → green → refactor → review → fix → ship
+   - After each tdd-ro5 phase: verify tests pass with `cargo test`
+   - Close the ticket when complete: `bd close <id>`
+   - Commit atomically at each phase (red, green, refactor, fix)
+
+2. Wait for subagent completion before starting the next ticket,
+   unless tickets have no overlapping files or dependencies — those
+   can be spawned in parallel.
+
+3. After each ticket completes, record its outcome.
+
+If a subagent fails or gets stuck, record the blockage and continue
+with the next independent ticket.
+
+Record progress: `wai add research "processed tickets for epic {topic}: <completed-ids>"`
+Advance when all tickets are processed: `wai pipeline next`
+"""
+
+[steps.gate.structural]
+min_artifacts = 1
+
+[[steps.gate.oracles]]
+name = "tests-pass"
+description = "All tests must pass after processing all tickets"
+timeout = 600
+
+[[steps]]
+id = "verify"
+prompt = """
+{topic}: Verify the epic is complete.
+
+Checklist:
+- [ ] All tickets in the epic are closed (`bd show {topic}`)
+- [ ] Full test suite passes (`cargo test`)
+- [ ] No open review findings across any ticket
+- [ ] No TODO/FIXME without a tracking issue in beads
+- [ ] All commits are on the branch and well-described
+
+If any ticket is incomplete, spawn a subagent to finish it before advancing.
+
+Record verification: `wai add research "epic {topic} verified complete"`
+Advance: `wai pipeline next`
+"""
+
+[steps.gate.structural]
+min_artifacts = 1
+
+[[steps.gate.oracles]]
+name = "tests-pass"
+description = "All tests must pass at epic completion"
+timeout = 300
+
+[[steps]]
+id = "ship"
+prompt = """
+{topic}: Ship the epic.
+
+Final delivery checklist:
+- [ ] All commits are atomic and well-described
+- [ ] All tests pass (`cargo test`)
+- [ ] All tickets closed in beads (`bd show {topic}`)
+- [ ] Push to remote: `git push`
+
+Record completion: `wai add research "epic {topic} shipped"`
+Pipeline complete.
+"""
+
+[steps.gate.structural]
+min_artifacts = 1
