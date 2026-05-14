@@ -286,6 +286,124 @@ fn prime_reflects_mode_from_project_config() {
     assert_eq!(v["data"]["mode"], "strict");
 }
 
+// --- dont-4k5.4: config field validation at parse/load time ---
+
+#[test]
+fn invalid_project_mode_is_rejected_with_named_field_error() {
+    // project.mode must be "permissive" or "strict"; any other value should
+    // produce an error naming the field and the invalid value — not silently
+    // treat the project as non-strict.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let config_path = dir.path().join("config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    let updated = config.replace("mode = \"permissive\"", "mode = \"banana\"");
+    fs::write(&config_path, updated).unwrap();
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "invalid mode should fail");
+    let code = v["data"]["code"].as_str().unwrap_or("");
+    assert!(
+        code.contains("config") || code.contains("invalid"),
+        "error code should identify this as a config error, got: {code}"
+    );
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("mode") && message.contains("banana"),
+        "error message should name the field and invalid value, got: {message}"
+    );
+}
+
+#[test]
+fn invalid_output_format_is_rejected_with_named_field_error() {
+    // output.default_format must be "json" or "human"; any other value should
+    // produce an error naming the field and the invalid value.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    append_config(&dir, "[output]\ndefault_format = \"yaml\"");
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "invalid default_format should fail");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("default_format") && message.contains("yaml"),
+        "error message should name the field and invalid value, got: {message}"
+    );
+}
+
+#[test]
+fn verify_evidence_zero_timeout_is_rejected_with_named_field_error() {
+    // verify_evidence.default_timeout_s = 0 is not a valid timeout;
+    // it should be rejected at load time with an error naming the field.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    append_config(&dir, "[verify_evidence]\ndefault_timeout_s = 0");
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "zero timeout_s should fail");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("default_timeout_s") || message.contains("timeout"),
+        "error message should name the field, got: {message}"
+    );
+}
+
+#[test]
+fn verify_evidence_zero_concurrency_is_rejected_with_named_field_error() {
+    // verify_evidence.concurrency = 0 is not valid; must be >= 1 if provided.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    append_config(&dir, "[verify_evidence]\nconcurrency = 0");
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "zero concurrency should fail");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("concurrency"),
+        "error message should name the field, got: {message}"
+    );
+}
+
 #[test]
 fn mode_change_via_config_is_recorded_in_event_log() {
     let dir = TempDir::new().unwrap();
