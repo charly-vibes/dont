@@ -329,3 +329,90 @@ fn ground_with_path_traversal_file_is_refused() {
         v["data"]["code"]
     );
 }
+
+#[test]
+fn ground_respects_author_override_flag() {
+    // Spec: ground SHALL accept the standard invocation-level author override.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "--author",
+            "llm:test-model",
+            "ground",
+            "authored grounded claim",
+            "--evidence",
+            "https://example.com/proof",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(
+        v["meta"]["author"], "llm:test-model",
+        "ground must propagate --author override into envelope meta"
+    );
+}
+
+#[test]
+fn ground_duplicate_statement_follows_conclude_policy() {
+    // Spec: a duplicate-equivalent claim follows the same duplicate-claim policy
+    // that would apply to the underlying `conclude` operation.
+    // Since `conclude` does not refuse duplicate statements, `ground` must not
+    // add an extra refusal — both invocations should succeed and produce distinct
+    // verified claims.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out1 = dont()
+        .args([
+            "ground",
+            "duplicated grounded statement",
+            "--evidence",
+            "https://example.com/ref1",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let out2 = dont()
+        .args([
+            "ground",
+            "duplicated grounded statement",
+            "--evidence",
+            "https://example.com/ref2",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v1: Value = serde_json::from_slice(&out1).unwrap();
+    let v2: Value = serde_json::from_slice(&out2).unwrap();
+
+    assert_eq!(v1["ok"], true);
+    assert_eq!(v2["ok"], true);
+
+    let id1 = v1["data"]["id"].as_str().unwrap();
+    let id2 = v2["data"]["id"].as_str().unwrap();
+    assert_ne!(
+        id1, id2,
+        "each ground invocation must produce a distinct claim entity"
+    );
+    assert_eq!(v1["data"]["status"], "verified");
+    assert_eq!(v2["data"]["status"], "verified");
+}
