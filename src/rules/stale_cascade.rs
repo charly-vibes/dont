@@ -12,6 +12,10 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
     let claims = store.list_claims()?;
     let mut matches = Vec::new();
     for claim in claims {
+        // Spec: locked and ignored entities are exempt from derived stale output.
+        if matches!(claim.status, StoreStatus::Ignored | StoreStatus::Locked) {
+            continue;
+        }
         for dep in &claim.depends_on {
             let term = if dep.starts_with("term:") {
                 store.term_by_id(dep)?

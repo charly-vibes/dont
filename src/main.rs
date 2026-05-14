@@ -1656,6 +1656,10 @@ fn build_repo_locator(
 /// verifiable state without reopening the term first. This is intentional.
 fn derived_assessments_for_claim(record: &ClaimRecord, store: &Store) -> Vec<String> {
     let mut derived = Vec::new();
+    // Spec: ignored entities always have empty derived_assessments.
+    if record.status == StoreStatus::Ignored {
+        return derived;
+    }
     if record.depends_on.is_empty() {
         return derived;
     }
