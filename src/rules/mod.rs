@@ -389,6 +389,41 @@ mod engine {
             "rule should find the inserted claim {claim_id}"
         );
     }
+
+    /// Invariant: every name in SHIPPED_RULES must be dispatchable via evaluate_shipped.
+    ///
+    /// This guards against SHIPPED_RULES and the evaluate_shipped match arm drifting apart —
+    /// e.g. a rule added to the list but forgotten in the dispatch table.
+    #[test]
+    fn all_shipped_rules_dispatch_via_evaluate_shipped() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let engine = make_engine(&dir, RulesConfig::default(), false);
+
+        for rule in SHIPPED_RULES {
+            let result = engine.evaluate_shipped(&store, rule);
+            assert!(
+                result.is_some(),
+                "SHIPPED_RULES contains '{rule}' but evaluate_shipped returned None — \
+                 the dispatch table is missing an arm for this rule"
+            );
+        }
+    }
+
+    /// Invariant: every name in SHIPPED_RULES must have an explanation string.
+    ///
+    /// Guards against a rule being registered without a companion .md file
+    /// (the explain() function would return None if the include_str! is missing).
+    #[test]
+    fn all_shipped_rules_have_explanation() {
+        for rule in SHIPPED_RULES {
+            assert!(
+                explain(rule).is_some(),
+                "SHIPPED_RULES contains '{rule}' but explain() returned None — \
+                 the rule is missing a pub const EXPLANATION or an explain() arm"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
