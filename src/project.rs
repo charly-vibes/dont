@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::config::Config;
+use crate::config::{Config, ConfigValidationError};
 use crate::managed_block::{
     file_matches, render_root_block, replace_or_prepend_root_block, root_block_matches,
     write_canonical,
@@ -24,6 +24,7 @@ pub struct Project {
 pub enum ProjectError {
     AlreadyInitialised(PathBuf),
     ConfigMissing(String),
+    ConfigInvalid(String),
     LayoutInvalid(PathBuf),
     Store(StoreError),
     Io {
@@ -38,6 +39,7 @@ impl std::fmt::Display for ProjectError {
         match self {
             Self::AlreadyInitialised(p) => write!(f, "already initialised at {}", p.display()),
             Self::ConfigMissing(msg) => f.write_str(msg),
+            Self::ConfigInvalid(msg) => f.write_str(msg),
             Self::LayoutInvalid(p) => write!(
                 f,
                 "project layout is corrupt: {} is missing or not a directory — run 'dont init' to repair",
@@ -268,6 +270,18 @@ impl Project {
     pub fn load_config(&self) -> Config {
         let text = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
         toml::from_str(&text).unwrap_or_default()
+    }
+
+    /// Load config.toml and validate all constrained fields. Returns
+    /// `ConfigInvalid` if any field holds an out-of-range value so the
+    /// caller can surface a structured error before any command logic runs.
+    pub fn load_validated_config(&self) -> Result<Config, ProjectError> {
+        let text = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
+        let config: Config = toml::from_str(&text).unwrap_or_default();
+        config
+            .validate()
+            .map_err(|e: ConfigValidationError| ProjectError::ConfigInvalid(e.message))?;
+        Ok(config)
     }
 
     pub fn project_root(&self) -> PathBuf {

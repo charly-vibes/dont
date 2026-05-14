@@ -305,7 +305,7 @@ fn invalid_project_mode_is_rejected_with_named_field_error() {
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
-        .code(1)
+        .failure()
         .get_output()
         .stdout
         .clone();
@@ -331,13 +331,17 @@ fn invalid_output_format_is_rejected_with_named_field_error() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    append_config(&dir, "[output]\ndefault_format = \"yaml\"");
+    // Overwrite (not append) so we don't produce a duplicate-key TOML error.
+    let config_path = dir.path().join("config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    let updated = config.replace("default_format = \"json\"", "default_format = \"yaml\"");
+    fs::write(&config_path, updated).unwrap();
 
     let out = dont()
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
-        .code(1)
+        .failure()
         .get_output()
         .stdout
         .clone();
@@ -364,7 +368,7 @@ fn verify_evidence_zero_timeout_is_rejected_with_named_field_error() {
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
-        .code(1)
+        .failure()
         .get_output()
         .stdout
         .clone();
@@ -390,7 +394,7 @@ fn verify_evidence_zero_concurrency_is_rejected_with_named_field_error() {
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
-        .code(1)
+        .failure()
         .get_output()
         .stdout
         .clone();

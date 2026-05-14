@@ -857,6 +857,7 @@ fn project_error_to_exit(err: &ProjectError) -> (String, String, i32) {
             3,
         ),
         ProjectError::ConfigMissing(msg) => ("config-missing".to_string(), msg.clone(), 3),
+        ProjectError::ConfigInvalid(msg) => ("config-invalid".to_string(), msg.clone(), 3),
         ProjectError::LayoutInvalid(_) => ("layout-invalid".to_string(), err.to_string(), 3),
         ProjectError::Store(_) => ("internal".to_string(), err.to_string(), 4),
         ProjectError::Io { .. } => ("internal".to_string(), err.to_string(), 4),
@@ -872,6 +873,10 @@ fn remediation_for_project_error(err: &ProjectError) -> Vec<RemediationEntry> {
         ProjectError::ConfigMissing(_) => vec![RemediationEntry {
             command: "dont init".to_string(),
             description: "Run dont init to initialise the project".to_string(),
+        }],
+        ProjectError::ConfigInvalid(_) => vec![RemediationEntry {
+            command: "dont prime --json".to_string(),
+            description: "Fix the invalid field in config.toml, then re-run".to_string(),
         }],
         ProjectError::LayoutInvalid(_) => vec![RemediationEntry {
             command: "dont init".to_string(),
@@ -910,6 +915,11 @@ fn emit_project_error_and_exit(err: &ProjectError) -> ! {
 fn open_project_or_exit() -> Project {
     match Project::open(&cwd()) {
         Ok(p) => {
+            // Validate config before any command runs; invalid field values
+            // are rejected here with a structured error naming the field.
+            if let Err(err) = p.load_validated_config() {
+                emit_project_error_and_exit(&err);
+            }
             p.check_and_record_mode_change();
             p
         }

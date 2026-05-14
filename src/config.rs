@@ -2,6 +2,20 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+/// Validation error returned when a config field holds an invalid value.
+#[derive(Debug, Clone)]
+pub struct ConfigValidationError {
+    pub message: String,
+}
+
+impl std::fmt::Display for ConfigValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for ConfigValidationError {}
+
 #[derive(Debug, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
@@ -173,5 +187,91 @@ impl TermNonfunctionalConfig {
         }
         let lower = label.to_lowercase();
         self.patterns.iter().any(|p| lower.contains(p.as_str()))
+    }
+}
+
+impl Config {
+    /// Validate all constrained config fields. Returns an error that names
+    /// the failing field and the invalid value so callers can surface it
+    /// without ambiguity. Validation runs at load time — not deferred to
+    /// individual call sites — so invalid values never reach runtime logic.
+    pub fn validate(&self) -> Result<(), ConfigValidationError> {
+        // [project].mode must be one of the two recognised values when set.
+        if let Some(mode) = &self.project.mode {
+            let valid = ["permissive", "strict"];
+            if !valid.contains(&mode.as_str()) {
+                return Err(ConfigValidationError {
+                    message: format!(
+                        "config field `project.mode` has invalid value {:?}; \
+                         must be one of: permissive, strict",
+                        mode
+                    ),
+                });
+            }
+        }
+
+        // [output].default_format must be one of the recognised output formats when set.
+        if let Some(fmt) = &self.output.default_format {
+            let valid = ["json", "human"];
+            if !valid.contains(&fmt.as_str()) {
+                return Err(ConfigValidationError {
+                    message: format!(
+                        "config field `output.default_format` has invalid value {:?}; \
+                         must be one of: json, human",
+                        fmt
+                    ),
+                });
+            }
+        }
+
+        // [verify_evidence].default_timeout_s must be >= 1 when set.
+        if let Some(t) = self.verify_evidence.default_timeout_s {
+            if t == 0 {
+                return Err(ConfigValidationError {
+                    message:
+                        "config field `verify_evidence.default_timeout_s` must be >= 1; \
+                         got 0 — a zero-second timeout makes all evidence checks fail immediately"
+                            .to_string(),
+                });
+            }
+        }
+
+        // [verify_evidence].concurrency must be >= 1 when set.
+        if let Some(c) = self.verify_evidence.concurrency {
+            if c == 0 {
+                return Err(ConfigValidationError {
+                    message:
+                        "config field `verify_evidence.concurrency` must be >= 1; \
+                         got 0 — a concurrency of zero would stall all evidence verification"
+                            .to_string(),
+                });
+            }
+        }
+
+        // [verify_evidence].burst_per_host must be >= 1 when set.
+        if let Some(b) = self.verify_evidence.burst_per_host {
+            if b == 0 {
+                return Err(ConfigValidationError {
+                    message:
+                        "config field `verify_evidence.burst_per_host` must be >= 1; \
+                         got 0 — a burst size of zero makes rate limiting block all requests"
+                            .to_string(),
+                });
+            }
+        }
+
+        // [verify_evidence].rate_limit_per_host must be > 0.0 when set.
+        if let Some(r) = self.verify_evidence.rate_limit_per_host {
+            if r <= 0.0 {
+                return Err(ConfigValidationError {
+                    message: format!(
+                        "config field `verify_evidence.rate_limit_per_host` must be > 0; \
+                         got {r} — a non-positive rate limit makes evidence verification impossible"
+                    ),
+                });
+            }
+        }
+
+        Ok(())
     }
 }
