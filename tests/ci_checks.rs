@@ -50,3 +50,52 @@ fn ci_workflow_references_test_execution() {
          which itself must call tests).\nWorkflow content does not contain any of these."
     );
 }
+
+/// A release workflow must exist so that tagged releases are automated
+/// and produce auditable artifacts (binary + checksum).
+///
+/// Checks:
+///   1. A file matching `*release*.yml` or `*release*.yaml` exists under
+///      `.github/workflows/`.
+///   2. It triggers on pushed version tags (`push: tags:`).
+///   3. It builds a release binary (`cargo build --release`).
+#[test]
+fn release_workflow_exists_with_required_steps() {
+    use std::fs;
+    use std::path::Path;
+
+    let workflows_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(".github/workflows");
+
+    // 1. Find a release workflow file.
+    let release_file = fs::read_dir(&workflows_dir)
+        .expect("cannot read .github/workflows/")
+        .filter_map(|e| e.ok())
+        .find(|e| {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            (name.contains("release")) && (name.ends_with(".yml") || name.ends_with(".yaml"))
+        });
+
+    let release_entry = release_file.unwrap_or_else(|| {
+        panic!(
+            "No release workflow found in .github/workflows/. \
+             Expected a file whose name contains 'release' with a .yml or .yaml extension."
+        )
+    });
+
+    let content = fs::read_to_string(release_entry.path())
+        .expect("failed to read release workflow file");
+
+    // 2. Must trigger on pushed version tags.
+    assert!(
+        content.contains("push:") && content.contains("tags:"),
+        "Release workflow must trigger on `push: tags:` (e.g. \"v*\"). \
+         Neither 'push:' nor 'tags:' found together in the workflow."
+    );
+
+    // 3. Must build a release binary.
+    assert!(
+        content.contains("cargo build --release"),
+        "Release workflow must run `cargo build --release` to produce the release binary."
+    );
+}
