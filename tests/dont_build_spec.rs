@@ -3,21 +3,11 @@
 // - Embedded Storage Engine
 // - Cold Start Performance (sub-50ms for read-only on small/medium projects)
 
-use assert_cmd::Command;
+mod common;
+
+use common::{dont, init_dir};
 use std::time::Instant;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
 
 fn conclude_claim(dir: &TempDir, statement: &str) {
     dont()

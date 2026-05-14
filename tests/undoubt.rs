@@ -1,10 +1,8 @@
-use assert_cmd::Command;
+mod common;
+
+use common::dont;
 use serde_json::Value;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
 
 fn init_dir(dir: &TempDir) {
     dont()

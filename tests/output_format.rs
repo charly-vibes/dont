@@ -1,32 +1,7 @@
-use assert_cmd::Command;
+mod common;
+
+use common::{conclude_claim as conclude_json, dont, init_dir};
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
-
-fn conclude_json(dir: &TempDir, statement: &str) -> String {
-    let out = dont()
-        .args(["conclude", statement, "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    serde_json::from_slice::<serde_json::Value>(&out).unwrap()["data"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string()
-}
 
 // --- --human flag: not JSON ---
 

@@ -1,36 +1,11 @@
-use assert_cmd::Command;
+mod common;
+
+use common::{conclude_claim, dont, init_dir};
 use dont::store::{
     HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, StoreStatus,
 };
 use serde_json::Value;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
-
-fn conclude_claim(dir: &TempDir, statement: &str) -> String {
-    let out = dont()
-        .args(["conclude", statement, "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    serde_json::from_slice::<Value>(&out).unwrap()["data"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string()
-}
 
 fn seed_lockable_claim(dir: &TempDir, claim_id: &str) {
     let store = Store::open_dont_dir(dir.path()).unwrap();

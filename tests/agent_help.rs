@@ -3,13 +3,11 @@
 // Spec: openspec/specs/dont-agent-help/spec.md
 // Ticket: dont-nolt
 
-use assert_cmd::Command;
+mod common;
+
+use common::dont;
 use std::fs;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
 
 fn init_in(dir: &TempDir) -> assert_cmd::assert::Assert {
     dont()

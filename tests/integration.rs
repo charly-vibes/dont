@@ -1,34 +1,9 @@
-use assert_cmd::Command;
+mod common;
+
+use common::{conclude_claim, dont, init_dir};
 use serde_json::Value;
 use std::time::Instant;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
-
-fn conclude_claim(dir: &TempDir, statement: &str) -> String {
-    let out = dont()
-        .args(["conclude", statement, "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    serde_json::from_slice::<Value>(&out).unwrap()["data"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string()
-}
 
 fn assert_envelope_conformance(v: &Value, expect_ok: bool) {
     assert!(v.get("ok").is_some(), "missing ok");

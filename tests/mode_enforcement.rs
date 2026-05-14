@@ -1,11 +1,9 @@
-use assert_cmd::Command;
+mod common;
+
+use common::dont;
 use serde_json::Value;
 use std::io::Write;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
 
 fn switch_mode(dir: &TempDir, from: &str, to: &str) {
     let config_path = dir.path().join("config.toml");

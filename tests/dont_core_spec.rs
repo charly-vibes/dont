@@ -9,22 +9,12 @@
 //   REQ-5  Verification is justified status, not absolute truth
 //   REQ-6  Core invariants constrain future capabilities
 
-use assert_cmd::Command;
+mod common;
+
+use common::{dont, init_dir};
 use dont::store::{Store, StoreEvent, StoreEventKind, StoreStatus};
 use serde_json::Value;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
 
 // ── REQ-1: Epistemic forcing-function purpose ─────────────────────────────────
 

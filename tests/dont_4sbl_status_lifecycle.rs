@@ -3,36 +3,11 @@
 // Tests for spec claims not covered by existing tests.
 // Spec: openspec/specs/dont-status-lifecycle/spec.md
 
-use assert_cmd::Command;
+mod common;
+
+use common::{dont, init_dir};
 use serde_json::Value;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
-
-fn conclude_claim(dir: &TempDir, statement: &str) -> String {
-    let out = dont()
-        .args(["conclude", statement, "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    serde_json::from_slice::<Value>(&out).unwrap()["data"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string()
-}
 
 fn conclude_with_deps(dir: &TempDir, statement: &str, deps: &[&str]) -> String {
     let mut args = vec!["conclude", statement, "--json"];

@@ -1,19 +1,8 @@
-use assert_cmd::Command;
+mod common;
+
+use common::{dont, init_dir};
 use serde_json::Value;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .arg("init")
-        .arg("--json")
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
 
 #[test]
 fn define_creates_unverified_term() {

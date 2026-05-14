@@ -1,19 +1,9 @@
-use assert_cmd::Command;
+mod common;
+
 use assert_cmd::cargo::cargo_bin;
+use common::{dont, init_dir};
 use serde_json::Value;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
 
 fn conclude_in(dir: &TempDir, statement: &str) -> Vec<u8> {
     dont()

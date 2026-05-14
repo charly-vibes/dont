@@ -25,8 +25,6 @@ fn shared_helpers_module_exists() {
 /// files and asserts none of the test functions use these anti-patterns.
 #[test]
 fn test_function_names_are_descriptive() {
-    use std::fs;
-
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let anti_patterns: &[&str] = &["_works", "_basic", "_simple", "_stuff", "_misc"];
 
@@ -67,8 +65,6 @@ fn test_function_names_are_descriptive() {
 /// No mock framework crates are present in dev-dependencies.
 #[test]
 fn no_cfg_test_trait_impl_blocks() {
-    use std::fs;
-
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut violations: Vec<String> = Vec::new();
 
@@ -200,8 +196,6 @@ fn collect_cfg_test_impl_violations(dir: &std::path::Path, out: &mut Vec<String>
 /// This test asserts each pattern is absent so regressions are caught at CI time.
 #[test]
 fn no_test_isolation_violations() {
-    use std::fs;
-
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut violations: Vec<String> = Vec::new();
 

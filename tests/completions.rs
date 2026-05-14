@@ -1,10 +1,8 @@
-use assert_cmd::Command;
+mod common;
+
+use common::dont;
 use predicates::prelude::*;
 use serde_json::Value;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
 
 #[test]
 fn completions_bash_produces_nonempty_output() {

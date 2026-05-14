@@ -1,19 +1,9 @@
-use assert_cmd::Command;
+mod common;
+
+use common::{dont, init_dir};
 use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
 
 fn append_config(dir: &TempDir, extra: &str) {
     let path = dir.path().join("config.toml");

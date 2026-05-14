@@ -7,34 +7,11 @@
 /// These tests assert that the CLI exposes `dismiss` and `lock` under those
 /// canonical names so that external callers, documentation, and LLM harnesses
 /// can rely on the spec-defined vocabulary.
-use assert_cmd::Command;
+mod common;
+
+use common::{conclude_claim, dont, init_dir};
 use serde_json::Value;
 use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
-
-fn conclude_claim(dir: &TempDir, statement: &str) -> String {
-    let out = dont()
-        .args(["conclude", statement, "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let v: Value = serde_json::from_slice(&out).unwrap();
-    v["data"]["id"].as_str().unwrap().to_string()
-}
 
 // ── Core four verb: dismiss ──────────────────────────────────────────────────
 

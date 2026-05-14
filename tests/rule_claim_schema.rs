@@ -9,22 +9,10 @@
 //     - `.dont/AGENTS.md` contains canonical template (scenario: template is in agent-facing docs)
 //     - claim authored from full canonical template passes rule-claim-structure (scenario: claim authored from template passes structural validation)
 
-use assert_cmd::Command;
-use predicates::prelude::*;
+mod common;
+
+use common::dont;
 use std::fs;
-use tempfile::TempDir;
-
-fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
-}
-
-fn init_in(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
 
 // ── Requirement: Slot marker format and template ──────────────────────────────
 
