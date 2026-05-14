@@ -529,3 +529,86 @@ fn flag_locked_claim_is_refused_with_invalid_transition() {
     assert_eq!(v["data"]["code"], "invalid-transition",
         "error code must be invalid-transition: {v}");
 }
+
+// --- Spec: deprecated alias emits warning ---
+// Spec (Requirement: flag (formerly dismiss)):
+//   "WHEN `dont dismiss` is invoked
+//    THEN a deprecation warning is emitted to stderr suggesting `flag` instead
+//    AND the command proceeds normally
+//    AND the deprecation warning goes to stderr regardless of whether --json is set"
+
+#[test]
+fn dismiss_alias_emits_deprecation_warning_to_stderr() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim verified via deprecated dismiss alias");
+
+    let output = dont()
+        .args(["dismiss", &id, "--evidence", "https://example.test/dep-proof", "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    // Command must succeed (proceed normally)
+    let v: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(v["ok"], true, "dismiss must proceed normally: {v}");
+    assert_eq!(v["data"]["status"], "verified", "dismiss must verify the claim: {v}");
+
+    // Deprecation warning MUST go to stderr
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("deprecated") || stderr.contains("flag"),
+        "dismiss must emit a deprecation warning to stderr suggesting 'flag'; got stderr: {:?}",
+        stderr
+    );
+}
+
+#[test]
+fn dismiss_alias_emits_deprecation_warning_to_stderr_with_json_flag() {
+    // The spec says the warning goes to stderr regardless of whether --json is set.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim for deprecation-warning-with-json test");
+
+    let output = dont()
+        .args(["dismiss", &id, "--evidence", "https://example.test/dep-proof2", "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    // Even with --json, stdout must be valid JSON and stderr must have the warning
+    let v: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(v["ok"], true, "dismiss --json must succeed");
+
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("deprecated") || stderr.contains("flag"),
+        "dismiss --json must still emit deprecation warning to stderr; got: {:?}",
+        stderr
+    );
+}
+
+#[test]
+fn dismiss_deprecation_warning_does_not_appear_on_stdout() {
+    // The deprecation warning must go ONLY to stderr, not contaminate stdout JSON.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim for stdout-clean deprecation check");
+
+    let output = dont()
+        .args(["dismiss", &id, "--evidence", "https://example.test/dep-proof3", "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    // stdout must be parseable JSON without the warning text
+    let v: Value = serde_json::from_slice(&output.stdout)
+        .expect("stdout must be valid JSON even when dismiss emits a deprecation warning");
+    assert_eq!(v["ok"], true);
+}
