@@ -410,3 +410,69 @@ fn event_order_is_stable_across_store_reopen() {
     sorted.sort_unstable();
     assert_eq!(txs, sorted, "tx values must be ascending after reopen");
 }
+
+// ── Corrupt store file tests (dont-bt3) ──────────────────────────────────────
+
+/// A corrupt tx.seq (non-numeric content) must produce an error whose message
+/// names the tx.seq file path so the user knows which file to delete or repair.
+#[test]
+fn corrupt_tx_seq_error_names_the_file_path() {
+    let root = tempfile::tempdir().expect("temp root");
+
+    // Write one claim so tx.seq is created.
+    let store = Store::open_project(root.path()).expect("store opens");
+    store
+        .append_claim("establish tx.seq before corruption", &[], None)
+        .expect("claim appends");
+    drop(store);
+
+    // Overwrite tx.seq with garbage.
+    let seq_path = root.path().join(".dont/tx.seq");
+    std::fs::write(&seq_path, b"not-a-number\n").expect("wrote garbage tx.seq");
+
+    // Reopen and try an operation that reads tx.seq.
+    let store2 = Store::open_project(root.path()).expect("store reopens after corruption");
+    let err = store2
+        .append_claim("this should fail on next_tx", &[], None)
+        .expect_err("should fail with corrupt tx.seq");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("tx.seq"),
+        "error message must name 'tx.seq', got: {msg}"
+    );
+    // The message should include the absolute path so the user can locate the file.
+    assert!(
+        msg.contains(seq_path.to_str().unwrap()),
+        "error message must contain the absolute tx.seq path, got: {msg}"
+    );
+}
+
+/// A corrupt db.cozo (truncated/invalid SQLite content) must produce an error
+/// whose message names the db.cozo file path so the user knows which file is corrupt.
+#[test]
+fn corrupt_db_file_error_names_the_file_path() {
+    let root = tempfile::tempdir().expect("temp root");
+
+    // Initialize a valid store first (creates the SQLite file).
+    {
+        let _store = Store::open_project(root.path()).expect("store opens");
+    }
+
+    // Corrupt the SQLite file by overwriting it with garbage.
+    let db_path = root.path().join(".dont/db.cozo");
+    std::fs::write(&db_path, b"not a valid sqlite database\x00\x00\xff\xfe").expect("wrote garbage db");
+
+    // Attempting to reopen must return an error that names the db path.
+    let err = Store::open_project(root.path()).expect_err("corrupt db must fail to open");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("db.cozo"),
+        "error message must name 'db.cozo', got: {msg}"
+    );
+    assert!(
+        msg.contains(db_path.to_str().unwrap()),
+        "error message must contain the absolute db.cozo path, got: {msg}"
+    );
+}
