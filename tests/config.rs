@@ -230,13 +230,10 @@ busy_retry_base_ms = 50
 }
 
 #[test]
-fn config_unknown_keys_emit_warning_not_failure() {
+fn config_unknown_keys_fail_with_actionable_error() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    // Add an unknown key inside a new section — should not cause a parse failure.
-    // Use a section name that doesn't already exist in the default config so we
-    // avoid a duplicate-key TOML parse error from the append.
     append_config(
         &dir,
         "[unknown_future_section]\nunknown_future_key = \"value\"",
@@ -246,13 +243,19 @@ fn config_unknown_keys_emit_warning_not_failure() {
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
-        .success()
+        .failure()
         .get_output()
         .stdout
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], true, "unknown config key should not cause failure");
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "config-invalid");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("unknown_future_section"),
+        "unknown section should be named, got: {message}"
+    );
 }
 
 #[test]
@@ -434,6 +437,69 @@ fn malformed_config_toml_returns_error_exit_not_panic() {
     assert!(
         message.contains("config.toml") || message.contains("TOML") || message.contains("parse") || message.contains("invalid"),
         "error message should describe the parse failure, got: {message}"
+    );
+}
+
+#[test]
+fn unknown_config_field_reports_field_name_and_line_number() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let config_path = dir.path().join("config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    let updated = config.replace("mode = \"permissive\"", "mode = \"permissive\"\nmodex = \"permissive\"");
+    fs::write(&config_path, updated).unwrap();
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "config-invalid");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(message.contains("modex"), "must name unknown field, got: {message}");
+    assert!(
+        message.contains("line") || message.contains("column"),
+        "must include parse location, got: {message}"
+    );
+}
+
+#[test]
+fn wrong_type_config_field_reports_field_name_and_expected_type() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let config_path = dir.path().join("config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    let updated = config.replace("busy_retry_attempts = 5", "busy_retry_attempts = \"five\"");
+    fs::write(&config_path, updated).unwrap();
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "config-invalid");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("busy_retry_attempts"),
+        "must name invalid field, got: {message}"
+    );
+    assert!(
+        message.contains("integer") || message.contains("u32") || message.contains("invalid type"),
+        "must describe expected type, got: {message}"
     );
 }
 

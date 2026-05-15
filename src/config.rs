@@ -17,6 +17,7 @@ impl std::fmt::Display for ConfigValidationError {
 impl std::error::Error for ConfigValidationError {}
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(default)]
     pub project: ProjectConfig,
@@ -39,23 +40,27 @@ pub struct Config {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct ProjectConfig {
     pub name: Option<String>,
     pub mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct OutputConfig {
     pub default_format: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct StorageConfig {
     pub busy_retry_attempts: Option<u32>,
     pub busy_retry_base_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct HarnessConfig {
     #[serde(default = "default_managed_docs")]
     pub managed_docs: Vec<String>,
@@ -73,6 +78,7 @@ pub struct ImportConfig {
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct AdapterConfig {
     pub enabled: Option<bool>,
     pub endpoint: Option<String>,
@@ -86,6 +92,7 @@ impl AdapterConfig {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct VerifyEvidenceConfig {
     pub concurrency: Option<u32>,
     pub rate_limit_per_host: Option<f64>,
@@ -95,12 +102,14 @@ pub struct VerifyEvidenceConfig {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct DefineTopConfig {
     #[serde(default)]
     pub shape: DefineShapeConfig,
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct DefineShapeConfig {
     pub check_indefinite: Option<bool>,
     pub check_punctuated: Option<bool>,
@@ -132,18 +141,21 @@ impl DefineShapeConfig {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct TrustConfig {
     #[serde(default)]
     pub hedges: TrustHedgesConfig,
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct TrustHedgesConfig {
     #[serde(default)]
     pub patterns: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RulesConfig {
     #[serde(default)]
     pub warn: Vec<String>,
@@ -156,6 +168,7 @@ pub struct RulesConfig {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RuleClaimStructureConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -173,6 +186,7 @@ impl RuleClaimStructureConfig {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct TermNonfunctionalConfig {
     #[serde(default)]
     pub enabled: bool,

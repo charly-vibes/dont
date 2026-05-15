@@ -127,6 +127,9 @@ fn entity_lookup_prefix_not_found_exits_nonzero() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "claim-not-found");
+    let msg = v["data"]["message"].as_str().unwrap_or("");
+    assert!(msg.contains("claim"), "must name missing entity type, got: {msg}");
 }
 
 /// Empty prefix (claim:) with 2 claims → ambiguous-prefix error, exit non-zero
@@ -177,6 +180,30 @@ fn entity_lookup_lowercase_prefix_resolves_claim() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["id"], id.as_str());
+}
+
+#[test]
+fn entity_lookup_unknown_term_id_suggests_vocab() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["show", "term:01JNONEXISTENT", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "term-not-found");
+    let remediation = v["data"]["remediation"].as_array().unwrap();
+    assert!(
+        remediation.iter().any(|r| r["command"] == "dont vocab"),
+        "term-not-found should suggest dont vocab, got: {remediation:?}"
+    );
 }
 
 /// why with a short prefix resolves to the correct claim (regression guard for why dispatch)
