@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 
+use crate::fs_util::write_restricted;
+
 use chrono::{SecondsFormat, Utc};
 use cozo::DbInstance;
 use fs2::FileExt;
@@ -1555,27 +1557,7 @@ fn json_string(value: &str) -> String {
     serde_json::to_string(value).expect("serializing string literal cannot fail")
 }
 
-/// Write `content` to `path` with 0o600 permissions on Unix.
-///
-/// Uses `OpenOptions` with `.mode(0o600)` so that newly created files are not
-/// world-readable regardless of the process umask.
-fn write_restricted(path: &std::path::Path, content: &[u8]) -> std::io::Result<()> {
-    use std::io::Write;
-    #[cfg(unix)]
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(path)?;
-    #[cfg(not(unix))]
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(path)?;
-    file.write_all(content)
-}
+
 
 #[cfg(test)]
 mod data_model {

@@ -2,9 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::os::unix::fs::DirBuilderExt;
 
 use crate::config::{Config, ConfigValidationError};
+use crate::fs_util::write_restricted;
 use crate::managed_block::{
     file_matches, render_root_block, replace_or_prepend_root_block, root_block_matches,
     write_canonical,
@@ -509,25 +510,6 @@ fn mkdir_restricted(path: &Path) -> std::io::Result<()> {
     #[cfg(not(unix))]
     fs::create_dir_all(path)?;
     Ok(())
-}
-
-/// Write `content` to `path` with mode 0o600 on Unix, creating or truncating the file.
-fn write_restricted(path: &Path, content: &[u8]) -> std::io::Result<()> {
-    use std::io::Write;
-    #[cfg(unix)]
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(path)?;
-    #[cfg(not(unix))]
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(path)?;
-    file.write_all(content)
 }
 
 fn ensure_dont_gitignore_entry(project_root: &Path) -> Result<(), ProjectError> {

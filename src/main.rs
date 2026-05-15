@@ -207,7 +207,7 @@ enum Command {
         id: String,
     },
 
-    /// Permanently preserve a verified claim when the lockable gate is met. Canonical glossary lifecycle verb; alias for forget.
+    /// Permanently preserve a verified claim when the lockable gate is met. Canonical lifecycle verb. `forget` is a legacy alias.
     Lock {
         /// Claim identifier.
         id: String,
@@ -2443,9 +2443,8 @@ fn validate_claim_statement(statement: &str, command: &str) -> Option<ErrorResul
         ';', '|', '`', '$', '\\', '<', '>', '\0',
     ];
     // Path separator sequences: `/` alone is allowed in prose (e.g., "TCP/IP"),
-    // but `..` combined with `/` or `\` signals traversal. We ban the raw
-    // traversal token `..` and the backslash (already in SHELL_META).
-    // We also ban bare NUL.
+    // but `..` adjacent to a path separator signals traversal. We ban the
+    // backslash (already in SHELL_META) and bare NUL.
 
     if let Some(bad) = statement.chars().find(|c| SHELL_META.contains(c)) {
         return Some(refusal(
@@ -2464,15 +2463,20 @@ fn validate_claim_statement(statement: &str, command: &str) -> Option<ErrorResul
         ));
     }
 
-    // Reject `..` path-traversal token anywhere in the statement.
-    if statement.contains("..") {
+    // Reject `..` only when adjacent to a path separator (path traversal sequence).
+    // This allows valid prose like "versions 1..10" or "pre..post".
+    let has_traversal = statement.contains("../")
+        || statement.contains("..\\")
+        || statement.starts_with("../")
+        || statement == "..";
+    if has_traversal {
         return Some(refusal(
             "statement-contains-path-traversal",
-            "claim statement must not contain the path-traversal sequence '..'",
+            "claim statement must not contain the path traversal sequence '..'",
             None,
             vec![RemediationEntry {
                 command: format!("{command} \"<claim text>\""),
-                description: "Remove the '..' sequence from the statement".to_string(),
+                description: "Remove the path traversal sequence from the statement".to_string(),
             }],
         ));
     }
@@ -2946,6 +2950,10 @@ fn main() {
                 }
                 Some(r) => r,
             };
+
+            if let Some(err) = validate_claim_statement(&reason, "dont trust") {
+                emit_error_and_exit(err, vec![], 1);
+            }
 
             let project = open_project_or_exit();
             let config = project.load_config();

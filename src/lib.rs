@@ -1,5 +1,6 @@
 pub mod config;
 pub mod envelope;
+pub mod fs_util;
 pub mod linkml;
 pub mod managed_block;
 pub mod model;
