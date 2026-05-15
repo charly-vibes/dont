@@ -898,6 +898,25 @@ fn strip_control_chars(s: &str) -> String {
         .collect()
 }
 
+/// Maximum number of characters displayed for a single evidence entry line in
+/// human-readable output.  Values longer than this are truncated with `…`.
+/// Only human output is affected — JSON output always contains the full value.
+const EVIDENCE_DISPLAY_MAX: usize = 160;
+
+/// Truncate `s` to at most [`EVIDENCE_DISPLAY_MAX`] Unicode scalar values,
+/// appending `…` when the string was shortened.  The truncation boundary is
+/// always on a char boundary, so the result is always valid UTF-8.
+fn truncate_evidence_for_display(s: &str) -> String {
+    let mut chars = s.chars();
+    let prefix: String = chars.by_ref().take(EVIDENCE_DISPLAY_MAX).collect();
+    if chars.next().is_some() {
+        // There are more chars beyond EVIDENCE_DISPLAY_MAX — truncate.
+        format!("{prefix}…")
+    } else {
+        prefix
+    }
+}
+
 fn format_human(v: &Value) -> String {
     let kind = v.get("envelope_kind").and_then(Value::as_str).unwrap_or("");
     let data = &v["data"];
@@ -940,10 +959,10 @@ fn format_human(v: &Value) -> String {
 fn format_claims_list(data: &Value) -> String {
     let items = match data["claims"].as_array().or_else(|| data.as_array()) {
         Some(arr) => arr,
-        None => return "(no claims)".to_string(),
+        None => return "(no claims)\nTry: dont conclude \"<claim text>\"".to_string(),
     };
     if items.is_empty() {
-        return "(no claims)".to_string();
+        return "(no claims)\nTry: dont conclude \"<claim text>\"".to_string();
     }
     items
         .iter()
@@ -962,10 +981,10 @@ fn format_claims_list(data: &Value) -> String {
 fn format_terms_list(data: &Value) -> String {
     let items = match data.as_array() {
         Some(arr) => arr,
-        None => return "(no terms)".to_string(),
+        None => return "(no terms)\nTry: dont define proj:TermName --doc \"<definition>\"".to_string(),
     };
     if items.is_empty() {
-        return "(no terms)".to_string();
+        return "(no terms)\nTry: dont define proj:TermName --doc \"<definition>\"".to_string();
     }
     items
         .iter()
@@ -992,17 +1011,22 @@ fn format_claim_detail(data: &Value) -> String {
             .map(|ev| {
                 if let Some(s) = ev.as_str() {
                     // Strip control chars to prevent ANSI injection from
-                    // user-supplied URI strings reaching the terminal.
-                    format!("    {}", strip_control_chars(s))
+                    // user-supplied URI strings reaching the terminal, then
+                    // truncate very long values so a pasted 10k-char blob does
+                    // not flood the terminal.  JSON output is unaffected.
+                    let safe = strip_control_chars(s);
+                    format!("    {}", truncate_evidence_for_display(&safe))
                 } else if ev.get("kind").and_then(Value::as_str) == Some("repo-file") {
                     let path = strip_control_chars(ev["path"].as_str().unwrap_or("?"));
                     let anchor_suffix = ev["anchor"]
                         .as_str()
                         .map(|a| format!("#{}", strip_control_chars(a)))
                         .unwrap_or_default();
-                    format!("    repo:{path}{anchor_suffix}")
+                    let display = format!("repo:{path}{anchor_suffix}");
+                    format!("    {}", truncate_evidence_for_display(&display))
                 } else {
-                    format!("    {ev}")
+                    let raw = ev.to_string();
+                    format!("    {}", truncate_evidence_for_display(&raw))
                 }
             })
             .collect::<Vec<_>>()
@@ -1610,6 +1634,20 @@ fn normalize_repo_path(
         .strip_prefix(project_root)
         .unwrap_or(&full)
         .to_path_buf())
+}
+
+/// Validate an evidence URI string supplied via `--evidence`.
+///
+/// Accepted schemes are `http://` and `https://`. Any other value — including
+/// bare strings, `file:` URIs, or strings with unsupported schemes — is
+/// rejected with an error that quotes the offending locator.
+fn validate_evidence_uri(uri: &str) -> Result<(), String> {
+    if uri.starts_with("http://") || uri.starts_with("https://") {
+        return Ok(());
+    }
+    Err(format!(
+        "malformed evidence locator \"{uri}\": must be an http:// or https:// URI"
+    ))
 }
 
 /// Parse a line span string like "10-18" or "42" into (start, end).
@@ -3549,6 +3587,28 @@ fn main() {
                 );
             }
 
+            // Validate all URI strings before opening the project so that a
+            // malformed locator fails fast without side effects.
+            for uri in &evidence {
+                if let Err(msg) = validate_evidence_uri(uri) {
+                    emit_error_and_exit(
+                        refusal(
+                            "malformed-evidence-uri",
+                            &msg,
+                            Some(&id),
+                            vec![RemediationEntry {
+                                command: format!("dont flag {id} --evidence <http://...>"),
+                                description:
+                                    "Use a valid http:// or https:// URI as the evidence reference"
+                                        .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    );
+                }
+            }
+
             let project = open_project_or_exit();
             let project_root = project
                 .dont_dir
@@ -4498,6 +4558,29 @@ fn main() {
                     vec![],
                     1,
                 );
+            }
+
+            // Validate URI strings before opening the project so that a
+            // malformed locator fails without leaving a partial claim behind.
+            for uri in &evidence {
+                if let Err(msg) = validate_evidence_uri(uri) {
+                    emit_error_and_exit(
+                        refusal(
+                            "malformed-evidence-uri",
+                            &msg,
+                            None,
+                            vec![RemediationEntry {
+                                command:
+                                    "dont ground \"<statement>\" --evidence <http://...>".to_string(),
+                                description:
+                                    "Use a valid http:// or https:// URI as the evidence reference"
+                                        .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    );
+                }
             }
 
             let project = open_project_or_exit();

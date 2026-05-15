@@ -14,8 +14,6 @@ use common::{conclude_claim, dont, init_dir};
 use serde_json::Value;
 use tempfile::TempDir;
 
-const LONG_EVIDENCE_EXCERPT: &str = include_str!("long_evidence_excerpt.txt");
-
 /// Helper: run `dont flag <id> --evidence <uri> --json` and assert success.
 fn flag_with_evidence(dir: &TempDir, id: &str, uri: &str) -> Value {
     let out = dont()

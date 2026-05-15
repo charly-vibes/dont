@@ -1,6 +1,7 @@
 mod common;
 
 use common::{conclude_claim, dont, init_dir};
+use dont::store::{Store, StoreEvent, StoreEventKind};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -10,6 +11,22 @@ fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
+}
+
+/// Inject an evidence URI directly into the store, bypassing CLI validation.
+/// Use this to seed legacy or intentionally malformed URIs that `flag` would now reject.
+fn inject_evidence_via_store(dir: &TempDir, id: &str, uri: &str) {
+    let store = Store::open_dont_dir(dir.path()).unwrap();
+    store
+        .append_evidence_event(
+            id,
+            StoreEvent {
+                kind: StoreEventKind::Flagged,
+                note: None,
+                evidence: vec![serde_json::Value::String(uri.to_string())],
+            },
+        )
+        .unwrap();
 }
 
 fn verify_evidence(dir: &TempDir, id: &str, mock: &str) -> Value {
@@ -80,7 +97,7 @@ fn verify_evidence_warns_on_malformed_or_unreachable_references() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "bad evidence should surface warnings");
-    dismiss_claim(&dir, &id, "not-a-uri");
+    inject_evidence_via_store(&dir, &id, "not-a-uri");
     dismiss_claim(&dir, &id, "https://example.test/offline");
 
     let v = verify_evidence(
@@ -153,8 +170,9 @@ fn verify_evidence_file_uri_traversal_is_malformed_not_read() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "traversal locator must not read outside project root");
-    // Attach the traversal URI as a plain evidence string (--evidence flag).
-    dismiss_claim(&dir, &id, "file:../../etc/passwd");
+    // Seed the traversal URI directly so verify-evidence exercises the read path
+    // without going through CLI input validation.
+    inject_evidence_via_store(&dir, &id, "file:../../etc/passwd");
 
     // Run verify-evidence with no mock so the real check_evidence_uri code runs.
     let out = dont()

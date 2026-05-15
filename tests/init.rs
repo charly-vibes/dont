@@ -294,6 +294,93 @@ fn conclude_outside_project_returns_config_missing_and_exits_3() {
     assert!(!remediation.is_empty());
 }
 
+/// dont-0zo: Running any command when no .dont/ project exists must emit a
+/// clear, actionable error — not a panic or cryptic I/O error.
+///
+/// This test exercises the `Project::open` path where the `.dont/` directory
+/// is absent: `DONT_DIR` points to a nonexistent path so there is no
+/// config.toml to read.  The error message must name `dont init` as the fix.
+#[test]
+fn any_command_outside_project_returns_config_missing_with_init_hint() {
+    let dir = TempDir::new().unwrap();
+
+    let output = dont()
+        .args(["list", "--json"])
+        .env("DONT_DIR", dir.path().join("no-project-here"))
+        .assert()
+        .code(3)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "config-missing");
+
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("dont init"),
+        "error message must mention 'dont init' as the fix, got: {message}"
+    );
+
+    let remediation = v["data"]["remediation"].as_array().unwrap();
+    assert!(
+        !remediation.is_empty(),
+        "config-missing must include remediation hints"
+    );
+    let has_init = remediation
+        .iter()
+        .any(|r| r["command"].as_str().unwrap_or("").contains("dont init"));
+    assert!(
+        has_init,
+        "remediation must suggest 'dont init', got: {remediation:?}"
+    );
+}
+
+/// dont-0zo: The structured error envelope (code, remediation) is consistent
+/// across the most commonly-used subcommands when no .dont/ project exists.
+#[test]
+fn multiple_commands_outside_project_all_return_config_missing() {
+    let dir = TempDir::new().unwrap();
+    let no_project = dir.path().join("no-project-here");
+
+    for subcommand in &["prime", "list", "conclude"] {
+        let mut args = vec![*subcommand, "--json"];
+        // conclude requires a positional <statement> argument
+        let statement_owned;
+        if *subcommand == "conclude" {
+            statement_owned = "test claim".to_string();
+            args.push(statement_owned.as_str());
+        }
+        let output = dont()
+            .args(&args)
+            .env("DONT_DIR", &no_project)
+            .assert()
+            .code(3)
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(
+            v["ok"], false,
+            "'{subcommand}' outside project must return ok:false"
+        );
+        assert_eq!(
+            v["data"]["code"], "config-missing",
+            "'{subcommand}' outside project must return config-missing, got: {:?}",
+            v["data"]["code"]
+        );
+        let remediation = v["data"]["remediation"].as_array().unwrap();
+        assert!(
+            remediation
+                .iter()
+                .any(|r| r["command"].as_str().unwrap_or("").contains("dont init")),
+            "'{subcommand}' config-missing remediation must suggest 'dont init'"
+        );
+    }
+}
+
 #[test]
 fn internal_project_errors_do_not_suggest_dont_doctor() {
     let dir = TempDir::new().unwrap();
