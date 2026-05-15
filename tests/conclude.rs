@@ -184,3 +184,55 @@ fn conclude_produces_unique_tx_ids_under_parallel_subprocess_load() {
     tx_ids.dedup();
     assert_eq!(tx_ids.len(), 8, "all tx IDs must be unique; got {tx_ids:?}");
 }
+
+#[test]
+fn conclude_rejects_statement_with_path_traversal_sequence() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["conclude", "../evil", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "statement-contains-path-traversal",
+        "expected statement-contains-path-traversal, got: {:?}",
+        v["data"]["code"]
+    );
+}
+
+#[test]
+fn conclude_rejects_statement_with_shell_metacharacter() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    for statement in &["foo;bar", "foo|bar", "foo`bar`", "foo$bar", "foo\\bar"] {
+        let out = dont()
+            .args(["conclude", statement, "--json"])
+            .env("DONT_DIR", dir.path())
+            .assert()
+            .failure()
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(
+            v["ok"], false,
+            "statement {:?} should be rejected",
+            statement
+        );
+        assert_eq!(
+            v["data"]["code"], "statement-contains-metacharacter",
+            "statement {:?} should produce statement-contains-metacharacter, got: {:?}",
+            statement, v["data"]["code"]
+        );
+    }
+}

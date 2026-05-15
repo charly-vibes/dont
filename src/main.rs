@@ -885,6 +885,19 @@ fn run_per_entity<F: FnMut(&str) -> i32>(id: String, mut f: F) -> ! {
     process::exit(max_code);
 }
 
+/// Strip ASCII control characters (including ANSI escape sequences) from a
+/// string before it is written to terminal output.
+///
+/// ANSI injection via user-supplied fields (anchor names, file paths, plain-URI
+/// evidence strings) would let a malicious value rewrite the visible terminal
+/// line or inject fake status indicators.  We remove every byte < 0x20 and
+/// DEL (0x7F) so the raw bytes never reach stdout.
+fn strip_control_chars(s: &str) -> String {
+    s.chars()
+        .filter(|c| !c.is_ascii_control())
+        .collect()
+}
+
 fn format_human(v: &Value) -> String {
     let kind = v.get("envelope_kind").and_then(Value::as_str).unwrap_or("");
     let data = &v["data"];
@@ -978,10 +991,16 @@ fn format_claim_detail(data: &Value) -> String {
             .iter()
             .map(|ev| {
                 if let Some(s) = ev.as_str() {
-                    format!("    {s}")
+                    // Strip control chars to prevent ANSI injection from
+                    // user-supplied URI strings reaching the terminal.
+                    format!("    {}", strip_control_chars(s))
                 } else if ev.get("kind").and_then(Value::as_str) == Some("repo-file") {
-                    let path = ev["path"].as_str().unwrap_or("?");
-                    format!("    repo:{path}")
+                    let path = strip_control_chars(ev["path"].as_str().unwrap_or("?"));
+                    let anchor_suffix = ev["anchor"]
+                        .as_str()
+                        .map(|a| format!("#{}", strip_control_chars(a)))
+                        .unwrap_or_default();
+                    format!("    repo:{path}{anchor_suffix}")
                 } else {
                     format!("    {ev}")
                 }
@@ -2407,6 +2426,60 @@ fn label_contains_sentence_verb(label: &str) -> bool {
     }
 }
 
+/// Reject claim statements that contain path separators or shell metacharacters.
+///
+/// Claim statements are stored as free-form prose in the database and echoed
+/// in JSON output. Although `dont` never interpolates them into shell strings
+/// or uses them as filenames today, characters like `../`, `;`, `|`, `` ` ``,
+/// and `$` create injection risks if a downstream harness embeds the statement
+/// in a shell command, and path-separator sequences (`..`, `/`, `\`) are
+/// semantically meaningless in a prose claim.
+///
+/// Allowlist approach: statements must consist only of printable characters
+/// that are not shell metacharacters or path-construction tokens.
+fn validate_claim_statement(statement: &str, command: &str) -> Option<ErrorResult> {
+    // Characters that are unambiguously dangerous in shell/path contexts.
+    const SHELL_META: &[char] = &[
+        ';', '|', '`', '$', '\\', '<', '>', '\0',
+    ];
+    // Path separator sequences: `/` alone is allowed in prose (e.g., "TCP/IP"),
+    // but `..` combined with `/` or `\` signals traversal. We ban the raw
+    // traversal token `..` and the backslash (already in SHELL_META).
+    // We also ban bare NUL.
+
+    if let Some(bad) = statement.chars().find(|c| SHELL_META.contains(c)) {
+        return Some(refusal(
+            "statement-contains-metacharacter",
+            &format!(
+                "claim statement must not contain shell metacharacters or path separators; \
+                 found {:?}",
+                bad
+            ),
+            None,
+            vec![RemediationEntry {
+                command: format!("{command} \"<claim text>\""),
+                description: "Re-run with a statement that contains only printable prose characters"
+                    .to_string(),
+            }],
+        ));
+    }
+
+    // Reject `..` path-traversal token anywhere in the statement.
+    if statement.contains("..") {
+        return Some(refusal(
+            "statement-contains-path-traversal",
+            "claim statement must not contain the path-traversal sequence '..'",
+            None,
+            vec![RemediationEntry {
+                command: format!("{command} \"<claim text>\""),
+                description: "Remove the '..' sequence from the statement".to_string(),
+            }],
+        ));
+    }
+
+    None
+}
+
 fn validate_label(label: &str, curie: &str, shape: &DefineShapeConfig) -> Option<ErrorResult> {
     if label.trim().is_empty() {
         return Some(refusal(
@@ -2684,6 +2757,10 @@ fn main() {
                     vec![],
                     1,
                 );
+            }
+
+            if let Some(err) = validate_claim_statement(&statement, "dont conclude") {
+                emit_error_and_exit(err, vec![], 1);
             }
 
             let mut resolved_depends_on: Vec<String> = vec![];
@@ -4388,6 +4465,10 @@ fn main() {
                     vec![],
                     1,
                 );
+            }
+
+            if let Some(err) = validate_claim_statement(&statement, "dont ground") {
+                emit_error_and_exit(err, vec![], 1);
             }
 
             let evidence: Vec<String> = evidence

@@ -406,3 +406,93 @@ fn ground_duplicate_statement_follows_conclude_policy() {
     assert_eq!(v1["data"]["status"], "verified");
     assert_eq!(v2["data"]["status"], "verified");
 }
+
+#[test]
+fn ground_rejects_statement_with_path_traversal_sequence() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "../evil",
+            "--evidence",
+            "https://example.com/proof",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "statement-contains-path-traversal",
+        "expected statement-contains-path-traversal, got: {:?}",
+        v["data"]["code"]
+    );
+}
+
+#[test]
+fn ground_rejects_statement_with_shell_metacharacter() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    for statement in &["foo;bar", "foo|bar", "foo`bar`", "foo$bar", "foo\\bar"] {
+        let out = dont()
+            .args([
+                "ground",
+                statement,
+                "--evidence",
+                "https://example.com/proof",
+                "--json",
+            ])
+            .env("DONT_DIR", dir.path())
+            .assert()
+            .failure()
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(
+            v["ok"], false,
+            "statement {:?} should be rejected",
+            statement
+        );
+        assert_eq!(
+            v["data"]["code"], "statement-contains-metacharacter",
+            "statement {:?} should produce statement-contains-metacharacter, got: {:?}",
+            statement, v["data"]["code"]
+        );
+    }
+}
+
+#[test]
+fn ground_accepts_prose_statement_with_slash() {
+    // A slash in prose (e.g. "TCP/IP") is allowed; only `..` traversal is banned.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "TCP/IP is a protocol suite",
+            "--evidence",
+            "https://example.com/proof",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["status"], "verified");
+}
