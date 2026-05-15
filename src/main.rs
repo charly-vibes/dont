@@ -11,8 +11,8 @@ use serde_json::{Value, json};
 use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::linkml as linkml_adapter;
 use dont::envelope::{
-    CLI_VERSION, ENVELOPE_VERSION, Envelope, ErrorResult, HintEntry, RemediationEntry, UnmetClause,
-    Warning, set_author,
+    CLI_VERSION, ENVELOPE_VERSION, Envelope, EnvelopeKind, ErrorResult, HintEntry,
+    RemediationEntry, UnmetClause, Warning, set_author,
 };
 use dont::model::{
     Status, flag as model_flag, ignore as model_ignore, lock as model_lock, reopen as model_reopen,
@@ -730,7 +730,7 @@ fn handle_linkml_import(args: &[String], project: &Project) {
                 "schema_name": schema_name,
                 "stored": stored,
             });
-            let env = Envelope::success("empty", payload, warnings, vec![]);
+            let env = Envelope::success(EnvelopeKind::Empty, payload, warnings, vec![]);
             emit_json(&env);
         }
     }
@@ -2260,7 +2260,7 @@ fn suggest_alternative_curie(curie: &str) -> String {
 fn emit_claim_view(record: &ClaimRecord, result: &AppendResult, store: &Store) {
     let payload = build_claim_view(record, store);
     let env = Envelope::success_with_tx(
-        "claim",
+        EnvelopeKind::Claim,
         payload,
         vec![],
         vec![HintEntry {
@@ -2280,7 +2280,7 @@ fn emit_term_view(
 ) {
     let payload = build_term_view(record, store);
     let env = Envelope::success_with_tx(
-        "term",
+        EnvelopeKind::Term,
         payload,
         warnings,
         vec![HintEntry {
@@ -2648,7 +2648,7 @@ fn main() {
     if cli.version {
         if cli.json {
             let env = Envelope::success(
-                "version",
+                EnvelopeKind::Version,
                 json!({
                     "cli_version": CLI_VERSION,
                     "envelope_version": ENVELOPE_VERSION,
@@ -2696,7 +2696,7 @@ fn main() {
             match Project::init(&cwd(), mode) {
                 Ok(_) => {
                     let env = Envelope::success(
-                        "empty",
+                        EnvelopeKind::Empty,
                         json!({ "mode": mode.as_str() }),
                         vec![],
                         vec![HintEntry {
@@ -2852,7 +2852,7 @@ fn main() {
                         "created_at": result.created_at,
                     });
                     let env = Envelope::success_with_tx(
-                        "claim",
+                        EnvelopeKind::Claim,
                         payload,
                         warnings,
                         vec![HintEntry {
@@ -3879,7 +3879,7 @@ fn main() {
                 Ok(Some(EntityResolution::Claim(record))) => {
                     let payload = build_claim_view(&record, &project.store);
                     let env = Envelope::success(
-                        "claim",
+                        EnvelopeKind::Claim,
                         payload,
                         vec![],
                         vec![HintEntry {
@@ -3893,7 +3893,7 @@ fn main() {
                 Ok(Some(EntityResolution::Term(record))) => {
                     let payload = build_term_view(&record, &project.store);
                     let env = Envelope::success(
-                        "term",
+                        EnvelopeKind::Term,
                         payload,
                         vec![],
                         vec![HintEntry {
@@ -3918,7 +3918,7 @@ fn main() {
                 Ok(Some(EntityResolution::Claim(record))) => {
                     let payload = build_claim_why_view(&record, &project.store);
                     let env = Envelope::success(
-                        "why",
+                        EnvelopeKind::Why,
                         payload,
                         vec![],
                         vec![HintEntry {
@@ -3932,7 +3932,7 @@ fn main() {
                 Ok(Some(EntityResolution::Term(record))) => {
                     let payload = build_term_why_view(&record, &project.store);
                     let env = Envelope::success(
-                        "why",
+                        EnvelopeKind::Why,
                         payload,
                         vec![],
                         vec![HintEntry {
@@ -3962,7 +3962,7 @@ fn main() {
             let (entity_kind, status, evidence) = if id.starts_with("term:") {
                 match project.store.term_by_id(&id) {
                     Ok(Some(record)) => (
-                        "term",
+                        EnvelopeKind::Term,
                         format!("{:?}", record.status).to_lowercase(),
                         collect_term_evidence(&record),
                     ),
@@ -3984,7 +3984,7 @@ fn main() {
             } else {
                 match project.store.claim_by_id(&id) {
                     Ok(Some(record)) => (
-                        "claim",
+                        EnvelopeKind::Claim,
                         format!("{:?}", record.status).to_lowercase(),
                         collect_evidence(&record),
                     ),
@@ -4006,7 +4006,7 @@ fn main() {
             };
 
             if evidence.is_empty() {
-                let remediation = if entity_kind == "claim" {
+                let remediation = if entity_kind == EnvelopeKind::Claim {
                     RemediationEntry {
                         command: format!("dont dismiss {id} --evidence <uri>"),
                         description: "Attach evidence to the claim before verifying liveness"
@@ -4075,7 +4075,7 @@ fn main() {
                 "results": results,
             });
             let env = Envelope::success(
-                "evidence_check",
+                EnvelopeKind::EvidenceCheck,
                 payload,
                 warnings,
                 vec![HintEntry {
@@ -4196,7 +4196,7 @@ fn main() {
                     "Verified entities must not depend on unresolved terms"
                 ],
             });
-            let env = Envelope::success("prime", payload, vec![], vec![]);
+            let env = Envelope::success(EnvelopeKind::Prime, payload, vec![], vec![]);
             emit_json(&env);
             if !blocking.is_empty() {
                 std::process::exit(1);
@@ -4246,7 +4246,7 @@ fn main() {
                 "checks": checks,
                 "summary": {"pass": pass, "warn": warn, "fail": fail},
             });
-            let env = Envelope::success("doctor", payload, vec![], vec![]);
+            let env = Envelope::success(EnvelopeKind::Doctor, payload, vec![], vec![]);
             emit_json(&env);
             let exit_code = if strict {
                 if warn > 0 || fail > 0 { 1 } else { 0 }
@@ -4339,7 +4339,7 @@ fn main() {
                         "count": count,
                         "claims": views,
                     });
-                    let env = Envelope::success("claims", payload, vec![], hints);
+                    let env = Envelope::success(EnvelopeKind::Claims, payload, vec![], hints);
                     emit_json(&env);
                 }
                 ListKind::Terms => {
@@ -4359,7 +4359,7 @@ fn main() {
                         .iter()
                         .map(|term| build_term_view(term, &project.store))
                         .collect();
-                    let env = Envelope::success("terms", views, vec![], vec![]);
+                    let env = Envelope::success(EnvelopeKind::Terms, views, vec![], vec![]);
                     emit_json(&env);
                 }
             }
@@ -4375,7 +4375,7 @@ fn main() {
                             "blockers": [],
                             "as_of": chrono::Utc::now().to_rfc3339(),
                         });
-                        let env = Envelope::success("trace", payload, vec![], vec![]);
+                        let env = Envelope::success(EnvelopeKind::Trace, payload, vec![], vec![]);
                         emit_json(&env);
                     }
                     Ok(None) => emit_error_and_exit(
@@ -4413,7 +4413,7 @@ fn main() {
                                 description: "Inspect the entity details".to_string(),
                             }]
                         };
-                        let env = Envelope::success("trace", payload, vec![], hints);
+                        let env = Envelope::success(EnvelopeKind::Trace, payload, vec![], hints);
                         emit_json(&env);
                     }
                     Ok(None) => emit_error_and_exit(
@@ -4446,7 +4446,7 @@ fn main() {
                     "script": script.as_ref(),
                 });
                 emit_json(&Envelope::success(
-                    "dont-completions",
+                    EnvelopeKind::DontCompletions,
                     payload,
                     vec![],
                     vec![],
@@ -4946,7 +4946,7 @@ fn main() {
                         rules.extend(custom);
                     }
 
-                    emit_json(&Envelope::success("rule_list", rules, vec![], vec![]));
+                    emit_json(&Envelope::success(EnvelopeKind::RuleList, rules, vec![], vec![]));
                 }
 
                 RulesAction::Show { name } => {
@@ -4957,7 +4957,7 @@ fn main() {
                             source: "shipped",
                             datalog: None,
                         };
-                        emit_json(&Envelope::success("rule", detail, vec![], vec![]));
+                        emit_json(&Envelope::success(EnvelopeKind::Rule, detail, vec![], vec![]));
                     } else {
                         let path = rules_dir.join(format!("{name}.dl"));
                         match std::fs::read_to_string(&path) {
@@ -4968,7 +4968,7 @@ fn main() {
                                     source: "custom",
                                     datalog: Some(src),
                                 };
-                                emit_json(&Envelope::success("rule", detail, vec![], vec![]));
+                                emit_json(&Envelope::success(EnvelopeKind::Rule, detail, vec![], vec![]));
                             }
                             Err(_) => {
                                 emit_error_and_exit(
@@ -5092,7 +5092,7 @@ fn main() {
                     }
 
                     emit_json(&Envelope::success(
-                        "empty",
+                        EnvelopeKind::Empty,
                         serde_json::Value::Null,
                         vec![],
                         vec![HintEntry {
@@ -5164,7 +5164,7 @@ fn main() {
                             })
                             .collect(),
                     };
-                    emit_json(&Envelope::success("rule_result", result, vec![], vec![]));
+                    emit_json(&Envelope::success(EnvelopeKind::RuleResult, result, vec![], vec![]));
                 }
             }
         }
@@ -5187,7 +5187,7 @@ fn main() {
                 if human_mode() {
                     println!("{}", prose.trim());
                 } else {
-                    emit_json(&Envelope::success("dont-explain", payload, vec![], vec![]));
+                    emit_json(&Envelope::success(EnvelopeKind::DontExplain, payload, vec![], vec![]));
                 }
             } else {
                 emit_error_and_exit(

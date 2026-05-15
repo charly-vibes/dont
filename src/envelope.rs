@@ -15,27 +15,28 @@ fn current_author() -> Option<String> {
 pub const ENVELOPE_VERSION: &str = "0.2";
 pub const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvelopeKind {
     Claim,
     Claims,
     Term,
-    TermList,
-    Event,
-    Events,
-    SpawnRequest,
-    SpawnRequests,
+    Terms,
+    Trace,
     Rule,
+    RuleList,
     RuleResult,
+    EvidenceCheck,
     Prime,
     Why,
     Doctor,
-    Examples,
-    SchemaDoc,
     Version,
     Empty,
     Error,
+    #[serde(rename = "dont-explain")]
+    DontExplain,
+    #[serde(rename = "dont-completions")]
+    DontCompletions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,7 +111,7 @@ pub struct Envelope<T: Serialize> {
     pub ok: bool,
     pub envelope_version: String,
     pub cli_version: String,
-    pub envelope_kind: String,
+    pub envelope_kind: EnvelopeKind,
     pub data: T,
     pub warnings: Vec<Warning>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -126,7 +127,7 @@ pub struct HintEntry {
 
 impl<T: Serialize> Envelope<T> {
     pub fn success(
-        kind: &str,
+        kind: EnvelopeKind,
         data: T,
         warnings: Vec<Warning>,
         hints: Vec<HintEntry>,
@@ -135,7 +136,7 @@ impl<T: Serialize> Envelope<T> {
             ok: true,
             envelope_version: ENVELOPE_VERSION.to_string(),
             cli_version: CLI_VERSION.to_string(),
-            envelope_kind: kind.to_string(),
+            envelope_kind: kind,
             data,
             warnings,
             hints: Some(hints),
@@ -149,7 +150,7 @@ impl<T: Serialize> Envelope<T> {
     }
 
     pub fn success_with_tx(
-        kind: &str,
+        kind: EnvelopeKind,
         data: T,
         warnings: Vec<Warning>,
         hints: Vec<HintEntry>,
@@ -167,7 +168,7 @@ impl Envelope<ErrorResult> {
             ok: false,
             envelope_version: ENVELOPE_VERSION.to_string(),
             cli_version: CLI_VERSION.to_string(),
-            envelope_kind: "error".to_string(),
+            envelope_kind: EnvelopeKind::Error,
             data: err,
             warnings,
             hints: None,

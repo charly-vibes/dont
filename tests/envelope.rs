@@ -5,7 +5,7 @@ use serde_json::Value;
 
 #[test]
 fn success_envelope_has_required_fields() {
-    let env = Envelope::success("version", "1.0.0".to_string(), vec![], vec![]);
+    let env = Envelope::success(EnvelopeKind::Version, "1.0.0".to_string(), vec![], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["envelope_version"], "0.2");
@@ -19,7 +19,7 @@ fn success_envelope_has_required_fields() {
 
 #[test]
 fn success_envelope_has_meta_fields() {
-    let env = Envelope::success("empty", (), vec![], vec![]);
+    let env = Envelope::success(EnvelopeKind::Empty, (), vec![], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     let meta = &v["meta"];
     assert!(meta["duration_ms"].is_number());
@@ -30,7 +30,7 @@ fn success_envelope_has_meta_fields() {
 #[test]
 fn success_envelope_no_hints_key_means_empty() {
     // Hints are always present on success envelopes
-    let env = Envelope::success("empty", (), vec![], vec![]);
+    let env = Envelope::success(EnvelopeKind::Empty, (), vec![], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert!(v["hints"].is_array());
 }
@@ -133,7 +133,7 @@ fn warnings_can_appear_on_success_envelope() {
         message: "URI is malformed".to_string(),
         suggested_remediation: None,
     };
-    let env = Envelope::success("empty", (), vec![w], vec![]);
+    let env = Envelope::success(EnvelopeKind::Empty, (), vec![w], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["warnings"].as_array().unwrap().len(), 1);
@@ -171,16 +171,39 @@ fn warnings_can_appear_on_error_envelope() {
 #[test]
 fn envelope_kind_serializes_to_snake_case() {
     assert_eq!(
-        serde_json::to_string(&EnvelopeKind::SpawnRequest).unwrap(),
-        "\"spawn_request\""
+        serde_json::to_string(&EnvelopeKind::RuleResult).unwrap(),
+        "\"rule_result\""
     );
     assert_eq!(
         serde_json::to_string(&EnvelopeKind::Error).unwrap(),
         "\"error\""
     );
     assert_eq!(
-        serde_json::to_string(&EnvelopeKind::TermList).unwrap(),
-        "\"term_list\""
+        serde_json::to_string(&EnvelopeKind::EvidenceCheck).unwrap(),
+        "\"evidence_check\""
+    );
+}
+
+#[test]
+fn envelope_kind_renamed_variants_keep_dash() {
+    assert_eq!(
+        serde_json::to_string(&EnvelopeKind::DontExplain).unwrap(),
+        "\"dont-explain\""
+    );
+    assert_eq!(
+        serde_json::to_string(&EnvelopeKind::DontCompletions).unwrap(),
+        "\"dont-completions\""
+    );
+}
+
+#[test]
+fn envelope_rejects_unknown_kind_on_deserialize() {
+    let json = r#"{"ok":true,"envelope_version":"0.2","cli_version":"0.1.0","envelope_kind":"not_a_real_kind","data":null,"warnings":[],"meta":{"duration_ms":0,"tx":null,"request_id":null}}"#;
+    let result: Result<dont::envelope::Envelope<serde_json::Value>, _> =
+        serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "expected unknown envelope_kind to be rejected; envelope_kind must be a typed enum, not String"
     );
 }
 
@@ -188,14 +211,14 @@ fn envelope_kind_serializes_to_snake_case() {
 
 #[test]
 fn mutating_envelope_has_tx_set() {
-    let env = Envelope::success_with_tx("empty", (), vec![], vec![], Some(42));
+    let env = Envelope::success_with_tx(EnvelopeKind::Empty, (), vec![], vec![], Some(42));
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["meta"]["tx"], 42u64);
 }
 
 #[test]
 fn readonly_envelope_has_null_tx() {
-    let env = Envelope::success("empty", (), vec![], vec![]);
+    let env = Envelope::success(EnvelopeKind::Empty, (), vec![], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert!(v["meta"]["tx"].is_null());
 }
