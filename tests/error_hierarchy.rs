@@ -80,9 +80,16 @@ fn transition_error_fields_accessible_without_downcast() {
 fn config_validation_error_is_matchable_without_downcast() {
     use dont::config::Config;
 
-    // Construct a Config that will fail validation: mode set to an invalid value.
-    // We do this via TOML deserialization with a deliberately bad field.
+    // Construct a Config that will fail validation: verify_evidence.default_timeout_s = 0.
+    // Include the required [project] and [output] fields so validation reaches the
+    // verify_evidence check rather than stopping at a missing-field error first.
     let toml_str = r#"
+[project]
+mode = "permissive"
+
+[output]
+default_format = "json"
+
 [verify_evidence]
 default_timeout_s = 0
 "#;

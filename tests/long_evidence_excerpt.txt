@@ -1,0 +1,1 @@
+The authentication module validates JWT tokens by checking the signature against the public key. Each token must contain a valid expiry claim and a non-empty subject claim.

@@ -196,6 +196,11 @@ pub struct EventRecord {
 pub enum StoreError {
     Io(std::io::Error),
     Cozo(String),
+    /// The backing store file is corrupt or unreadable.
+    ///
+    /// `path` names the file that triggered the error.
+    /// `detail` is the underlying message from the storage engine or OS.
+    CorruptStore { path: PathBuf, detail: String },
     SchemaMismatch { found: i64, expected: i64 },
     CurieConflict { curie: String, existing_id: String },
     AmbiguousPrefix { prefix: String, candidates: Vec<String> },
@@ -207,6 +212,12 @@ impl fmt::Display for StoreError {
         match self {
             Self::Io(error) => write!(f, "I/O error: {error}"),
             Self::Cozo(message) => write!(f, "Cozo error: {message}"),
+            Self::CorruptStore { path, detail } => write!(
+                f,
+                "store file {} is corrupt or unreadable: {}; delete or restore the file and re-run 'dont init'",
+                path.display(),
+                detail,
+            ),
             Self::SchemaMismatch { found, expected } => {
                 write!(f, "unsupported schema_version {found}; expected {expected}")
             }
@@ -259,8 +270,29 @@ impl Store {
         let path = dont_dir.join("db.cozo");
         let lock_path = dont_dir.join("db.cozo.lock");
         let seq_path = dont_dir.join("tx.seq");
-        let db = DbInstance::new("sqlite", &path, "")
-            .map_err(|err| StoreError::Cozo(err.to_string()))?;
+        // CozoDB's SQLite backend calls `.unwrap()` internally when it cannot
+        // prepare its initial statement, which panics on a corrupt db file.
+        // Catch the panic and convert it to a structured CorruptStore error so
+        // callers get an actionable message that names the file.
+        let db_path_clone = path.clone();
+        let db_open_result = std::panic::catch_unwind(|| {
+            DbInstance::new("sqlite", &db_path_clone, "")
+        });
+        let db = match db_open_result {
+            Ok(Ok(instance)) => instance,
+            Ok(Err(err)) => {
+                return Err(StoreError::CorruptStore {
+                    path,
+                    detail: err.to_string(),
+                });
+            }
+            Err(_panic_payload) => {
+                return Err(StoreError::CorruptStore {
+                    path,
+                    detail: "storage engine panicked while opening the database (file may be corrupt or truncated)".to_string(),
+                });
+            }
+        };
         // The SQLite backend creates db.cozo using the OS default (subject to umask).
         // Tighten the permissions to 0o600 so the file is not world-readable.
         #[cfg(unix)]
@@ -1309,7 +1341,10 @@ impl Store {
                 .map_err(StoreError::Io)?
                 .trim()
                 .parse::<i64>()
-                .map_err(|_| StoreError::Malformed("invalid tx counter in tx.seq".to_string()))?
+                .map_err(|_| StoreError::CorruptStore {
+                    path: self.seq_path.clone(),
+                    detail: "file does not contain a valid integer transaction counter".to_string(),
+                })?
         } else {
             let rows = self.query_rows(
                 "?[max(tx)] := *datoms[entity, attribute, value, tx, assert_bit]",

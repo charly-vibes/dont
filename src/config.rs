@@ -196,31 +196,56 @@ impl Config {
     /// without ambiguity. Validation runs at load time — not deferred to
     /// individual call sites — so invalid values never reach runtime logic.
     pub fn validate(&self) -> Result<(), ConfigValidationError> {
-        // [project].mode must be one of the two recognised values when set.
-        if let Some(mode) = &self.project.mode {
-            let valid = ["permissive", "strict"];
-            if !valid.contains(&mode.as_str()) {
+        // [project].mode is required: it governs permissive-vs-strict enforcement.
+        // Absent means the project has no explicit mode, which silently defaults to
+        // an undocumented behaviour — reject with a clear fix instruction instead.
+        match &self.project.mode {
+            None => {
                 return Err(ConfigValidationError {
-                    message: format!(
-                        "config field `project.mode` has invalid value {:?}; \
-                         must be one of: permissive, strict",
-                        mode
-                    ),
+                    message:
+                        "Missing required field `project.mode` in .dont/config.toml. \
+                         Add `mode = \"permissive\"` or `mode = \"strict\"` under the \
+                         [project] section. Example: mode = \"permissive\""
+                            .to_string(),
                 });
+            }
+            Some(mode) => {
+                let valid = ["permissive", "strict"];
+                if !valid.contains(&mode.as_str()) {
+                    return Err(ConfigValidationError {
+                        message: format!(
+                            "config field `project.mode` has invalid value {:?}; \
+                             must be one of: permissive, strict",
+                            mode
+                        ),
+                    });
+                }
             }
         }
 
-        // [output].default_format must be one of the recognised output formats when set.
-        if let Some(fmt) = &self.output.default_format {
-            let valid = ["json", "human"];
-            if !valid.contains(&fmt.as_str()) {
+        // [output].default_format is required: it controls how command output is
+        // rendered. Absent means every command silently picks an undocumented default.
+        match &self.output.default_format {
+            None => {
                 return Err(ConfigValidationError {
-                    message: format!(
-                        "config field `output.default_format` has invalid value {:?}; \
-                         must be one of: json, human",
-                        fmt
-                    ),
+                    message:
+                        "Missing required field `output.default_format` in .dont/config.toml. \
+                         Add `default_format = \"json\"` or `default_format = \"human\"` under \
+                         the [output] section. Example: default_format = \"json\""
+                            .to_string(),
                 });
+            }
+            Some(fmt) => {
+                let valid = ["json", "human"];
+                if !valid.contains(&fmt.as_str()) {
+                    return Err(ConfigValidationError {
+                        message: format!(
+                            "config field `output.default_format` has invalid value {:?}; \
+                             must be one of: json, human",
+                            fmt
+                        ),
+                    });
+                }
             }
         }
 
