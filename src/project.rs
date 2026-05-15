@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+
 use crate::config::{Config, ConfigValidationError};
 use crate::managed_block::{
     file_matches, render_root_block, replace_or_prepend_root_block, root_block_matches,
@@ -302,9 +305,15 @@ impl Project {
     /// Load config.toml and validate all constrained fields. Returns
     /// `ConfigInvalid` if any field holds an out-of-range value so the
     /// caller can surface a structured error before any command logic runs.
+    ///
+    /// Unlike `load_config`, this variant propagates TOML parse errors as
+    /// `ConfigInvalid` so that a malformed config.toml is surfaced to the
+    /// caller rather than silently replaced with defaults.
     pub fn load_validated_config(&self) -> Result<Config, ProjectError> {
         let text = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
-        let config: Config = toml::from_str(&text).unwrap_or_default();
+        let config: Config = toml::from_str(&text).map_err(|e| {
+            ProjectError::ConfigInvalid(format!("config.toml: {e}"))
+        })?;
         config
             .validate()
             .map_err(|e: ConfigValidationError| ProjectError::ConfigInvalid(e.message))?;
@@ -456,17 +465,20 @@ impl Project {
             return Err(ProjectError::AlreadyInitialised(dont_dir));
         }
 
-        fs::create_dir_all(&dont_dir).map_err(|err| io_error("create", &dont_dir, err))?;
+        mkdir_restricted(&dont_dir).map_err(|err| io_error("create", &dont_dir, err))?;
         for subdir in REQUIRED_SUBDIRS {
             let path = dont_dir.join(subdir);
-            fs::create_dir_all(&path).map_err(|err| io_error("create", &path, err))?;
+            mkdir_restricted(&path).map_err(|err| io_error("create", &path, err))?;
         }
         let config_path = dont_dir.join("config.toml");
-        fs::write(&config_path, minimal_config(mode)).map_err(|err| io_error("write", &config_path, err))?;
+        write_restricted(&config_path, minimal_config(mode).as_bytes())
+            .map_err(|err| io_error("write", &config_path, err))?;
         let seed_path = dont_dir.join("seed/dont-seed.yaml");
-        fs::write(&seed_path, SEED_VOCABULARY).map_err(|err| io_error("write", &seed_path, err))?;
+        write_restricted(&seed_path, SEED_VOCABULARY.as_bytes())
+            .map_err(|err| io_error("write", &seed_path, err))?;
         let events_path = dont_dir.join("events.jsonl");
-        fs::write(&events_path, init_event(mode)).map_err(|err| io_error("write", &events_path, err))?;
+        write_restricted(&events_path, init_event(mode).as_bytes())
+            .map_err(|err| io_error("write", &events_path, err))?;
         if std::env::var("DONT_DIR").is_err() {
             ensure_dont_gitignore_entry(cwd)?;
         }
@@ -485,6 +497,37 @@ fn init_event(mode: ProjectMode) -> String {
         mode.as_str(),
         created_at,
     )
+}
+
+/// Create `path` as a directory (recursively) with mode 0o700 on Unix.
+fn mkdir_restricted(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(path)?;
+    #[cfg(not(unix))]
+    fs::create_dir_all(path)?;
+    Ok(())
+}
+
+/// Write `content` to `path` with mode 0o600 on Unix, creating or truncating the file.
+fn write_restricted(path: &Path, content: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    #[cfg(unix)]
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    #[cfg(not(unix))]
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(path)?;
+    file.write_all(content)
 }
 
 fn ensure_dont_gitignore_entry(project_root: &Path) -> Result<(), ProjectError> {

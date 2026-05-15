@@ -234,10 +234,12 @@ fn config_unknown_keys_emit_warning_not_failure() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    // Add an unknown top-level key — should not cause a parse failure
+    // Add an unknown key inside a new section — should not cause a parse failure.
+    // Use a section name that doesn't already exist in the default config so we
+    // avoid a duplicate-key TOML parse error from the append.
     append_config(
         &dir,
-        "[project]\nname = \"dont-project\"\nunknown_future_key = \"value\"",
+        "[unknown_future_section]\nunknown_future_key = \"value\"",
     );
 
     let out = dont()
@@ -395,6 +397,43 @@ fn verify_evidence_zero_concurrency_is_rejected_with_named_field_error() {
     assert!(
         message.contains("concurrency"),
         "error message should name the field, got: {message}"
+    );
+}
+
+#[test]
+fn malformed_config_toml_returns_error_exit_not_panic() {
+    // A syntactically invalid config.toml must not panic the process. The tool
+    // must return a non-zero exit code and a structured "config-invalid" error.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    // Overwrite config.toml with unparseable TOML (bare key without value)
+    let config_path = dir.path().join("config.toml");
+    fs::write(&config_path, "this is = [not valid toml\n!!!garbage\n").unwrap();
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    // Must produce a parseable JSON envelope — not a panic / empty / garbled output
+    let v: Value = serde_json::from_slice(&out)
+        .expect("output must be valid JSON even when config is malformed");
+
+    assert_eq!(v["ok"], false, "malformed config.toml must produce ok=false");
+    let code = v["data"]["code"].as_str().unwrap_or("");
+    assert!(
+        code.contains("config") || code.contains("invalid"),
+        "error code should identify this as a config error, got: {code}"
+    );
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("config.toml") || message.contains("TOML") || message.contains("parse") || message.contains("invalid"),
+        "error message should describe the parse failure, got: {message}"
     );
 }
 
