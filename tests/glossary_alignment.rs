@@ -66,7 +66,7 @@ fn dismiss_appears_in_top_level_help() {
 #[test]
 fn lock_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
     use dont::store::{
-        HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, StoreStatus,
+        HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
     };
 
     let dir = TempDir::new().unwrap();
@@ -82,8 +82,8 @@ fn lock_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
         store
             .append_status_change(
                 &id,
-                StoreStatus::Unverified,
-                StoreStatus::Verified,
+                Status::Unverified,
+                Status::Verified,
                 StoreEvent {
                     kind: StoreEventKind::Flagged,
                     note: None,

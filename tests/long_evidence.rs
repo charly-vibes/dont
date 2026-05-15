@@ -95,7 +95,7 @@ fn very_long_evidence_uri_round_trips_in_json() {
 /// isolation.  The CLI surface test is in `very_long_excerpt_accepted_by_flag`.
 #[test]
 fn very_long_excerpt_round_trips_via_store() {
-    use dont::store::{Store, StoreEvent, StoreEventKind, StoreStatus};
+    use dont::store::{Store, StoreEvent, StoreEventKind, Status};
 
     let dir = TempDir::new().unwrap();
     dont()
@@ -121,8 +121,8 @@ fn very_long_excerpt_round_trips_via_store() {
     store
         .append_status_change(
             &claim_id,
-            StoreStatus::Unverified,
-            StoreStatus::Verified,
+            Status::Unverified,
+            Status::Verified,
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: None,

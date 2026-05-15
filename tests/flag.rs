@@ -2,7 +2,7 @@ mod common;
 
 use common::dont;
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, StoreStatus,
+    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -453,8 +453,8 @@ fn seed_verified_claim_with_evidence_in_dont_dir(dir: &TempDir, claim_id: &str, 
     store
         .append_status_change(
             claim_id,
-            StoreStatus::Unverified,
-            StoreStatus::Verified,
+            Status::Unverified,
+            Status::Verified,
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: None,

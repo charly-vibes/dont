@@ -1,4 +1,4 @@
-use crate::store::{Store, StoreError, StoreStatus};
+use crate::store::{Status, Store, StoreError};
 
 use super::RuleMatch;
 
@@ -13,7 +13,7 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
     let mut matches = Vec::new();
     for claim in claims {
         // Spec: locked and ignored entities are exempt from derived stale output.
-        if matches!(claim.status, StoreStatus::Ignored | StoreStatus::Locked) {
+        if matches!(claim.status, Status::Ignored | Status::Locked) {
             continue;
         }
         for dep in &claim.depends_on {
@@ -23,7 +23,7 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
                 store.term_by_curie(dep)?
             };
             if let Some(term) = term
-                && matches!(term.status, StoreStatus::Unverified | StoreStatus::Doubted)
+                && matches!(term.status, Status::Unverified | Status::Doubted)
             {
                 matches.push(RuleMatch {
                     entity_id: claim.id.clone(),
@@ -44,7 +44,7 @@ mod stale_cascade_tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::store::{Store, StoreEvent, StoreEventKind, StoreStatus};
+    use crate::store::{Store, StoreEvent, StoreEventKind};
 
     fn make_store(dir: &TempDir) -> Store {
         Store::open_dont_dir(dir.path()).unwrap()
@@ -58,8 +58,8 @@ mod stale_cascade_tests {
         store
             .append_term_status_change(
                 &term.id,
-                StoreStatus::Unverified,
-                StoreStatus::Verified,
+                Status::Unverified,
+                Status::Verified,
                 StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
             )
             .unwrap();
@@ -90,8 +90,8 @@ mod stale_cascade_tests {
         store
             .append_term_status_change(
                 &term.id,
-                StoreStatus::Unverified,
-                StoreStatus::Doubted,
+                Status::Unverified,
+                Status::Doubted,
                 StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
             )
             .unwrap();
@@ -131,8 +131,8 @@ mod stale_cascade_tests {
         store
             .append_term_status_change(
                 &term.id,
-                StoreStatus::Unverified,
-                StoreStatus::Doubted,
+                Status::Unverified,
+                Status::Doubted,
                 StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
             )
             .unwrap();
@@ -143,16 +143,16 @@ mod stale_cascade_tests {
         store
             .append_status_change(
                 &claim.id,
-                StoreStatus::Unverified,
-                StoreStatus::Verified,
+                Status::Unverified,
+                Status::Verified,
                 StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
             )
             .unwrap();
         store
             .append_status_change(
                 &claim.id,
-                StoreStatus::Verified,
-                StoreStatus::Locked,
+                Status::Verified,
+                Status::Locked,
                 StoreEvent { kind: StoreEventKind::Locked, note: None, evidence: vec![] },
             )
             .unwrap();
@@ -172,8 +172,8 @@ mod stale_cascade_tests {
         store
             .append_term_status_change(
                 &term.id,
-                StoreStatus::Unverified,
-                StoreStatus::Doubted,
+                Status::Unverified,
+                Status::Doubted,
                 StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
             )
             .unwrap();
@@ -183,8 +183,8 @@ mod stale_cascade_tests {
         store
             .append_status_change(
                 &claim.id,
-                StoreStatus::Unverified,
-                StoreStatus::Ignored,
+                Status::Unverified,
+                Status::Ignored,
                 StoreEvent { kind: StoreEventKind::Ignored, note: None, evidence: vec![] },
             )
             .unwrap();

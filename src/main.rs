@@ -22,7 +22,7 @@ use dont::project::{Project, ProjectError, ProjectMode};
 use dont::rules::{RuleError, SHIPPED_RULES};
 use dont::store::{
     AppendResult, ClaimRecord, EntityResolution, EventRecord, HypothesisRecord, Store, StoreError,
-    StoreEvent, StoreEventKind, StoreStatus, TermRecord,
+    StoreEvent, StoreEventKind, TermRecord,
 };
 
 thread_local! {
@@ -1244,32 +1244,12 @@ fn open_project_or_exit() -> Project {
     }
 }
 
-fn store_status_from_model(s: Status) -> StoreStatus {
-    match s {
-        Status::Unverified => StoreStatus::Unverified,
-        Status::Verified => StoreStatus::Verified,
-        Status::Doubted => StoreStatus::Doubted,
-        Status::Ignored => StoreStatus::Ignored,
-        Status::Locked => StoreStatus::Locked,
-    }
-}
-
-fn model_status_from_store(s: StoreStatus) -> Status {
-    match s {
-        StoreStatus::Unverified => Status::Unverified,
-        StoreStatus::Verified => Status::Verified,
-        StoreStatus::Doubted => Status::Doubted,
-        StoreStatus::Ignored => Status::Ignored,
-        StoreStatus::Locked => Status::Locked,
-    }
-}
-
-fn parse_claim_status_filter(status: &str) -> Option<StoreStatus> {
+fn parse_claim_status_filter(status: &str) -> Option<Status> {
     match status.trim().to_ascii_lowercase().as_str() {
-        "unverified" => Some(StoreStatus::Unverified),
-        "verified" => Some(StoreStatus::Verified),
-        "doubted" => Some(StoreStatus::Doubted),
-        "ignored" => Some(StoreStatus::Ignored),
+        "unverified" => Some(Status::Unverified),
+        "verified" => Some(Status::Verified),
+        "doubted" => Some(Status::Doubted),
+        "ignored" => Some(Status::Ignored),
         _ => None,
     }
 }
@@ -1697,7 +1677,7 @@ fn build_repo_locator(
 fn derived_assessments_for_claim(record: &ClaimRecord, store: &Store) -> Vec<String> {
     let mut derived = Vec::new();
     // Spec: ignored entities always have empty derived_assessments.
-    if record.status == StoreStatus::Ignored {
+    if record.status == Status::Ignored {
         return derived;
     }
     if record.depends_on.is_empty() {
@@ -1712,13 +1692,13 @@ fn derived_assessments_for_claim(record: &ClaimRecord, store: &Store) -> Vec<Str
         };
         match lookup {
             Ok(Some(term)) => match term.status {
-                StoreStatus::Verified => {}
-                StoreStatus::Ignored | StoreStatus::Locked => {
+                Status::Verified => {}
+                Status::Ignored | Status::Locked => {
                     if !derived.iter().any(|d| d == "compromised-support") {
                         derived.push("compromised-support".to_string());
                     }
                 }
-                StoreStatus::Unverified | StoreStatus::Doubted => {
+                Status::Unverified | Status::Doubted => {
                     if !derived.iter().any(|d| d == "stale") {
                         derived.push("stale".to_string());
                     }
@@ -1759,21 +1739,21 @@ fn blocker_path_for_dep(
     match term_result {
         Ok(Some(term)) => {
             let (kind, remediation) = match term.status {
-                StoreStatus::Unverified | StoreStatus::Doubted => (
+                Status::Unverified | Status::Doubted => (
                     "stale",
                     vec![RemediationEntry {
                         command: format!("dont dismiss {}", term.id),
                         description: format!("Verify the blocking term {}", term.id),
                     }],
                 ),
-                StoreStatus::Ignored | StoreStatus::Locked => (
+                Status::Ignored | Status::Locked => (
                     "compromised-support",
                     vec![RemediationEntry {
                         command: format!("dont show {}", term.id),
                         description: format!("Inspect the compromised supporting term {}", term.id),
                     }],
                 ),
-                StoreStatus::Verified => return None,
+                Status::Verified => return None,
             };
             Some(BlockerPath {
                 kind: kind.to_string(),
@@ -3013,7 +2993,7 @@ fn main() {
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
 
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 match model_trust(current) {
                     Err(transition_err) => {
                         emit_error_and_exit(
@@ -3038,8 +3018,8 @@ fn main() {
                         };
                         let result = match project.store.append_term_status_change(
                             &id,
-                            store_status_from_model(current),
-                            store_status_from_model(new_model_status),
+                            current,
+                            new_model_status,
                             event,
                         ) {
                             Ok(r) => r,
@@ -3077,7 +3057,7 @@ fn main() {
                 Err(err) => handle_store_error(err, Some(&id)),
             };
 
-            let current = model_status_from_store(record.status);
+            let current = record.status;
             match model_trust(current) {
                 Err(transition_err) => {
                     emit_error_and_exit(
@@ -3102,8 +3082,8 @@ fn main() {
                     };
                     let result = match project.store.append_status_change(
                         &id,
-                        store_status_from_model(current),
-                        store_status_from_model(new_model_status),
+                        current,
+                        new_model_status,
                         event,
                     ) {
                         Ok(r) => r,
@@ -3163,7 +3143,7 @@ fn main() {
                     Err(err) => return handle_store_error_code(err, Some(id)),
                 };
 
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 match current {
                     Status::Locked => {
                         return emit_error_no_exit(
@@ -3221,8 +3201,8 @@ fn main() {
                 let result = match model_lock(current) {
                     Ok(new_model_status) => match project.store.append_status_change(
                         id,
-                        store_status_from_model(current),
-                        store_status_from_model(new_model_status),
+                        current,
+                        new_model_status,
                         StoreEvent {
                             kind: StoreEventKind::Locked,
                             note: None,
@@ -3285,7 +3265,7 @@ fn main() {
                     ),
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 match model_reopen(current) {
                     Err(transition_err) => emit_error_and_exit(
                         refusal(
@@ -3308,8 +3288,8 @@ fn main() {
                         };
                         let result = match project.store.append_term_status_change(
                             &id,
-                            store_status_from_model(current),
-                            store_status_from_model(new_model_status),
+                            current,
+                            new_model_status,
                             event,
                         ) {
                             Ok(r) => r,
@@ -3344,7 +3324,7 @@ fn main() {
                     ),
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 match model_reopen(current) {
                     Err(transition_err) => emit_error_and_exit(
                         refusal(
@@ -3367,8 +3347,8 @@ fn main() {
                         };
                         let result = match project.store.append_status_change(
                             &id,
-                            store_status_from_model(current),
-                            store_status_from_model(new_model_status),
+                            current,
+                            new_model_status,
                             event,
                         ) {
                             Ok(r) => r,
@@ -3443,7 +3423,7 @@ fn main() {
                     ),
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 match model_ignore(current) {
                     Err(transition_err) => emit_error_and_exit(
                         refusal(
@@ -3466,8 +3446,8 @@ fn main() {
                         };
                         let result = match project.store.append_term_status_change(
                             &id,
-                            store_status_from_model(current),
-                            store_status_from_model(new_model_status),
+                            current,
+                            new_model_status,
                             event,
                         ) {
                             Ok(r) => r,
@@ -3502,7 +3482,7 @@ fn main() {
                     ),
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 match model_ignore(current) {
                     Err(transition_err) => emit_error_and_exit(
                         refusal(
@@ -3525,8 +3505,8 @@ fn main() {
                         };
                         let result = match project.store.append_status_change(
                             &id,
-                            store_status_from_model(current),
-                            store_status_from_model(new_model_status),
+                            current,
+                            new_model_status,
                             event,
                         ) {
                             Ok(r) => r,
@@ -3633,7 +3613,7 @@ fn main() {
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
 
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 let event = StoreEvent {
                     kind: StoreEventKind::Flagged,
                     note: None,
@@ -3643,8 +3623,8 @@ fn main() {
                 let result = match model_flag(current) {
                     Ok(new_model_status) => match project.store.append_term_status_change(
                         &id,
-                        store_status_from_model(current),
-                        store_status_from_model(new_model_status),
+                        current,
+                        new_model_status,
                         event,
                     ) {
                         Ok(r) => r,
@@ -3697,7 +3677,7 @@ fn main() {
                 Err(err) => handle_store_error(err, Some(&id)),
             };
 
-            let current = model_status_from_store(record.status);
+            let current = record.status;
             let dependency_unmet = dependency_gate_unmet_clauses(&record, &project.store);
             if !dependency_unmet.is_empty() {
                 let rule_name = dependency_gate_rule_name(&dependency_unmet);
@@ -3726,8 +3706,8 @@ fn main() {
                 Ok(new_model_status) => {
                     match project.store.append_status_change(
                         &id,
-                        store_status_from_model(current),
-                        store_status_from_model(new_model_status),
+                        current,
+                        new_model_status,
                         event,
                     ) {
                         Ok(r) => r,
@@ -3790,7 +3770,7 @@ fn main() {
                     ),
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 match model_undoubt(current) {
                     Err(transition_err) => emit_error_and_exit(
                         refusal(
@@ -3813,8 +3793,8 @@ fn main() {
                         };
                         let result = match project.store.append_term_status_change(
                             &id,
-                            store_status_from_model(current),
-                            store_status_from_model(new_model_status),
+                            current,
+                            new_model_status,
                             event,
                         ) {
                             Ok(r) => r,
@@ -3849,7 +3829,7 @@ fn main() {
                     ),
                     Err(err) => handle_store_error(err, Some(&id)),
                 };
-                let current = model_status_from_store(record.status);
+                let current = record.status;
                 match model_undoubt(current) {
                     Err(transition_err) => emit_error_and_exit(
                         refusal(
@@ -3872,8 +3852,8 @@ fn main() {
                         };
                         let result = match project.store.append_status_change(
                             &id,
-                            store_status_from_model(current),
-                            store_status_from_model(new_model_status),
+                            current,
+                            new_model_status,
                             event,
                         ) {
                             Ok(r) => r,
@@ -4132,8 +4112,8 @@ fn main() {
             let project_root = project_root_from_store(&project.store);
             for claim in &claims {
                 match claim.status {
-                    StoreStatus::Unverified => unverified += 1,
-                    StoreStatus::Doubted => {
+                    Status::Unverified => unverified += 1,
+                    Status::Doubted => {
                         doubted += 1;
                         blocking.push(json!({
                             "id": claim.id,
@@ -4141,9 +4121,9 @@ fn main() {
                             "status": "doubted",
                         }));
                     }
-                    StoreStatus::Verified => verified += 1,
-                    StoreStatus::Ignored => ignored += 1,
-                    StoreStatus::Locked => locked += 1,
+                    Status::Verified => verified += 1,
+                    Status::Ignored => ignored += 1,
+                    Status::Locked => locked += 1,
                 }
                 for a in derived_assessments_for_claim(claim, &project.store) {
                     match a.as_str() {
@@ -4166,8 +4146,8 @@ fn main() {
             }
             for term in &terms {
                 match term.status {
-                    StoreStatus::Unverified => unverified += 1,
-                    StoreStatus::Doubted => {
+                    Status::Unverified => unverified += 1,
+                    Status::Doubted => {
                         doubted += 1;
                         blocking.push(json!({
                             "id": term.id,
@@ -4175,9 +4155,9 @@ fn main() {
                             "status": "doubted",
                         }));
                     }
-                    StoreStatus::Verified => verified += 1,
-                    StoreStatus::Ignored => ignored += 1,
-                    StoreStatus::Locked => locked += 1,
+                    Status::Verified => verified += 1,
+                    Status::Ignored => ignored += 1,
+                    Status::Locked => locked += 1,
                 }
                 let projected = project_evidence(collect_term_evidence(term), &project_root);
                 if projected.iter().any(|e| {
@@ -4600,8 +4580,8 @@ fn main() {
             };
             let flag_result = match project.store.append_status_change(
                 &claim_id,
-                StoreStatus::Unverified,
-                StoreStatus::Verified,
+                Status::Unverified,
+                Status::Verified,
                 flag_event,
             ) {
                 Ok(r) => r,

@@ -2,7 +2,7 @@ mod common;
 
 use common::dont;
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, StoreStatus,
+    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -193,8 +193,8 @@ fn undoubt_locked_claim_is_refused() {
     store
         .append_status_change(
             &id,
-            StoreStatus::Unverified,
-            StoreStatus::Verified,
+            Status::Unverified,
+            Status::Verified,
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: None,

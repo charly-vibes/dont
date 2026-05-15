@@ -6,6 +6,12 @@ use std::path::{Path, PathBuf};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 
 use crate::fs_util::write_restricted;
+pub use crate::model::Status;
+
+fn parse_status(value: &str) -> Result<Status, StoreError> {
+    Status::from_persisted_str(value)
+        .ok_or_else(|| StoreError::Malformed(format!("unknown status {value}")))
+}
 
 use chrono::{SecondsFormat, Utc};
 use cozo::DbInstance;
@@ -34,38 +40,6 @@ pub struct AppendResult {
     pub event_id: String,
     pub tx: i64,
     pub created_at: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StoreStatus {
-    Unverified,
-    Verified,
-    Doubted,
-    Ignored,
-    Locked,
-}
-
-impl StoreStatus {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Unverified => "unverified",
-            Self::Verified => "verified",
-            Self::Doubted => "doubted",
-            Self::Ignored => "ignored",
-            Self::Locked => "locked",
-        }
-    }
-
-    fn from_str(value: &str) -> Result<Self, StoreError> {
-        match value {
-            "unverified" => Ok(Self::Unverified),
-            "verified" => Ok(Self::Verified),
-            "doubted" => Ok(Self::Doubted),
-            "ignored" => Ok(Self::Ignored),
-            "locked" => Ok(Self::Locked),
-            _ => Err(StoreError::Malformed(format!("unknown status {value}"))),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,7 +136,7 @@ pub struct HypothesisRecord {
 pub struct ClaimRecord {
     pub id: String,
     pub statement: String,
-    pub status: StoreStatus,
+    pub status: Status,
     pub depends_on: Vec<String>,
     pub atoms: Vec<AtomRecord>,
     pub hypotheses: Vec<HypothesisRecord>,
@@ -177,7 +151,7 @@ pub struct TermRecord {
     pub curie: String,
     pub label: Option<String>,
     pub definition: String,
-    pub status: StoreStatus,
+    pub status: Status,
     pub created_at: String,
     pub events: Vec<EventRecord>,
 }
@@ -593,7 +567,7 @@ impl Store {
                 Datom::assert(
                     &claim_id,
                     "status",
-                    Value::String(StoreStatus::Unverified.as_str().to_string()),
+                    Value::String(Status::Unverified.as_str().to_string()),
                     tx,
                 ),
                 Datom::assert(&claim_id, "created_at", Value::String(now.clone()), tx),
@@ -670,7 +644,7 @@ impl Store {
                 Datom::assert(
                     &term_id,
                     "status",
-                    Value::String(StoreStatus::Unverified.as_str().to_string()),
+                    Value::String(Status::Unverified.as_str().to_string()),
                     tx,
                 ),
                 Datom::assert(&term_id, "created_at", Value::String(now.clone()), tx),
@@ -705,8 +679,8 @@ impl Store {
     pub fn append_status_change(
         &self,
         claim_id: &str,
-        from_status: StoreStatus,
-        to_status: StoreStatus,
+        from_status: Status,
+        to_status: Status,
         event: StoreEvent,
     ) -> Result<AppendResult, StoreError> {
         self.with_write_lock(|store| {
@@ -771,8 +745,8 @@ impl Store {
     pub fn append_term_status_change(
         &self,
         term_id: &str,
-        from_status: StoreStatus,
-        to_status: StoreStatus,
+        from_status: Status,
+        to_status: Status,
         event: StoreEvent,
     ) -> Result<AppendResult, StoreError> {
         self.with_write_lock(|store| {
@@ -943,7 +917,7 @@ impl Store {
                 .max_by_key(|d| d.tx)
                 .and_then(|d| d.value.as_str())
                 .ok_or_else(|| StoreError::Malformed(format!("claim {id} has no status")))?;
-            let status = StoreStatus::from_str(status_str)?;
+            let status = parse_status(status_str)?;
             let created_at = datoms
                 .iter()
                 .filter(|d| d.attribute == "created_at" && d.assert_bit)
@@ -1060,7 +1034,7 @@ impl Store {
                 .max_by_key(|d| d.tx)
                 .and_then(|d| d.value.as_str())
                 .ok_or_else(|| StoreError::Malformed(format!("term {id} has no status")))?;
-            let status = StoreStatus::from_str(status_str)?;
+            let status = parse_status(status_str)?;
             let created_at = datoms
                 .iter()
                 .filter(|d| d.attribute == "created_at" && d.assert_bit)
@@ -1102,7 +1076,7 @@ impl Store {
         let status = latest_asserted_value(&datoms, "status")
             .and_then(Value::as_str)
             .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} has no status")))
-            .and_then(StoreStatus::from_str)?;
+            .and_then(parse_status)?;
         let created_at = latest_asserted_value(&datoms, "created_at")
             .and_then(Value::as_str)
             .unwrap_or_default()
@@ -1156,7 +1130,7 @@ impl Store {
         let status = latest_asserted_value(&datoms, "status")
             .and_then(Value::as_str)
             .ok_or_else(|| StoreError::Malformed(format!("term {term_id} has no status")))
-            .and_then(StoreStatus::from_str)?;
+            .and_then(parse_status)?;
         let created_at = latest_asserted_value(&datoms, "created_at")
             .and_then(Value::as_str)
             .unwrap_or_default()

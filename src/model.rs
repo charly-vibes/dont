@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
     Unverified,
@@ -8,6 +8,29 @@ pub enum Status {
     Doubted,
     Ignored,
     Locked,
+}
+
+impl Status {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unverified => "unverified",
+            Self::Verified => "verified",
+            Self::Doubted => "doubted",
+            Self::Ignored => "ignored",
+            Self::Locked => "locked",
+        }
+    }
+
+    pub fn from_persisted_str(value: &str) -> Option<Self> {
+        match value {
+            "unverified" => Some(Self::Unverified),
+            "verified" => Some(Self::Verified),
+            "doubted" => Some(Self::Doubted),
+            "ignored" => Some(Self::Ignored),
+            "locked" => Some(Self::Locked),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

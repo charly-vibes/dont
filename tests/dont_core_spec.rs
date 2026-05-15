@@ -12,7 +12,7 @@
 mod common;
 
 use common::{dont, init_dir};
-use dont::store::{Store, StoreEvent, StoreEventKind, StoreStatus};
+use dont::store::{Store, StoreEvent, StoreEventKind, Status};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -205,8 +205,8 @@ fn status_change_preserves_creation_event_in_history() {
     store
         .append_status_change(
             &claim.id,
-            StoreStatus::Unverified,
-            StoreStatus::Doubted,
+            Status::Unverified,
+            Status::Doubted,
             StoreEvent {
                 kind: StoreEventKind::Trusted,
                 note: Some("raise doubt".to_string()),
@@ -254,8 +254,8 @@ fn retraction_event_is_recorded_alongside_original_assertion() {
     let transition = store
         .append_status_change(
             &claim.id,
-            StoreStatus::Unverified,
-            StoreStatus::Doubted,
+            Status::Unverified,
+            Status::Doubted,
             StoreEvent {
                 kind: StoreEventKind::Trusted,
                 note: None,
@@ -325,7 +325,7 @@ fn newly_created_claim_starts_as_unverified_not_verified() {
 
     assert_eq!(
         loaded.status,
-        StoreStatus::Unverified,
+        Status::Unverified,
         "new claim must start as unverified — verification requires explicit justification"
     );
 }
@@ -347,7 +347,7 @@ fn newly_defined_term_starts_as_unverified_not_verified() {
 
     assert_eq!(
         loaded.status,
-        StoreStatus::Unverified,
+        Status::Unverified,
         "new term must start as unverified — verification requires justification"
     );
 }

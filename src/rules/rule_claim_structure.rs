@@ -1,5 +1,5 @@
 use crate::config::RuleClaimStructureConfig;
-use crate::store::{Store, StoreError, StoreStatus};
+use crate::store::{Status, Store, StoreError};
 
 use super::RuleMatch;
 
@@ -21,7 +21,7 @@ pub fn check(
     let claims = store.list_claims()?;
     let mut matches = Vec::new();
     for claim in claims {
-        if claim.status == StoreStatus::Doubted {
+        if claim.status == Status::Doubted {
             continue;
         }
         if !claim.depends_on.iter().any(|d| d == tag) {
@@ -206,8 +206,8 @@ mod rule_claim_structure_tests {
         store
             .append_status_change(
                 &claim.id,
-                StoreStatus::Unverified,
-                StoreStatus::Doubted,
+                Status::Unverified,
+                Status::Doubted,
                 StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
             )
             .unwrap();

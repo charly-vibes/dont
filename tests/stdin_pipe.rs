@@ -2,7 +2,7 @@ mod common;
 
 use common::{conclude_claim, dont, init_dir};
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, StoreStatus,
+    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -12,8 +12,8 @@ fn seed_lockable_claim(dir: &TempDir, claim_id: &str) {
     store
         .append_status_change(
             claim_id,
-            StoreStatus::Unverified,
-            StoreStatus::Verified,
+            Status::Unverified,
+            Status::Verified,
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: None,

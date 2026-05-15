@@ -1,4 +1,4 @@
-use dont::store::{Store, StoreError, StoreEvent, StoreEventKind, StoreStatus};
+use dont::store::{Store, StoreError, StoreEvent, StoreEventKind, Status};
 
 #[test]
 fn opens_project_store_at_canonical_path_and_records_schema_metadata() {
@@ -52,7 +52,7 @@ fn append_event_persists_claim_datoms_with_monotonic_transactions() {
 
     assert_eq!(loaded.id, first.id);
     assert_eq!(loaded.statement, "unsupported assertions need grounding");
-    assert_eq!(loaded.status, StoreStatus::Unverified);
+    assert_eq!(loaded.status, Status::Unverified);
     assert_eq!(loaded.events.len(), 1);
     assert_eq!(loaded.events[0].kind, StoreEventKind::Concluded);
     assert_eq!(loaded.events[0].tx, first.tx);
@@ -112,7 +112,7 @@ fn claims_persist_after_reopening_the_store() {
         .expect("claim exists after reopen");
 
     assert_eq!(loaded.statement, "memory survives process boundaries");
-    assert_eq!(loaded.status, StoreStatus::Unverified);
+    assert_eq!(loaded.status, Status::Unverified);
 }
 
 #[test]
@@ -130,8 +130,8 @@ fn status_changes_are_stored_as_retraction_and_assertion_datoms() {
     let transition = store
         .append_status_change(
             &claim.id,
-            StoreStatus::Unverified,
-            StoreStatus::Doubted,
+            Status::Unverified,
+            Status::Doubted,
             event,
         )
         .expect("status change appends");
@@ -155,7 +155,7 @@ fn status_changes_are_stored_as_retraction_and_assertion_datoms() {
         .claim_by_id(&claim.id)
         .expect("query succeeds")
         .expect("claim exists");
-    assert_eq!(loaded.status, StoreStatus::Doubted);
+    assert_eq!(loaded.status, Status::Doubted);
     assert_eq!(loaded.events.len(), 2);
     assert_eq!(loaded.events[1].kind, StoreEventKind::Trusted);
 }
@@ -178,8 +178,8 @@ fn claim_events_are_replayed_in_tx_insertion_order() {
     let flag_result = store
         .append_status_change(
             &claim.id,
-            StoreStatus::Unverified,
-            StoreStatus::Doubted,
+            Status::Unverified,
+            Status::Doubted,
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: Some("step 1: flag".to_string()),
@@ -191,8 +191,8 @@ fn claim_events_are_replayed_in_tx_insertion_order() {
     let reopen_result = store
         .append_status_change(
             &claim.id,
-            StoreStatus::Doubted,
-            StoreStatus::Unverified,
+            Status::Doubted,
+            Status::Unverified,
             StoreEvent {
                 kind: StoreEventKind::Reopened,
                 note: Some("step 2: reopen".to_string()),
@@ -246,8 +246,8 @@ fn list_claims_events_are_in_tx_order() {
     let flag = store
         .append_status_change(
             &c1.id,
-            StoreStatus::Unverified,
-            StoreStatus::Doubted,
+            Status::Unverified,
+            Status::Doubted,
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: None,
@@ -258,8 +258,8 @@ fn list_claims_events_are_in_tx_order() {
     let reopen = store
         .append_status_change(
             &c1.id,
-            StoreStatus::Doubted,
-            StoreStatus::Unverified,
+            Status::Doubted,
+            Status::Unverified,
             StoreEvent {
                 kind: StoreEventKind::Reopened,
                 note: None,
@@ -301,8 +301,8 @@ fn list_terms_events_are_in_tx_order() {
     let trust = store
         .append_term_status_change(
             &t1.id,
-            StoreStatus::Unverified,
-            StoreStatus::Verified,
+            Status::Unverified,
+            Status::Verified,
             StoreEvent {
                 kind: StoreEventKind::Trusted,
                 note: Some("source confirmed".to_string()),
@@ -314,8 +314,8 @@ fn list_terms_events_are_in_tx_order() {
     let doubt = store
         .append_term_status_change(
             &t1.id,
-            StoreStatus::Verified,
-            StoreStatus::Doubted,
+            Status::Verified,
+            Status::Doubted,
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: Some("doubt raised".to_string()),
@@ -360,8 +360,8 @@ fn event_order_is_stable_across_store_reopen() {
         store
             .append_status_change(
                 &claim.id,
-                StoreStatus::Unverified,
-                StoreStatus::Doubted,
+                Status::Unverified,
+                Status::Doubted,
                 StoreEvent {
                     kind: StoreEventKind::Flagged,
                     note: None,
@@ -372,8 +372,8 @@ fn event_order_is_stable_across_store_reopen() {
         store
             .append_status_change(
                 &claim.id,
-                StoreStatus::Doubted,
-                StoreStatus::Unverified,
+                Status::Doubted,
+                Status::Unverified,
                 StoreEvent {
                     kind: StoreEventKind::Reopened,
                     note: None,

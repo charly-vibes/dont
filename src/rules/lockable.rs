@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::store::{ClaimRecord, EventRecord, HypothesisRecord, Store, StoreError, StoreStatus};
+use crate::store::{ClaimRecord, EventRecord, HypothesisRecord, Status, Store, StoreError};
 
 use super::{source_key, RuleMatch};
 
@@ -57,7 +57,7 @@ fn unmet_reasons(claim: &ClaimRecord, store: &Store) -> Result<Vec<String>, Stor
         if let Some(term) = term {
             // Any status other than Verified is blocking.
             match term.status {
-                StoreStatus::Verified => {}
+                Status::Verified => {}
                 _ => {
                     reasons.push(format!(
                         "dependency {} has blocking assessment {}",
