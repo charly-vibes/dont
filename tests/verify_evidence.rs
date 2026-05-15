@@ -144,3 +144,46 @@ fn verify_evidence_refuses_unknown_target() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "entity-not-found");
 }
+
+/// A `file:../../etc/passwd` URI submitted as evidence must be treated as
+/// malformed — the verifier must not open the file or return its contents.
+/// This guards against path-traversal via evidence locator URI strings.
+#[test]
+fn verify_evidence_file_uri_traversal_is_malformed_not_read() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "traversal locator must not read outside project root");
+    // Attach the traversal URI as a plain evidence string (--evidence flag).
+    dismiss_claim(&dir, &id, "file:../../etc/passwd");
+
+    // Run verify-evidence with no mock so the real check_evidence_uri code runs.
+    let out = dont()
+        .args(["verify-evidence", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+
+    assert_eq!(v["ok"], true, "verify-evidence should succeed structurally: {v}");
+    let results = v["data"]["results"].as_array().unwrap();
+    let result = results
+        .iter()
+        .find(|r| r["uri"] == "file:../../etc/passwd")
+        .expect("result for traversal URI must be present");
+
+    // The outcome must be "malformed" — the file must not have been opened.
+    assert_eq!(
+        result["outcome"], "malformed",
+        "file: URI traversal must be rejected as malformed, got: {:?}",
+        result["outcome"]
+    );
+    // The detail must not contain any content from /etc/passwd.
+    let detail = result["detail"].as_str().unwrap_or("");
+    assert!(
+        !detail.contains("root:") && !detail.contains("/bin/"),
+        "result detail must not contain /etc/passwd content, got: {detail}"
+    );
+}
