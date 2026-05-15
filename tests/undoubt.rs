@@ -1,6 +1,9 @@
 mod common;
 
 use common::dont;
+use dont::store::{
+    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, StoreStatus,
+};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -177,4 +180,76 @@ fn undoubt_entity_not_found_returns_error_exit_1() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "entity-not-found");
+}
+
+#[test]
+fn undoubt_locked_claim_is_refused() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim that will be locked and then undoubt is attempted");
+
+    // Seed the claim to meet locking prerequisites: 2+ evidence, 3+ assessed hypotheses
+    let store = Store::open_dont_dir(dir.path().join(".dont")).unwrap();
+    store
+        .append_status_change(
+            &id,
+            StoreStatus::Unverified,
+            StoreStatus::Verified,
+            StoreEvent {
+                kind: StoreEventKind::Flagged,
+                note: None,
+                evidence: vec![serde_json::Value::String(
+                    "https://source-one.example/evidence".to_string(),
+                )],
+            },
+        )
+        .unwrap();
+    store
+        .append_evidence_event(
+            &id,
+            StoreEvent {
+                kind: StoreEventKind::Flagged,
+                note: None,
+                evidence: vec![serde_json::Value::String(
+                    "https://source-two.example/evidence".to_string(),
+                )],
+            },
+        )
+        .unwrap();
+    let hypotheses: Vec<HypothesisRecord> = (0..3)
+        .map(|idx| HypothesisRecord {
+            idx,
+            text: format!("hypothesis {}", idx + 1),
+            assessment: HypothesisAssessment {
+                supporting: vec![format!("support-{}", idx + 1)],
+                refuting: vec![],
+            },
+        })
+        .collect();
+    store.set_claim_hypotheses_for_test(&id, &hypotheses).unwrap();
+    drop(store);
+
+    // Lock the claim via CLI
+    dont()
+        .args(["forget", &id, "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success();
+
+    // Now attempt to undoubt the locked claim — must be refused
+    let out = dont()
+        .args(["undoubt", &id, "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "invalid-transition",
+        "undoubt on a locked claim must return invalid-transition, got: {:?}",
+        v["data"]["code"]
+    );
 }

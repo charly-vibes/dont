@@ -175,3 +175,59 @@ fn atom_dismiss_without_evidence_is_refused() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "no-evidence");
 }
+
+#[test]
+fn atom_define_with_empty_text_is_refused() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "Claim whose atom text must be non-empty");
+
+    let output = dont()
+        .args(["atom", "define", &id, "--text", "", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "empty-text",
+        "atom define with empty text must return empty-text, got: {:?}",
+        v["data"]["code"]
+    );
+    assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn atom_dismiss_on_nonexistent_claim_returns_claim_not_found() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let output = dont()
+        .args([
+            "atom",
+            "dismiss",
+            "claim:NOTEXIST",
+            "0",
+            "--evidence",
+            "https://evidence.example/atom",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "claim-not-found",
+        "atom dismiss on nonexistent claim must return claim-not-found, got: {:?}",
+        v["data"]["code"]
+    );
+}

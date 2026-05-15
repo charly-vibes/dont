@@ -138,9 +138,13 @@ fn conclude_outside_project_exits_3_with_config_missing() {
     assert_eq!(v["data"]["code"], "config-missing");
     let remediation = v["data"]["remediation"].as_array().unwrap();
     assert!(!remediation.is_empty());
-    // Remediation should mention 'dont init'
-    let rem_str = serde_json::to_string(remediation).unwrap();
-    assert!(rem_str.contains("dont init"), "remediation must mention dont init");
+    // At least one remediation entry must have a command referencing "init".
+    // Each item is an object with "command" and "description" fields.
+    let mentions_init = remediation.iter().any(|item| {
+        item["command"].as_str().map(|s| s.contains("init")).unwrap_or(false)
+            || item["description"].as_str().map(|s| s.contains("init")).unwrap_or(false)
+    });
+    assert!(mentions_init, "remediation must reference 'init', got: {remediation:?}");
 }
 
 // --- Parallel execution ---

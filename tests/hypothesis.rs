@@ -176,6 +176,62 @@ fn hypothesis_assess_out_of_range_returns_error() {
 }
 
 #[test]
+fn hypothesis_add_with_empty_text_is_refused() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "Claim whose hypothesis text must be non-empty");
+
+    let output = dont()
+        .args(["hypothesis", "add", &id, "--text", "", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "empty-text",
+        "hypothesis add with empty text must return empty-text, got: {:?}",
+        v["data"]["code"]
+    );
+    assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn hypothesis_assess_without_supporting_or_refuting_returns_no_assessment() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "Claim whose hypothesis requires at least one assessment item");
+
+    dont()
+        .args(["hypothesis", "add", &id, "--text", "An alternative explanation", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let output = dont()
+        .args(["hypothesis", "assess", &id, "0", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "no-assessment",
+        "hypothesis assess with no --supporting or --refuting must return no-assessment, got: {:?}",
+        v["data"]["code"]
+    );
+    assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
+}
+
+#[test]
 fn lock_reachable_via_cli_hypothesis_commands() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
