@@ -437,6 +437,91 @@ fn malformed_config_toml_returns_error_exit_not_panic() {
     );
 }
 
+// --- dont-5dog: missing required config fields — clear error with fix instructions ---
+
+#[test]
+fn missing_project_mode_field_reports_field_name_and_fix_instruction() {
+    // project.mode absent from config.toml must produce a structured error that:
+    // 1. names the missing field ("project.mode")
+    // 2. shows a fix example (add `mode = "permissive"` or `mode = "strict"`)
+    // 3. exits non-zero
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    // Remove the mode field entirely (leave the [project] section header)
+    let config_path = dir.path().join("config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    let updated = config.replace("mode = \"permissive\"\n", "");
+    fs::write(&config_path, updated).unwrap();
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "missing project.mode must fail");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("project.mode") || message.contains("mode"),
+        "error message must name the missing field 'project.mode', got: {message}"
+    );
+    // Must include a fix example showing a valid value
+    assert!(
+        message.contains("permissive") || message.contains("strict"),
+        "error message must show valid values for project.mode, got: {message}"
+    );
+    // Must point to the config file
+    assert!(
+        message.contains("config.toml"),
+        "error message must mention config.toml, got: {message}"
+    );
+}
+
+#[test]
+fn missing_output_default_format_field_reports_field_name_and_fix_instruction() {
+    // output.default_format absent must produce a clear error naming the field
+    // and showing how to add it.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let config_path = dir.path().join("config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    let updated = config.replace("default_format = \"json\"\n", "");
+    fs::write(&config_path, updated).unwrap();
+
+    let out = dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "missing output.default_format must fail");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("output.default_format") || message.contains("default_format"),
+        "error message must name the missing field 'output.default_format', got: {message}"
+    );
+    // Must include a fix example showing a valid value
+    assert!(
+        message.contains("json") || message.contains("human"),
+        "error message must show valid values for output.default_format, got: {message}"
+    );
+    // Must point to the config file
+    assert!(
+        message.contains("config.toml"),
+        "error message must mention config.toml, got: {message}"
+    );
+}
+
 #[test]
 fn mode_change_via_config_is_recorded_in_event_log() {
     let dir = TempDir::new().unwrap();
