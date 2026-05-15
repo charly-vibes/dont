@@ -496,3 +496,76 @@ fn ground_accepts_prose_statement_with_slash() {
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["status"], "verified");
 }
+
+// --- Malformed evidence URI validation ---
+
+/// `dont ground` must reject a bare string with no URI scheme at input time,
+/// not silently store it.
+#[test]
+fn ground_malformed_evidence_uri_no_scheme_is_rejected() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "claim grounded with garbage evidence",
+            "--evidence",
+            "not-a-valid-locator",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "malformed evidence URI must be rejected: {v}");
+    assert_eq!(
+        v["data"]["code"], "malformed-evidence-uri",
+        "error code must be malformed-evidence-uri, got: {:?}",
+        v["data"]["code"]
+    );
+    let msg = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        msg.contains("not-a-valid-locator"),
+        "error message must include the offending locator, got: {msg}"
+    );
+}
+
+/// A failed `ground` due to malformed URI must leave no partial claim behind.
+#[test]
+fn ground_malformed_evidence_uri_leaves_no_partial_claim() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    dont()
+        .args([
+            "ground",
+            "partial claim from bad evidence",
+            "--evidence",
+            "garbage-no-scheme",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1);
+
+    let out = dont()
+        .args(["list", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let claims = v["data"]["claims"].as_array().unwrap();
+    assert!(
+        claims.is_empty(),
+        "failed ground must not leave a partial claim, found: {:?}",
+        claims
+    );
+}

@@ -610,3 +610,97 @@ fn dismiss_deprecation_warning_does_not_appear_on_stdout() {
         .expect("stdout must be valid JSON even when dismiss emits a deprecation warning");
     assert_eq!(v["ok"], true);
 }
+
+// --- Malformed evidence URI validation ---
+
+/// A bare string with no scheme is not a valid evidence locator.
+/// `dont flag` must reject it at input time with a structured error,
+/// not silently store it for later failure.
+#[test]
+fn flag_malformed_evidence_uri_no_scheme_is_rejected() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim that should never be verified with garbage evidence");
+
+    let out = dont()
+        .args(["flag", &id, "--evidence", "not-a-valid-locator", "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "malformed evidence URI must be rejected: {v}");
+    assert_eq!(
+        v["data"]["code"], "malformed-evidence-uri",
+        "error code must be malformed-evidence-uri, got: {:?}",
+        v["data"]["code"]
+    );
+    // Error message must mention the offending string so the user can act on it.
+    let msg = v["data"]["message"].as_str().unwrap_or("");
+    assert!(
+        msg.contains("not-a-valid-locator"),
+        "error message must include the offending locator, got: {msg}"
+    );
+    // Must include remediation hints.
+    assert!(
+        !v["data"]["remediation"].as_array().unwrap().is_empty(),
+        "malformed-evidence-uri must include remediation hints"
+    );
+}
+
+/// The claim must remain unverified when a malformed URI is rejected.
+#[test]
+fn flag_malformed_evidence_uri_does_not_change_claim_status() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "status should not change on malformed evidence");
+
+    dont()
+        .args(["flag", &id, "--evidence", "garbage-no-scheme", "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .code(1);
+
+    // Claim must still be unverified.
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(
+        v["data"]["status"], "unverified",
+        "claim status must remain unverified after malformed-evidence rejection: {v}"
+    );
+}
+
+/// A `file:` scheme URI is not an accepted evidence scheme; it must be rejected.
+#[test]
+fn flag_file_scheme_uri_is_rejected_as_malformed() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "file URI should be rejected as malformed");
+
+    let out = dont()
+        .args(["flag", &id, "--evidence", "file:///etc/passwd", "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "file: URI must be rejected as malformed: {v}");
+    assert_eq!(
+        v["data"]["code"], "malformed-evidence-uri",
+        "got: {:?}",
+        v["data"]["code"]
+    );
+}
