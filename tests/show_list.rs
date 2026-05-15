@@ -183,9 +183,10 @@ fn show_unknown_curie_returns_term_not_found_exit_1() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "term-not-found");
+    // The error message must echo the curie back to the caller (UX requirement),
+    // but we do not assert on the exact phrasing around it.
     let msg = v["data"]["message"].as_str().unwrap_or("");
-    assert!(msg.contains("WB:ZZZZ"), "expected curie in error: {msg}");
-    assert!(msg.contains("no term with curie"), "expected curie phrasing: {msg}");
+    assert!(msg.contains("WB:ZZZZ"), "error message must echo the curie: {msg}");
 }
 
 // --- list ---

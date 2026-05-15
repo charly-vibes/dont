@@ -384,6 +384,93 @@ fn collect_coupling_violations(
     }
 }
 
+/// Brittle-assertion audit: no full-sentence string literals in `.contains(…)` calls.
+///
+/// Tests that use `.contains("full prose sentence")` are fragile: they break on a
+/// typo fix or rewording even when behaviour is unchanged. Good assertions check
+/// structural keys (`"\"status\":"`, short key terms like `"repository-relative"`)
+/// rather than prose sentences.
+///
+/// Heuristic: flag any `contains("…")` where the string literal is longer than 60
+/// characters. This threshold separates full sentences from JSON keys, status codes,
+/// and short term checks. Exemptions (apply in order):
+///   1. `test_quality.rs` itself — scanner code contains the needle strings as literals.
+///   2. Strings that start with `dont ` — these are CLI invocation examples in
+///      generated template files and are expected to be exact.
+///
+/// Audit result (2026-05-14): two violations found and fixed in tests/init.rs —
+/// full-sentence prose checks replaced with short key-term assertions.
+#[test]
+fn no_full_sentence_contains_assertions() {
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let tests_dir = manifest.join("tests");
+    let mut violations: Vec<String> = Vec::new();
+    collect_brittle_contains_violations(&tests_dir, &mut violations);
+
+    assert!(
+        violations.is_empty(),
+        "Found `.contains(\"…\")` assertions with full-sentence strings (>60 chars).\n\
+         Replace with structural checks: JSON keys, short key terms, or status codes.\n\
+         A reword that preserves behaviour should not break a test.\n\
+         Violations:\n{}",
+        violations.join("\n")
+    );
+}
+
+fn collect_brittle_contains_violations(dir: &std::path::Path, out: &mut Vec<String>) {
+    use std::fs;
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_brittle_contains_violations(&path, out);
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        // Skip this file — it embeds needle strings as scanner literals.
+        if path.file_name().and_then(|n| n.to_str()) == Some("test_quality.rs") {
+            continue;
+        }
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        for (i, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            // Skip comment lines.
+            if trimmed.starts_with("//") || trimmed.starts_with("///") {
+                continue;
+            }
+            // Find all .contains("…") or contains("…") occurrences on this line.
+            let mut search = trimmed;
+            while let Some(pos) = search.find("contains(\"") {
+                search = &search[pos + 10..]; // skip past `contains("`
+                if let Some(end) = search.find('"') {
+                    let s = &search[..end];
+                    // Exemption: CLI command examples start with `dont `.
+                    if s.len() > 60 && !s.starts_with("dont ") {
+                        out.push(format!(
+                            "  {}:{}: contains({:?}) — {} chars, replace with a short key term",
+                            path.display(),
+                            i + 1,
+                            s,
+                            s.len()
+                        ));
+                    }
+                    search = &search[end + 1..];
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+}
+
 fn collect_violations(dir: &std::path::Path, anti_patterns: &[&str], out: &mut Vec<String>) {
     use std::fs;
     let entries = match fs::read_dir(dir) {

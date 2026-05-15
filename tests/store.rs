@@ -1,4 +1,4 @@
-use dont::store::{Store, StoreEvent, StoreEventKind, StoreStatus};
+use dont::store::{Store, StoreError, StoreEvent, StoreEventKind, StoreStatus};
 
 #[test]
 fn opens_project_store_at_canonical_path_and_records_schema_metadata() {
@@ -21,7 +21,10 @@ fn rejects_incompatible_schema_versions_instead_of_overwriting_them() {
 
     let error = Store::open_project(root.path()).expect_err("schema mismatch rejected");
 
-    assert!(error.to_string().contains("unsupported schema_version 999"));
+    assert!(
+        matches!(error, StoreError::SchemaMismatch { found: 999, .. }),
+        "expected SchemaMismatch with found=999, got: {error}"
+    );
 }
 
 #[test]
