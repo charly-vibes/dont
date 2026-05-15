@@ -327,6 +327,64 @@ fn verify_evidence_reports_missing_line_span_for_repo_locator() {
     assert!(result["detail"].as_str().unwrap().contains("line span"));
 }
 
+/// Regression guard: an anchor value containing ANSI escape sequences must not
+/// pass through to terminal output.  Attackers could supply a crafted anchor
+/// such as `\x1b[31mevil\x1b[0m` via `--anchor` to inject fake colour into the
+/// `dont show` human-readable output.  `strip_control_chars` in the formatter
+/// must remove all control characters before they reach stdout.
+#[test]
+fn show_human_output_strips_ansi_escape_from_anchor() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    init_project(&root);
+    std::fs::write(root.join("README.md"), "target section content\n").unwrap();
+    let id = conclude_claim(&root, "README has target section");
+
+    // Attach a repo-file locator whose anchor contains a raw ANSI escape.
+    let evil_anchor = "\x1b[31mevil\x1b[0m";
+    dont()
+        .args([
+            "flag",
+            &id,
+            "--file",
+            "README.md",
+            "--anchor",
+            evil_anchor,
+            "--json",
+        ])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success();
+
+    // `dont show` in human mode (no --json flag) must not emit raw ESC bytes.
+    let output = dont()
+        .args(["show", &id])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8_lossy(&output);
+    assert!(
+        !stdout.contains('\x1b'),
+        "human output must not contain raw ESC (ANSI injection); got: {stdout:?}"
+    );
+    // The sanitized anchor text should still appear (minus the escape sequences).
+    // After stripping ESC the remaining visible text "evil" must be present.
+    assert!(
+        stdout.contains("evil"),
+        "anchor text content should appear after stripping control chars; got: {stdout:?}"
+    );
+    // The locator display should include the '#' anchor separator.
+    assert!(
+        stdout.contains("README.md#"),
+        "anchor should appear with '#' separator in locator display; got: {stdout:?}"
+    );
+}
+
 #[test]
 fn prime_counts_drifted_evidence_in_assessment_counts() {
     let dir = TempDir::new().unwrap();
