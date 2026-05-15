@@ -33,6 +33,40 @@ impl Status {
     }
 }
 
+/// Tagged view of a user-supplied entity identifier.
+///
+/// Avoids stringly-typed `id.starts_with("term:")` dispatch at command sites.
+/// The wrapped `&str` is the original literal id — `as_str()` round-trips it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityId<'a> {
+    Claim(&'a str),
+    Term(&'a str),
+}
+
+impl<'a> EntityId<'a> {
+    const TERM_PREFIX: &'static str = "term:";
+
+    pub fn parse(s: &'a str) -> Self {
+        if s.starts_with(Self::TERM_PREFIX) {
+            Self::Term(s)
+        } else {
+            Self::Claim(s)
+        }
+    }
+
+    pub fn as_str(&self) -> &'a str {
+        match self {
+            Self::Claim(s) | Self::Term(s) => s,
+        }
+    }
+}
+
+impl std::fmt::Display for EntityId<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransitionError {
     pub code: String,

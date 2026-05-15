@@ -15,8 +15,8 @@ use dont::envelope::{
     RemediationEntry, UnmetClause, Warning, set_author,
 };
 use dont::model::{
-    Status, flag as model_flag, ignore as model_ignore, lock as model_lock, reopen as model_reopen,
-    trust as model_trust, undoubt as model_undoubt,
+    EntityId, Status, flag as model_flag, ignore as model_ignore, lock as model_lock,
+    reopen as model_reopen, trust as model_trust, undoubt as model_undoubt,
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::rules::{RuleError, shipped_rule_names};
@@ -2974,7 +2974,7 @@ fn main() {
                     1,
                 );
             }
-            if id.starts_with("term:") {
+            if let EntityId::Term(_) = EntityId::parse(&id) {
                 let record = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
                     Ok(None) => emit_error_and_exit(
@@ -3105,7 +3105,7 @@ fn main() {
         Command::Forget { id } => {
             let project = open_project_or_exit();
             run_per_entity(id, |id| {
-                if id.starts_with("term:") {
+                if let EntityId::Term(_) = EntityId::parse(id) {
                     return emit_error_no_exit(
                         refusal(
                             "wrong-entity-kind",
@@ -3247,7 +3247,7 @@ fn main() {
         Command::Reopen { id } => {
             let project = open_project_or_exit();
 
-            if id.starts_with("term:") {
+            if let EntityId::Term(_) = EntityId::parse(&id) {
                 let record = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
                     Ok(None) => emit_error_and_exit(
@@ -3405,7 +3405,7 @@ fn main() {
                 );
             }
 
-            if id.starts_with("term:") {
+            if let EntityId::Term(_) = EntityId::parse(&id) {
                 let record = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
                     Ok(None) => emit_error_and_exit(
@@ -3594,7 +3594,7 @@ fn main() {
             }
             // Terms don't have depends_on fields so no dependency gate is needed here.
             // If terms gain dependencies in the future, add dependency_gate_unmet_clauses.
-            if id.starts_with("term:") {
+            if let EntityId::Term(_) = EntityId::parse(&id) {
                 let record = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
                     Ok(None) => emit_error_and_exit(
@@ -3752,7 +3752,7 @@ fn main() {
         Command::Undoubt { id } => {
             let project = open_project_or_exit();
 
-            if id.starts_with("term:") {
+            if let EntityId::Term(_) = EntityId::parse(&id) {
                 let record = match project.store.term_by_id(&id) {
                     Ok(Some(r)) => r,
                     Ok(None) => emit_error_and_exit(
@@ -3959,7 +3959,7 @@ fn main() {
             let config = project.load_config();
             let effective_timeout = timeout_seconds.or(config.verify_evidence.default_timeout_s);
 
-            let (entity_kind, status, evidence) = if id.starts_with("term:") {
+            let (entity_kind, status, evidence) = if let EntityId::Term(_) = EntityId::parse(&id) {
                 match project.store.term_by_id(&id) {
                     Ok(Some(record)) => (
                         EnvelopeKind::Term,
@@ -4367,7 +4367,7 @@ fn main() {
 
         Command::Trace { id } => {
             let project = open_project_or_exit();
-            if id.starts_with("term:") {
+            if let EntityId::Term(_) = EntityId::parse(&id) {
                 match project.store.term_by_id(&id) {
                     Ok(Some(_)) => {
                         let payload = json!({

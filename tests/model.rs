@@ -1,4 +1,30 @@
-use dont::model::{Status, TransitionError, flag, ignore, lock, reopen, trust, undoubt};
+use dont::model::{EntityId, Status, TransitionError, flag, ignore, lock, reopen, trust, undoubt};
+
+// --- EntityId parsing ---
+
+#[test]
+fn entity_id_parses_term_prefix_as_term() {
+    let id = "term:01JABCDXYZ";
+    match EntityId::parse(id) {
+        EntityId::Term(s) => assert_eq!(s, id),
+        EntityId::Claim(_) => panic!("expected Term, got Claim"),
+    }
+}
+
+#[test]
+fn entity_id_parses_unprefixed_as_claim() {
+    let id = "01JABCDXYZ";
+    match EntityId::parse(id) {
+        EntityId::Claim(s) => assert_eq!(s, id),
+        EntityId::Term(_) => panic!("expected Claim, got Term"),
+    }
+}
+
+#[test]
+fn entity_id_as_str_round_trips_original_input() {
+    assert_eq!(EntityId::parse("term:abc").as_str(), "term:abc");
+    assert_eq!(EntityId::parse("plain").as_str(), "plain");
+}
 
 // --- Valid transitions ---
 
