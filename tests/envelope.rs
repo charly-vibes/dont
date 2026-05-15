@@ -79,7 +79,10 @@ fn error_envelope_data_contains_error_result_fields() {
     let data = &v["data"];
     assert_eq!(data["code"], "rule-not-met");
     assert_eq!(data["rule_name"], "lockable");
-    assert!(!data["remediation"].as_array().unwrap().is_empty());
+    let remediation = data["remediation"].as_array().unwrap();
+    assert_eq!(remediation.len(), 1);
+    assert_eq!(remediation[0]["command"], "dont dismiss claim:xxx --reason reason");
+    assert_eq!(remediation[0]["description"], "Dismiss the blocking claim");
     assert_eq!(data["unmet_clauses"][0]["clause"], "no open locks");
 }
 
@@ -113,7 +116,11 @@ fn remediation_non_empty_is_ok() {
             description: "Show help".to_string(),
         }],
     );
-    assert!(result.is_ok());
+    let err = result.expect("ErrorResult with non-empty remediation must succeed");
+    assert_eq!(err.code, "usage");
+    assert_eq!(err.message, "bad args");
+    assert_eq!(err.remediation.len(), 1);
+    assert_eq!(err.remediation[0].command, "dont help add");
 }
 
 // --- Warnings ---

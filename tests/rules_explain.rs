@@ -21,9 +21,10 @@ fn explain_ungrounded_returns_why_explain_payload() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["rule_name"], "ungrounded");
+    let explanation = v["data"]["explanation"].as_str().unwrap();
     assert!(
-        v["data"]["explanation"].as_str().unwrap().len() > 20,
-        "explanation should be non-trivial prose"
+        explanation.contains("ungrounded") && explanation.contains("CURIE"),
+        "explanation must describe the ungrounded rule and mention CURIE, got: {explanation:?}"
     );
 }
 

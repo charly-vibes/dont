@@ -67,7 +67,7 @@ fn transition_error_fields_accessible_without_downcast() {
     // All fields are directly accessible — no Any, no downcast_ref
     assert_eq!(err.code, "invalid-transition");
     assert_eq!(err.from_status, Status::Doubted);
-    assert!(!err.message.is_empty(), "message must describe the refusal");
+    assert_eq!(err.message, "cannot trust a Doubted entity");
     // entity_id is None when constructed without context
     assert!(err.entity_id.is_none());
 }

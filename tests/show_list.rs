@@ -252,7 +252,7 @@ fn list_claims_sorted_by_created_at_descending() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     let claims = v["data"]["claims"].as_array().unwrap();
-    assert!(claims.len() >= 2);
+    assert_eq!(claims.len(), 2, "exactly two claims were created");
     // Most recent first
     let ids: Vec<&str> = claims.iter().filter_map(|c| c["id"].as_str()).collect();
     let pos1 = ids.iter().position(|&i| i == id1.as_str()).unwrap();

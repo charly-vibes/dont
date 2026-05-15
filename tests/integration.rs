@@ -113,7 +113,10 @@ fn workflow_full_transition_cycle() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["data"]["status"], "verified");
     let evidence = v["data"]["evidence"].as_array().unwrap();
-    assert!(evidence.len() >= 2, "both evidence URIs should accumulate");
+    assert_eq!(evidence.len(), 2, "both evidence URIs should accumulate");
+    let uris: Vec<&str> = evidence.iter().filter_map(|e| e.as_str()).collect();
+    assert!(uris.contains(&"https://usgs.gov/tectonics"), "first evidence URI must be present");
+    assert!(uris.contains(&"https://usgs.gov/corrected"), "second evidence URI must be present");
 }
 
 // --- Envelope conformance ---
