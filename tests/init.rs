@@ -6,6 +6,9 @@ use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 fn init_in(dir: &TempDir) -> assert_cmd::assert::Assert {
     dont()
         .arg("init")
@@ -433,4 +436,61 @@ fn prime_blocking_includes_doubted_terms() {
         "prime blocking[] should include doubted term {term_id}, got: {:?}",
         blocking
     );
+}
+
+/// Verify that `dont init` creates the store files and subdirectories with
+/// restrictive permissions (no world-read/write/execute bits).
+///
+/// On Unix, `File::create` / `fs::write` inherit the process umask.  With the
+/// common umask 0o022 that produces 0o644 for files (world-readable) and 0o755
+/// for directories.  The fix uses `OpenOptionsExt::mode(0o600)` and
+/// `DirBuilderExt::mode(0o700)` so permissions are set explicitly at creation time.
+///
+/// Note: the outer TempDir used for DONT_DIR test isolation is pre-existing and
+/// not under our control, so its permissions are not asserted. Subdirectories
+/// created inside the store by our code are checked instead.
+#[cfg(unix)]
+#[test]
+fn init_store_files_are_not_world_readable() {
+    let dir = TempDir::new().unwrap();
+    init_in(&dir).success();
+
+    let check_file = |rel: &str| {
+        let path = dir.path().join(rel);
+        let meta = fs::metadata(&path)
+            .unwrap_or_else(|err| panic!("cannot stat {rel}: {err}"));
+        let mode = meta.permissions().mode();
+        // Mask out the file-type bits, leaving only the permission bits.
+        let perm_bits = mode & 0o777;
+        assert!(
+            perm_bits & 0o007 == 0,
+            "{rel}: expected no world permissions, got mode {perm_bits:#o}"
+        );
+    };
+
+    let check_dir = |rel: &str| {
+        let path = dir.path().join(rel);
+        let meta = fs::metadata(&path)
+            .unwrap_or_else(|err| panic!("cannot stat {rel}: {err}"));
+        let mode = meta.permissions().mode();
+        let perm_bits = mode & 0o777;
+        assert!(
+            perm_bits & 0o007 == 0,
+            "{rel} (dir): expected no world permissions, got mode {perm_bits:#o}"
+        );
+    };
+
+    // Files created by init
+    check_file("config.toml");
+    check_file("events.jsonl");
+    check_file("AGENTS.md");
+    check_file("seed/dont-seed.yaml");
+
+    // Subdirectories created by init (these are new dirs created by our code)
+    for subdir in ["seed", "vocab", "rules", "imports", "sessions", "schemas"] {
+        check_dir(subdir);
+    }
+
+    // Store database file created by Store::open_dont_dir
+    check_file("db.cozo");
 }

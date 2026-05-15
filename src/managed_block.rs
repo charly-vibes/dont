@@ -2,6 +2,9 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
+
 pub const START_MARKER: &str = "<!-- DONT:START -->";
 pub const END_MARKER: &str = "<!-- DONT:END -->";
 
@@ -75,5 +78,24 @@ pub fn file_matches(path: &Path, expected: &str) -> io::Result<bool> {
 }
 
 pub fn write_canonical(path: &Path, expected: &str) -> io::Result<()> {
-    fs::write(path, expected)
+    write_restricted(path, expected.as_bytes())
+}
+
+/// Write `content` to `path` with mode 0o600 on Unix, creating or truncating the file.
+fn write_restricted(path: &Path, content: &[u8]) -> io::Result<()> {
+    use std::io::Write;
+    #[cfg(unix)]
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    #[cfg(not(unix))]
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(path)?;
+    file.write_all(content)
 }

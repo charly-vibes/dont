@@ -2,6 +2,9 @@ use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+
 use chrono::{SecondsFormat, Utc};
 use cozo::DbInstance;
 use fs2::FileExt;
@@ -243,12 +246,29 @@ impl Store {
     /// directory (e.g. when `DONT_DIR` is set for test isolation).
     pub fn open_dont_dir(dont_dir: impl AsRef<Path>) -> Result<Self, StoreError> {
         let dont_dir = dont_dir.as_ref();
+        #[cfg(unix)]
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dont_dir)
+            .map_err(StoreError::Io)?;
+        #[cfg(not(unix))]
         std::fs::create_dir_all(dont_dir).map_err(StoreError::Io)?;
         let path = dont_dir.join("db.cozo");
         let lock_path = dont_dir.join("db.cozo.lock");
         let seq_path = dont_dir.join("tx.seq");
         let db = DbInstance::new("sqlite", &path, "")
             .map_err(|err| StoreError::Cozo(err.to_string()))?;
+        // The SQLite backend creates db.cozo using the OS default (subject to umask).
+        // Tighten the permissions to 0o600 so the file is not world-readable.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if path.exists() {
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+                    .map_err(StoreError::Io)?;
+            }
+        }
         let store = Self {
             db,
             path,
@@ -1298,7 +1318,7 @@ impl Store {
                 .unwrap_or(0)
         };
         let next = last + 1;
-        std::fs::write(&self.seq_path, next.to_string()).map_err(StoreError::Io)?;
+        write_restricted(&self.seq_path, next.to_string().as_bytes()).map_err(StoreError::Io)?;
         Ok(next)
     }
 
@@ -1370,12 +1390,20 @@ impl Store {
     }
 
     fn open_lock_file(&self) -> Result<File, StoreError> {
-        OpenOptions::new()
+        #[cfg(unix)]
+        let f = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(false)
-            .open(&self.lock_path)
-            .map_err(StoreError::Io)
+            .mode(0o600)
+            .open(&self.lock_path);
+        #[cfg(not(unix))]
+        let f = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(&self.lock_path);
+        f.map_err(StoreError::Io)
     }
 
     /// Execute a rule violation query against the store.
@@ -1525,6 +1553,28 @@ fn hypotheses_from_value(value: &Value) -> Result<Vec<HypothesisRecord>, StoreEr
 
 fn json_string(value: &str) -> String {
     serde_json::to_string(value).expect("serializing string literal cannot fail")
+}
+
+/// Write `content` to `path` with 0o600 permissions on Unix.
+///
+/// Uses `OpenOptions` with `.mode(0o600)` so that newly created files are not
+/// world-readable regardless of the process umask.
+fn write_restricted(path: &std::path::Path, content: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    #[cfg(unix)]
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    #[cfg(not(unix))]
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(path)?;
+    file.write_all(content)
 }
 
 #[cfg(test)]
