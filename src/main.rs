@@ -2786,7 +2786,7 @@ fn main() {
                 }
             }
 
-            let is_strict = project.mode() == "strict";
+            let is_strict = project.mode() == Some(ProjectMode::Strict);
             if is_strict && !unresolved.is_empty() {
                 let list = unresolved.join(", ");
                 emit_error_and_exit(
@@ -4171,7 +4171,7 @@ fn main() {
             }
             let payload = json!({
                 "project": "dont-project",
-                "mode": project.mode(),
+                "mode": project.mode().map(ProjectMode::as_str),
                 "status_counts": {
                     "unverified": unverified,
                     "doubted": doubted,
@@ -4912,7 +4912,7 @@ fn main() {
             let engine = dont::rules::RuleEngine::new(
                 rules_dir.clone(),
                 config.rules,
-                project.mode() == "strict",
+                project.mode() == Some(ProjectMode::Strict),
             );
 
             match action {
@@ -5174,7 +5174,7 @@ fn main() {
             let rules_dir = project.dont_dir.join("rules");
             let config = project.load_config();
             let engine =
-                dont::rules::RuleEngine::new(rules_dir, config.rules, project.mode() == "strict");
+                dont::rules::RuleEngine::new(rules_dir, config.rules, project.mode() == Some(ProjectMode::Strict));
 
             if let Some(prose) = dont::rules::explain(&rule) {
                 let severity = severity_label(engine.severity(&rule));

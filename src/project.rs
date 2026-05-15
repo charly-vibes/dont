@@ -286,16 +286,13 @@ impl Project {
         Ok(Self { dont_dir, store })
     }
 
-    pub fn mode(&self) -> String {
-        let config = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
-        config
-            .lines()
-            .find_map(|line| {
-                let line = line.trim();
-                line.strip_prefix("mode = ")
-                    .map(|value| value.trim_matches('"').to_string())
-            })
-            .unwrap_or_else(|| "unknown".to_string())
+    pub fn mode(&self) -> Option<ProjectMode> {
+        let raw = self.load_config().project.mode?;
+        match raw.as_str() {
+            "permissive" => Some(ProjectMode::Permissive),
+            "strict" => Some(ProjectMode::Strict),
+            _ => None,
+        }
     }
 
     pub fn load_config(&self) -> Config {
@@ -394,10 +391,10 @@ impl Project {
     /// Detect if the config.toml mode differs from the last recorded mode in events.jsonl
     /// and append a `mode.changed` event if so.
     pub fn check_and_record_mode_change(&self) {
-        let current_mode = self.mode();
-        if current_mode == "unknown" {
+        let Some(current_mode) = self.mode() else {
             return;
-        }
+        };
+        let current_mode = current_mode.as_str();
         let events_path = self.dont_dir.join("events.jsonl");
         let events_text = fs::read_to_string(&events_path).unwrap_or_default();
         let last_recorded_mode = events_text
