@@ -1,10 +1,9 @@
-/// CI pipeline contract tests.
-///
-/// These tests read the workflow and justfile on disk and assert that
-/// test execution is wired into the CI pipeline.  They are intentionally
-/// file-level checks (not unit tests of application logic) so that a
-/// misconfigured CI recipe is caught before it reaches the remote.
-
+//! CI pipeline contract tests.
+//!
+//! These tests read the workflow and justfile on disk and assert that
+//! test execution is wired into the CI pipeline. They are intentionally
+//! file-level checks (not unit tests of application logic) so that a
+//! misconfigured CI recipe is caught before it reaches the remote.
 const CI_WORKFLOW: &str = include_str!("../.github/workflows/ci.yml");
 const DOCS_WORKFLOW: &str = include_str!("../.github/workflows/docs.yml");
 const JUSTFILE: &str = include_str!("../justfile");

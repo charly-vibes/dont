@@ -19,22 +19,22 @@ pub fn check(
     let terms = store.list_terms()?;
     let mut matches = Vec::new();
     for term in terms {
-        if let Some(label) = &term.label {
-            if config.matches_label(label) {
-                matches.push(RuleMatch {
-                    entity_id: term.id.clone(),
-                    detail: format!(
-                        "label '{label}' suggests a non-functional relationship; consider aspect-based decomposition"
-                    ),
-                });
-            }
+        if let Some(label) = &term.label
+            && config.matches_label(label)
+        {
+            matches.push(RuleMatch {
+                entity_id: term.id.clone(),
+                detail: format!(
+                    "label '{label}' suggests a non-functional relationship; consider aspect-based decomposition"
+                ),
+            });
         }
     }
     Ok(matches)
 }
 
 #[cfg(test)]
-mod term_nonfunctional_label {
+mod term_nonfunctional_label_tests {
     use tempfile::TempDir;
 
     use super::*;

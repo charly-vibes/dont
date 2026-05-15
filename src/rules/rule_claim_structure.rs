@@ -45,7 +45,7 @@ pub fn check(
 }
 
 #[cfg(test)]
-mod rule_claim_structure {
+mod rule_claim_structure_tests {
     use tempfile::TempDir;
 
     use super::*;
@@ -69,7 +69,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[CONFIG] Enabled: yes", &[term.id.clone()], None)
+            .append_claim("[CONFIG] Enabled: yes", std::slice::from_ref(&term.id), None)
             .unwrap();
         let config = RuleClaimStructureConfig {
             enabled: false,
@@ -84,7 +84,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("no trigger or mode here", &[term.id.clone()], None)
+            .append_claim("no trigger or mode here", std::slice::from_ref(&term.id), None)
             .unwrap();
         let config = RuleClaimStructureConfig {
             enabled: true,
@@ -109,7 +109,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[CONFIG] Enabled by default: yes", &[term.id.clone()], None)
+            .append_claim("[CONFIG] Enabled by default: yes", std::slice::from_ref(&term.id), None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -123,7 +123,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[TRIGGER] fires when X happens", &[term.id.clone()], None)
+            .append_claim("[TRIGGER] fires when X happens", std::slice::from_ref(&term.id), None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -138,7 +138,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[GUARD] silently skips empty inputs", &[term.id.clone()], None)
+            .append_claim("[GUARD] silently skips empty inputs", std::slice::from_ref(&term.id), None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -153,9 +153,9 @@ mod rule_claim_structure {
         store
             .append_claim(
                 "[TRIGGER] fires when X\n[CONFIG] Enabled by default: yes",
-                &[term.id.clone()],
+                std::slice::from_ref(&term.id),
                 None,
-)
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
@@ -169,9 +169,9 @@ mod rule_claim_structure {
         store
             .append_claim(
                 "[TRIGGER] fires when Y\n[MODE] In permissive mode: warn",
-                &[term.id.clone()],
+                std::slice::from_ref(&term.id),
                 None,
-)
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
@@ -185,9 +185,9 @@ mod rule_claim_structure {
         store
             .append_claim(
                 "[TRIGGER] fires when Z\n[MODE] warn in all modes",
-                &[term.id.clone()],
+                std::slice::from_ref(&term.id),
                 None,
-)
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
@@ -200,7 +200,7 @@ mod rule_claim_structure {
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         // Create a tagged claim that is missing mandatory slots
         let claim = store
-            .append_claim("[GUARD] no trigger or mode", &[term.id.clone()], None)
+            .append_claim("[GUARD] no trigger or mode", std::slice::from_ref(&term.id), None)
             .unwrap();
         // Doubt it — should be skipped by the rule during remediation
         store
@@ -224,9 +224,9 @@ mod rule_claim_structure {
         store
             .append_claim(
                 "[TRIGGER] complete\n[CONFIG] yes",
-                &[term.id.clone()],
+                std::slice::from_ref(&term.id),
                 None,
-)
+            )
             .unwrap();
         // Untagged claim: would violate if evaluated
         store.append_claim("no trigger, no mode", &[], None).unwrap();
@@ -240,7 +240,7 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("   \n\t  ", &[term.id.clone()], None)
+            .append_claim("   \n\t  ", std::slice::from_ref(&term.id), None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -263,9 +263,9 @@ mod rule_claim_structure {
         store
             .append_claim(
                 "règle-système: vérification\n[TRIGGER] quand X se produit\n[CONFIG] activé: oui",
-                &[term.id.clone()],
+                std::slice::from_ref(&term.id),
                 None,
-)
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
@@ -277,7 +277,11 @@ mod rule_claim_structure {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("règle sans déclencheur ni configuration", &[term.id.clone()], None)
+            .append_claim(
+                "règle sans déclencheur ni configuration",
+                std::slice::from_ref(&term.id),
+                None,
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -293,9 +297,9 @@ mod rule_claim_structure {
         store
             .append_claim(
                 "The [TRIGGER] concept is explained here.\n[MODE] warn always",
-                &[term.id.clone()],
+                std::slice::from_ref(&term.id),
                 None,
-)
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         // Rule treats the prose [TRIGGER] as satisfying the slot requirement.
@@ -309,7 +313,7 @@ mod rule_claim_structure {
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         let long_body = "x".repeat(10_000);
         store
-            .append_claim(&long_body, &[term.id.clone()], None)
+            .append_claim(&long_body, std::slice::from_ref(&term.id), None)
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();

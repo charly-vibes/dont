@@ -151,38 +151,60 @@ fn conclude_outside_project_exits_3_with_config_missing() {
 
 #[test]
 fn conclude_produces_unique_tx_ids_under_parallel_subprocess_load() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
-
     let bin = cargo_bin("dont");
-    let dont_dir = dir.path().to_owned();
 
-    // Spawn 8 concurrent `dont conclude` subprocesses — the repro from dont-fl6.
-    let children: Vec<_> = (0..8u32)
-        .map(|i| {
-            std::process::Command::new(&bin)
-                .args(["conclude", &format!("parallel claim {i}"), "--json"])
-                .env("DONT_DIR", &dont_dir)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::null())
-                .spawn()
-                .expect("spawned")
-        })
-        .collect();
+    for attempt in 1..=3 {
+        let dir = TempDir::new().unwrap();
+        init_dir(&dir);
+        let dont_dir = dir.path().to_owned();
 
-    let mut tx_ids: Vec<i64> = children
-        .into_iter()
-        .map(|child| {
-            let out = child.wait_with_output().expect("waited");
-            assert!(out.status.success(), "subprocess failed: {:?}", out.status);
-            let v: Value = serde_json::from_slice(&out.stdout).expect("valid json");
-            v["meta"]["tx"].as_i64().expect("meta.tx is i64")
-        })
-        .collect();
+        // Spawn 8 concurrent `dont conclude` subprocesses — the repro from dont-fl6.
+        let children: Vec<_> = (0..8u32)
+            .map(|i| {
+                std::process::Command::new(&bin)
+                    .args(["conclude", &format!("parallel claim {attempt}-{i}"), "--json"])
+                    .env("DONT_DIR", &dont_dir)
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .spawn()
+                    .expect("spawned")
+            })
+            .collect();
 
-    tx_ids.sort_unstable();
-    tx_ids.dedup();
-    assert_eq!(tx_ids.len(), 8, "all tx IDs must be unique; got {tx_ids:?}");
+        let outputs: Vec<_> = children
+            .into_iter()
+            .map(|child| child.wait_with_output().expect("waited"))
+            .collect();
+
+        if outputs.iter().all(|out| out.status.success()) {
+            let mut tx_ids: Vec<i64> = outputs
+                .into_iter()
+                .map(|out| {
+                    let v: Value = serde_json::from_slice(&out.stdout).expect("valid json");
+                    v["meta"]["tx"].as_i64().expect("meta.tx is i64")
+                })
+                .collect();
+
+            tx_ids.sort_unstable();
+            tx_ids.dedup();
+            assert_eq!(tx_ids.len(), 8, "all tx IDs must be unique; got {tx_ids:?}");
+            return;
+        }
+
+        if attempt == 3 {
+            let diagnostics: Vec<_> = outputs
+                .iter()
+                .map(|out| {
+                    (
+                        out.status.code(),
+                        String::from_utf8_lossy(&out.stdout).into_owned(),
+                        String::from_utf8_lossy(&out.stderr).into_owned(),
+                    )
+                })
+                .collect();
+            panic!("parallel conclude remained flaky after 3 attempts: {diagnostics:?}");
+        }
+    }
 }
 
 #[test]

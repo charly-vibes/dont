@@ -151,7 +151,7 @@ fn canonical_template_claim_passes_rule_claim_structure() {
     );
 
     store
-        .append_claim(canonical_claim, &[tag_term.id.clone()], None)
+        .append_claim(canonical_claim, std::slice::from_ref(&tag_term.id), None)
         .unwrap();
 
     let config = RuleClaimStructureConfig {

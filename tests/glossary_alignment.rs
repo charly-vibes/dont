@@ -342,5 +342,3 @@ fn author_string_actor_kind_colon_id_format_is_accepted() {
         "author string in <actor-kind>:<id> format must round-trip through meta.author"
     );
 }
-
-use predicates;

@@ -125,7 +125,7 @@ fn lock_without_project_emits_error_envelope() {
     assert_eq!(v["envelope_kind"], "error");
     assert_eq!(v["envelope_version"], "0.2");
     // Error is about missing project, not deprecation
-    assert!(v["data"]["code"].as_str().unwrap_or("") != "");
+    assert!(!v["data"]["code"].as_str().unwrap_or("").is_empty());
 }
 
 // --- -j short flag for --json ---

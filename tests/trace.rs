@@ -346,14 +346,22 @@ fn trace_mutual_cycle_between_two_claims_terminates_with_bounded_output() {
     let a_id = a.id.clone();
 
     // Create claim B whose depends_on already references A.
-    let b = store.append_claim("claim B — part of mutual cycle", &[a_id.clone()], None).unwrap();
+    let b = store
+        .append_claim("claim B — part of mutual cycle", std::slice::from_ref(&a_id), None)
+        .unwrap();
     let b_id = b.id.clone();
 
     // Create claim A2 that references B, modelling the A→B half of the cycle.
     // (We can't mutate the existing A record, so we create a fresh claim
     // whose depends_on points to B — this is equivalent for testing the
     // traversal logic.)
-    let a2 = store.append_claim("claim A2 — depends on B, completing cycle", &[b_id.clone()], None).unwrap();
+    let a2 = store
+        .append_claim(
+            "claim A2 — depends on B, completing cycle",
+            std::slice::from_ref(&b_id),
+            None,
+        )
+        .unwrap();
     let a2_id = a2.id.clone();
 
     // Tracing A2 (which depends on B, which depends on A) must terminate and

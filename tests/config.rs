@@ -410,7 +410,7 @@ fn malformed_config_toml_returns_error_exit_not_panic() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    // Overwrite config.toml with unparseable TOML (bare key without value)
+    // Overwrite config.toml with unparsable TOML (bare key without value)
     let config_path = dir.path().join("config.toml");
     fs::write(&config_path, "this is = [not valid toml\n!!!garbage\n").unwrap();
 

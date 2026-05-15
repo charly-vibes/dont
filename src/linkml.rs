@@ -1,26 +1,25 @@
-/// LinkML import adapter.
-///
-/// Implements `dont import linkml <schema.yaml>` per the
-/// `dont-linkml-import` spec.  The adapter:
-///
-/// * **Refuses** schemas with reified slots, SPARQL-evaluated expressions,
-///   or `python_class` injections — returning `linkml-unsupported-feature`
-///   and listing every offending construct.  No terms are stored on
-///   refusal (no partial state).
-///
-/// * **Warns** about approximate translations of `permissible_values` enums,
-///   string-pattern constraints, and value-range constraints.
-///
-/// * **Silently flattens** `is_a` inheritance (represented as a `kind_of`
-///   chain) and mixin attribute sets.
-///
-/// * **Lowers** class and slot definitions to local import relations (term
-///   records) that `dont` can check.
-///
-/// The adapter parses the schema in-process.  When the LinkML CLI is
-/// available it may be used as a secondary validation step; when it is
-/// absent the in-process path is authoritative.
-
+//! LinkML import adapter.
+//!
+//! Implements `dont import linkml <schema.yaml>` per the
+//! `dont-linkml-import` spec. The adapter:
+//!
+//! * **Refuses** schemas with reified slots, SPARQL-evaluated expressions,
+//!   or `python_class` injections — returning `linkml-unsupported-feature`
+//!   and listing every offending construct. No terms are stored on refusal
+//!   (no partial state).
+//!
+//! * **Warns** about approximate translations of `permissible_values` enums,
+//!   string-pattern constraints, and value-range constraints.
+//!
+//! * **Silently flattens** `is_a` inheritance (represented as a `kind_of`
+//!   chain) and mixin attribute sets.
+//!
+//! * **Lowers** class and slot definitions to local import relations (term
+//!   records) that `dont` can check.
+//!
+//! The adapter parses the schema in-process. When the LinkML CLI is available
+//! it may be used as a secondary validation step; when it is absent the
+//! in-process path is authoritative.
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -332,7 +331,7 @@ fn derive_curie(
     // Use the schema id (URL) as the prefix base.
     let base = schema_prefix
         .split('/')
-        .last()
+        .next_back()
         .unwrap_or(schema_prefix)
         .trim_end_matches(':');
     format!("{base}:{class_name}")

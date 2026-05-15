@@ -48,7 +48,7 @@ fn collect_evidence(events: &[EventRecord]) -> Vec<Value> {
 }
 
 #[cfg(test)]
-mod correlated_error {
+mod correlated_error_tests {
     use tempfile::TempDir;
 
     use super::*;

@@ -94,7 +94,7 @@ fn independent_evidence_count(events: &[EventRecord]) -> usize {
 }
 
 #[cfg(test)]
-mod lockable {
+mod lockable_tests {
     use tempfile::TempDir;
 
     use super::*;

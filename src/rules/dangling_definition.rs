@@ -29,7 +29,7 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
 }
 
 #[cfg(test)]
-mod dangling_definition {
+mod dangling_definition_tests {
     use tempfile::TempDir;
 
     use super::*;
@@ -45,7 +45,7 @@ mod dangling_definition {
         let store = make_store(&dir);
         let term = store.append_term("ns:concept", "", None).unwrap();
         store
-            .append_claim("a claim", &[term.id.clone()], None)
+            .append_claim("a claim", std::slice::from_ref(&term.id), None)
             .unwrap();
         assert!(check(&store).unwrap().is_empty());
     }

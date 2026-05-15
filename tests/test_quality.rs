@@ -168,7 +168,7 @@ fn collect_cfg_test_impl_violations(dir: &std::path::Path, out: &mut Vec<String>
                     ));
                 }
 
-                if brace_depth <= 0 && brace_depth < 0 {
+                if brace_depth < 0 {
                     // We've exited all braces: guard section ended
                     in_cfg_test = false;
                 }
@@ -496,8 +496,13 @@ fn collect_violations(dir: &std::path::Path, anti_patterns: &[&str], out: &mut V
                 continue;
             }
             // Look ahead up to 4 lines for the fn declaration
-            for j in (i + 1)..std::cmp::min(i + 5, lines.len()) {
-                let trimmed = lines[j].trim();
+            for (j, lookahead) in lines
+                .iter()
+                .enumerate()
+                .take(std::cmp::min(i + 5, lines.len()))
+                .skip(i + 1)
+            {
+                let trimmed = lookahead.trim();
                 if let Some(rest) = trimmed.strip_prefix("fn ") {
                     let fn_name = rest.split('(').next().unwrap_or("").trim();
                     for pat in anti_patterns {

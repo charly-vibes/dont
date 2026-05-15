@@ -264,51 +264,51 @@ impl Config {
         }
 
         // [verify_evidence].default_timeout_s must be >= 1 when set.
-        if let Some(t) = self.verify_evidence.default_timeout_s {
-            if t == 0 {
-                return Err(ConfigValidationError {
-                    message:
-                        "config field `verify_evidence.default_timeout_s` must be >= 1; \
-                         got 0 — a zero-second timeout makes all evidence checks fail immediately"
-                            .to_string(),
-                });
-            }
+        if let Some(t) = self.verify_evidence.default_timeout_s
+            && t == 0
+        {
+            return Err(ConfigValidationError {
+                message:
+                    "config field `verify_evidence.default_timeout_s` must be >= 1; \
+                     got 0 — a zero-second timeout makes all evidence checks fail immediately"
+                        .to_string(),
+            });
         }
 
         // [verify_evidence].concurrency must be >= 1 when set.
-        if let Some(c) = self.verify_evidence.concurrency {
-            if c == 0 {
-                return Err(ConfigValidationError {
-                    message:
-                        "config field `verify_evidence.concurrency` must be >= 1; \
-                         got 0 — a concurrency of zero would stall all evidence verification"
-                            .to_string(),
-                });
-            }
+        if let Some(c) = self.verify_evidence.concurrency
+            && c == 0
+        {
+            return Err(ConfigValidationError {
+                message:
+                    "config field `verify_evidence.concurrency` must be >= 1; \
+                     got 0 — a concurrency of zero would stall all evidence verification"
+                        .to_string(),
+            });
         }
 
         // [verify_evidence].burst_per_host must be >= 1 when set.
-        if let Some(b) = self.verify_evidence.burst_per_host {
-            if b == 0 {
-                return Err(ConfigValidationError {
-                    message:
-                        "config field `verify_evidence.burst_per_host` must be >= 1; \
-                         got 0 — a burst size of zero makes rate limiting block all requests"
-                            .to_string(),
-                });
-            }
+        if let Some(b) = self.verify_evidence.burst_per_host
+            && b == 0
+        {
+            return Err(ConfigValidationError {
+                message:
+                    "config field `verify_evidence.burst_per_host` must be >= 1; \
+                     got 0 — a burst size of zero makes rate limiting block all requests"
+                        .to_string(),
+            });
         }
 
         // [verify_evidence].rate_limit_per_host must be > 0.0 when set.
-        if let Some(r) = self.verify_evidence.rate_limit_per_host {
-            if r <= 0.0 {
-                return Err(ConfigValidationError {
-                    message: format!(
-                        "config field `verify_evidence.rate_limit_per_host` must be > 0; \
-                         got {r} — a non-positive rate limit makes evidence verification impossible"
-                    ),
-                });
-            }
+        if let Some(r) = self.verify_evidence.rate_limit_per_host
+            && r <= 0.0
+        {
+            return Err(ConfigValidationError {
+                message: format!(
+                    "config field `verify_evidence.rate_limit_per_host` must be > 0; \
+                     got {r} — a non-positive rate limit makes evidence verification impossible"
+                ),
+            });
         }
 
         Ok(())

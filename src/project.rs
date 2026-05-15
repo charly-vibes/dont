@@ -408,7 +408,7 @@ impl Project {
                     .and_then(|m| m.as_str())
                     .map(|s| s.to_string())
             })
-            .last();
+            .next_back();
         let Some(recorded) = last_recorded_mode else {
             // No mode event found — project predates mode tracking. Write a baseline
             // so future changes are detectable without false-positives.

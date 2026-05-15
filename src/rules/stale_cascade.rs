@@ -22,17 +22,17 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
             } else {
                 store.term_by_curie(dep)?
             };
-            if let Some(term) = term {
-                if matches!(term.status, StoreStatus::Unverified | StoreStatus::Doubted) {
-                    matches.push(RuleMatch {
-                        entity_id: claim.id.clone(),
-                        detail: format!(
-                            "depends on '{}' with status '{}'",
-                            term.curie,
-                            term.status.as_str()
-                        ),
-                    });
-                }
+            if let Some(term) = term
+                && matches!(term.status, StoreStatus::Unverified | StoreStatus::Doubted)
+            {
+                matches.push(RuleMatch {
+                    entity_id: claim.id.clone(),
+                    detail: format!(
+                        "depends on '{}' with status '{}'",
+                        term.curie,
+                        term.status.as_str()
+                    ),
+                });
             }
         }
     }
@@ -40,7 +40,7 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
 }
 
 #[cfg(test)]
-mod stale_cascade {
+mod stale_cascade_tests {
     use tempfile::TempDir;
 
     use super::*;

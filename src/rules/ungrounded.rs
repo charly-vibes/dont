@@ -28,7 +28,7 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
 }
 
 #[cfg(test)]
-mod ungrounded {
+mod ungrounded_tests {
     use tempfile::TempDir;
 
     use super::*;

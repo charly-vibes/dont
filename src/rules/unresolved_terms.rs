@@ -29,7 +29,7 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
 }
 
 #[cfg(test)]
-mod unresolved_terms {
+mod unresolved_terms_tests {
     use tempfile::TempDir;
 
     use super::*;

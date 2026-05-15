@@ -740,23 +740,6 @@ fn cwd() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn arg_present(args: &[String], long: &str, short: &str) -> bool {
-    args.iter().any(|arg| arg == long || arg == short)
-}
-
-fn author_from_args(args: &[String]) -> Option<String> {
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        if arg == "--author" || arg == "-a" {
-            return iter.next().cloned();
-        }
-        if let Some(value) = arg.strip_prefix("--author=") {
-            return Some(value.to_string());
-        }
-    }
-    None
-}
-
 fn emit_json<T: serde::Serialize>(envelope: &T) {
     if human_mode() {
         let v = serde_json::to_value(envelope).unwrap();
