@@ -19,7 +19,7 @@ use dont::model::{
     trust as model_trust, undoubt as model_undoubt,
 };
 use dont::project::{Project, ProjectError, ProjectMode};
-use dont::rules::{RuleError, SHIPPED_RULES};
+use dont::rules::{RuleError, shipped_rule_names};
 use dont::store::{
     AppendResult, ClaimRecord, EntityResolution, EventRecord, HypothesisRecord, Store, StoreError,
     StoreEvent, StoreEventKind, TermRecord,
@@ -4917,8 +4917,7 @@ fn main() {
 
             match action {
                 RulesAction::List => {
-                    let mut rules: Vec<RuleInfo> = SHIPPED_RULES
-                        .iter()
+                    let mut rules: Vec<RuleInfo> = shipped_rule_names()
                         .map(|name| RuleInfo {
                             name: name.to_string(),
                             severity: severity_label(engine.severity(name)),
@@ -4932,7 +4931,7 @@ fn main() {
                             .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("dl"))
                             .filter_map(|e| {
                                 let stem = e.path().file_stem()?.to_str()?.to_string();
-                                if SHIPPED_RULES.contains(&stem.as_str()) {
+                                if shipped_rule_names().any(|n| n == stem) {
                                     return None;
                                 }
                                 Some(RuleInfo {
@@ -4950,7 +4949,7 @@ fn main() {
                 }
 
                 RulesAction::Show { name } => {
-                    if SHIPPED_RULES.contains(&name.as_str()) {
+                    if shipped_rule_names().any(|n| n == name) {
                         let detail = RuleDetail {
                             name: name.clone(),
                             severity: severity_label(engine.severity(&name)),
@@ -5024,7 +5023,7 @@ fn main() {
                         ),
                     };
 
-                    if SHIPPED_RULES.contains(&rule_name) {
+                    if shipped_rule_names().any(|n| n == rule_name) {
                         emit_error_and_exit(
                             refusal(
                                 "cannot-shadow-shipped-rule",

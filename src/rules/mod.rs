@@ -14,30 +14,101 @@ pub mod term_nonfunctional_label;
 pub mod ungrounded;
 pub mod unresolved_terms;
 
-pub const SHIPPED_RULES: &[&str] = &[
-    "ungrounded",
-    "unresolved-terms",
-    "stale-cascade",
-    "lockable",
-    "correlated-error",
-    "dangling-definition",
-    "term-nonfunctional-label",
-    "rule-claim-structure",
+/// Single source of truth for a shipped rule: name, explanation, and check
+/// function — collapsing what used to be three drift-prone dispatch tables
+/// (list, explain, evaluate_shipped) into one catalog.
+pub struct ShippedRule {
+    pub name: &'static str,
+    pub explanation: &'static str,
+    check: fn(&Store, &RulesConfig) -> Result<Vec<RuleMatch>, StoreError>,
+}
+
+fn check_ungrounded(store: &Store, _: &RulesConfig) -> Result<Vec<RuleMatch>, StoreError> {
+    ungrounded::check(store)
+}
+fn check_unresolved_terms(store: &Store, _: &RulesConfig) -> Result<Vec<RuleMatch>, StoreError> {
+    unresolved_terms::check(store)
+}
+fn check_stale_cascade(store: &Store, _: &RulesConfig) -> Result<Vec<RuleMatch>, StoreError> {
+    stale_cascade::check(store)
+}
+fn check_lockable(store: &Store, _: &RulesConfig) -> Result<Vec<RuleMatch>, StoreError> {
+    lockable::check(store)
+}
+fn check_correlated_error(store: &Store, _: &RulesConfig) -> Result<Vec<RuleMatch>, StoreError> {
+    correlated_error::check(store)
+}
+fn check_dangling_definition(store: &Store, _: &RulesConfig) -> Result<Vec<RuleMatch>, StoreError> {
+    dangling_definition::check(store)
+}
+fn check_term_nonfunctional_label(
+    store: &Store,
+    config: &RulesConfig,
+) -> Result<Vec<RuleMatch>, StoreError> {
+    term_nonfunctional_label::check(store, &config.term_nonfunctional)
+}
+fn check_rule_claim_structure(
+    store: &Store,
+    config: &RulesConfig,
+) -> Result<Vec<RuleMatch>, StoreError> {
+    rule_claim_structure::check(store, &config.rule_claim_structure)
+}
+
+pub const SHIPPED_RULE_CATALOG: &[ShippedRule] = &[
+    ShippedRule {
+        name: "ungrounded",
+        explanation: ungrounded::EXPLANATION,
+        check: check_ungrounded,
+    },
+    ShippedRule {
+        name: "unresolved-terms",
+        explanation: unresolved_terms::EXPLANATION,
+        check: check_unresolved_terms,
+    },
+    ShippedRule {
+        name: "stale-cascade",
+        explanation: stale_cascade::EXPLANATION,
+        check: check_stale_cascade,
+    },
+    ShippedRule {
+        name: "lockable",
+        explanation: lockable::EXPLANATION,
+        check: check_lockable,
+    },
+    ShippedRule {
+        name: "correlated-error",
+        explanation: correlated_error::EXPLANATION,
+        check: check_correlated_error,
+    },
+    ShippedRule {
+        name: "dangling-definition",
+        explanation: dangling_definition::EXPLANATION,
+        check: check_dangling_definition,
+    },
+    ShippedRule {
+        name: "term-nonfunctional-label",
+        explanation: term_nonfunctional_label::EXPLANATION,
+        check: check_term_nonfunctional_label,
+    },
+    ShippedRule {
+        name: "rule-claim-structure",
+        explanation: rule_claim_structure::EXPLANATION,
+        check: check_rule_claim_structure,
+    },
 ];
+
+fn shipped_rule(name: &str) -> Option<&'static ShippedRule> {
+    SHIPPED_RULE_CATALOG.iter().find(|r| r.name == name)
+}
+
+/// Returns the names of all shipped rules.
+pub fn shipped_rule_names() -> impl Iterator<Item = &'static str> {
+    SHIPPED_RULE_CATALOG.iter().map(|r| r.name)
+}
 
 /// Returns the embedded prose explanation for a shipped rule, or `None` if unknown.
 pub fn explain(rule_name: &str) -> Option<&'static str> {
-    match rule_name {
-        "ungrounded" => Some(ungrounded::EXPLANATION),
-        "unresolved-terms" => Some(unresolved_terms::EXPLANATION),
-        "stale-cascade" => Some(stale_cascade::EXPLANATION),
-        "lockable" => Some(lockable::EXPLANATION),
-        "correlated-error" => Some(correlated_error::EXPLANATION),
-        "dangling-definition" => Some(dangling_definition::EXPLANATION),
-        "term-nonfunctional-label" => Some(term_nonfunctional_label::EXPLANATION),
-        "rule-claim-structure" => Some(rule_claim_structure::EXPLANATION),
-        _ => None,
-    }
+    shipped_rule(rule_name).map(|r| r.explanation)
 }
 
 #[derive(Debug, Clone)]
@@ -122,22 +193,8 @@ impl RuleEngine {
         store: &Store,
         rule_name: &str,
     ) -> Option<Result<Vec<RuleMatch>, RuleError>> {
-        let result = match rule_name {
-            "ungrounded" => ungrounded::check(store),
-            "unresolved-terms" => unresolved_terms::check(store),
-            "stale-cascade" => stale_cascade::check(store),
-            "lockable" => lockable::check(store),
-            "correlated-error" => correlated_error::check(store),
-            "dangling-definition" => dangling_definition::check(store),
-            "term-nonfunctional-label" => {
-                term_nonfunctional_label::check(store, &self.config.term_nonfunctional)
-            }
-            "rule-claim-structure" => {
-                rule_claim_structure::check(store, &self.config.rule_claim_structure)
-            }
-            _ => return None,
-        };
-        Some(result.map_err(RuleError::Store))
+        let rule = shipped_rule(rule_name)?;
+        Some((rule.check)(store, &self.config).map_err(RuleError::Store))
     }
 
     /// Load `<rule_name>.dl` from the rules directory and evaluate it against `store`.
@@ -390,38 +447,22 @@ mod engine {
         );
     }
 
-    /// Invariant: every name in SHIPPED_RULES must be dispatchable via evaluate_shipped.
-    ///
-    /// This guards against SHIPPED_RULES and the evaluate_shipped match arm drifting apart —
-    /// e.g. a rule added to the list but forgotten in the dispatch table.
     #[test]
     fn all_shipped_rules_dispatch_via_evaluate_shipped() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         let engine = make_engine(&dir, RulesConfig::default(), false);
 
-        for rule in SHIPPED_RULES {
+        for rule in shipped_rule_names() {
             let result = engine.evaluate_shipped(&store, rule);
-            assert!(
-                result.is_some(),
-                "SHIPPED_RULES contains '{rule}' but evaluate_shipped returned None — \
-                 the dispatch table is missing an arm for this rule"
-            );
+            assert!(result.is_some(), "{rule} must dispatch");
         }
     }
 
-    /// Invariant: every name in SHIPPED_RULES must have an explanation string.
-    ///
-    /// Guards against a rule being registered without a companion .md file
-    /// (the explain() function would return None if the include_str! is missing).
     #[test]
     fn all_shipped_rules_have_explanation() {
-        for rule in SHIPPED_RULES {
-            assert!(
-                explain(rule).is_some(),
-                "SHIPPED_RULES contains '{rule}' but explain() returned None — \
-                 the rule is missing a pub const EXPLANATION or an explain() arm"
-            );
+        for rule in shipped_rule_names() {
+            assert!(explain(rule).is_some(), "{rule} must have explanation");
         }
     }
 
@@ -430,8 +471,8 @@ mod engine {
     #[test]
     fn vague_reason_is_not_in_shipped_rules() {
         assert!(
-            !SHIPPED_RULES.contains(&"vague-reason"),
-            "vague-reason must not appear in SHIPPED_RULES — it was removed in v0.3 \
+            !shipped_rule_names().any(|n| n == "vague-reason"),
+            "vague-reason must not appear in the shipped rule catalog — it was removed in v0.3 \
              and replaced by verb-level validators"
         );
     }
