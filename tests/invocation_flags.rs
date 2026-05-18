@@ -112,8 +112,10 @@ fn direct_flag_is_accepted_without_error() {
 #[test]
 fn lock_without_project_emits_error_envelope() {
     // lock is now a real alias for forget; without a project it fails with no-project-found
+    let dir = TempDir::new().unwrap();
     let out = dont()
         .args(["--json", "lock", "claim:123"])
+        .env("DONT_DIR", dir.path().join("nonexistent"))
         .assert()
         .code(3)
         .get_output()
