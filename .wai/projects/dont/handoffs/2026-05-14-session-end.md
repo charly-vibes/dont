@@ -35,14 +35,7 @@ phase: implement
 ### git_status
 
 ```
- M .wai/.pipeline-run
- M .wai/resources/pipelines/.last-run
 ?? .claude/worktrees/
-?? .wai/pipeline-runs/epic-tdd-ro5-2026-05-14-spec-align-round2.yml
-?? .wai/projects/dont/plans/2026-05-14-epic-spec-align-round2-work-queue-dont-lc2z-dont.md
-?? .wai/projects/dont/research/2026-05-14-epic-spec-align-round2-shipped.md
-?? .wai/projects/dont/research/2026-05-14-epic-spec-align-round2-verified-complete-11-tick.md
-?? .wai/projects/dont/research/2026-05-14-processed-tickets-for-epic-spec-align-round2-dont.md
 ```
 
 ### open_issues
