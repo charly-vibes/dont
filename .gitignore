@@ -15,6 +15,7 @@ docs/_book/
 target/
 .dont/*
 !.dont/AGENTS.md
+!.dont/config.toml
 
 # Local notes
 *.tmp

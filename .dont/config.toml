@@ -1,0 +1,17 @@
+[project]
+name = "dont-project"
+mode = "permissive"
+
+[output]
+default_format = "json"
+
+[trust.hedges]
+patterns = ["i think", "maybe", "not sure", "probably"]
+
+[storage]
+busy_retry_attempts = 5
+busy_retry_base_ms = 100
+
+[rules.rule_claim_structure]
+enabled = false
+tag_term_id = "term:01KR4TNRGHVPRZQ1Z95GFZN4ZQ"
