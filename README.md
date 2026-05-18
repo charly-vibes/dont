@@ -17,6 +17,45 @@
 
 Without a gate like `dont`, an agent composes an answer from plausible-sounding steps and ships it. With `dont`, each claim in the agent's output carries a proof obligation — and the pipeline halts until that obligation is met. The result: fewer confident hallucinations reaching downstream systems or users.
 
+## Install
+
+**Prerequisites**: [Rust toolchain](https://rustup.rs) (stable).
+
+```bash
+git clone https://github.com/charly-vibes/dont
+cd dont
+just install        # cargo install --path . --locked
+```
+
+The `dont` binary is installed to `~/.cargo/bin/dont`. Confirm with:
+
+```bash
+dont --version
+```
+
+## Quick Start
+
+Initialize `dont` in a project, then introduce and verify a claim:
+
+```bash
+# 1. Initialize claim tracking in the current project
+dont init
+
+# 2. Record an unverified claim
+dont conclude "The primary database uses optimistic locking"
+
+# 3. List all claims (output shows claim IDs and statuses)
+dont list --human
+
+# 4. Verify a claim with evidence
+dont flag claim:<ID> --evidence "https://example.com/db-docs#locking" --human
+
+# 5. See project summary
+dont prime --human
+```
+
+Claims flow through states: `unverified` → `verified` (via `dont flag`) or `doubted` (via `dont trust`). Use `dont ignore` to suppress a claim; `dont lock` to permanently preserve a verified claim.
+
 ## Status
 
 dont is in design phase — the spec is the artifact. Contributions to the specification are welcome.
