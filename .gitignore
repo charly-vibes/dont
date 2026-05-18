@@ -16,6 +16,24 @@ target/
 .dont/*
 !.dont/AGENTS.md
 !.dont/config.toml
+!.dont/seed/
+!.dont/vocab/
+!.dont/rules/
+!.dont/imports/
+!.dont/sessions/
+!.dont/schemas/
+.dont/seed/*
+.dont/vocab/*
+.dont/rules/*
+.dont/imports/*
+.dont/sessions/*
+.dont/schemas/*
+!.dont/seed/.gitkeep
+!.dont/vocab/.gitkeep
+!.dont/rules/.gitkeep
+!.dont/imports/.gitkeep
+!.dont/sessions/.gitkeep
+!.dont/schemas/.gitkeep
 
 # Local notes
 *.tmp
