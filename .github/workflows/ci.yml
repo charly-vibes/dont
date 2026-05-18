@@ -28,7 +28,6 @@ jobs:
           curl -fsSL https://github.com/errata-ai/vale/releases/download/v3.14.1/vale_3.14.1_Linux_64-bit.tar.gz -o vale.tar.gz
           tar -xzf vale.tar.gz
           sudo mv vale /usr/local/bin/vale
-          vale sync
 
       - name: Install wai
         run: cargo install --git https://github.com/charly-vibes/wai.git wai
