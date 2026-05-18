@@ -115,7 +115,7 @@ fn lock_without_project_emits_error_envelope() {
     let out = dont()
         .args(["--json", "lock", "claim:123"])
         .assert()
-        .code(1)
+        .code(3)
         .get_output()
         .stdout
         .clone();
