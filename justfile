@@ -49,7 +49,8 @@ docs-build:
   mdbook build
 
 check-claims:
-  dont prime
+  cargo build --quiet
+  ./target/debug/dont prime
 
 ci:
   just test
