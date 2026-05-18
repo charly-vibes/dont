@@ -13,7 +13,8 @@
 .cache/
 docs/_book/
 target/
-.dont/
+.dont/*
+!.dont/AGENTS.md
 
 # Local notes
 *.tmp
