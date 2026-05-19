@@ -4,37 +4,33 @@
 TBD - created by archiving change add-dont-harness-specs. Update Purpose after archive.
 ## Requirements
 ### Requirement: List and vocabulary query scopes
-The system SHALL provide read-only collection queries for claims and terms. `dont list` MUST return claims by default, filtered by optional `--status`, `--derived-assessment`, and `--as-of` arguments. `--status` SHALL match only persisted lifecycle status; `--derived-assessment` SHALL match computed assessments such as `stale` without treating them as statuses. `dont vocab` MUST return terms by default with the same filter semantics. `dont list --all` MUST include terms, and `dont vocab` MUST remain equivalent to `list --kind term`.
+The system SHALL provide read-only collection queries for claims and terms. `dont list` MUST return claims by default, filtered by optional `--status` and `--kind` arguments. `--status` SHALL match only persisted lifecycle status. `dont list --kind terms` MUST return term entities with the same filter semantics. `dont list --kind claims` is equivalent to bare `dont list`.
+
+> **Not yet implemented**: `--derived-assessment` (filter by computed assessments such as `stale`), `--as-of` (historical slice query), `dont list --all` (include both claims and terms), and the `dont vocab` alias for `dont list --kind terms`. These are planned but not available in the current implementation. When implemented, `--derived-assessment` SHALL match computed assessments without treating them as persisted statuses; `--as-of` SHALL evaluate entity state at a historical transaction point; `dont vocab` SHALL remain equivalent to `dont list --kind terms`.
 
 #### Scenario: list defaults to claims
 - **WHEN** the caller runs `dont list --json`
 - **THEN** the command returns `envelope_kind: "claims"`
 - **AND** the payload contains claims rather than terms by default
 
-#### Scenario: vocab narrows to terms
-- **WHEN** the caller runs `dont vocab --status unverified --json`
-- **THEN** the command returns only term entities matching that status filter
+#### Scenario: list --kind terms narrows to terms
+- **WHEN** the caller runs `dont list --kind terms --status unverified --json`
+- **THEN** the command returns `envelope_kind: "terms"` with only term entities matching that status filter
 
-#### Scenario: list filters by derived assessment separately from status
-- **WHEN** the caller runs `dont list --derived-assessment stale --json`
-- **THEN** the command returns claims whose computed `derived_assessments[]` contains `stale`
-- **AND** it does not require those claims to have persisted status `stale`
-
-#### Scenario: as-of produces historical slice
-- **WHEN** the caller supplies `--as-of <timestamp>` to `dont list` or `dont vocab`
-- **THEN** the query evaluates entity state at that historical point rather than at the latest transaction
+#### Scenario: why explains current blockers
+- **WHEN** the caller runs `dont why claim:01HX05A9K8VP --json`
+- **THEN** the response includes the entity, its events, and the rules currently applicable to it
+- **AND** unmet rules include remediation context the caller can act on
 
 ### Requirement: Entity inspection queries
-The system SHALL provide `dont show <entity-id>` for the current view of one entity and `dont why <entity-id>` for the current view plus explanatory context. `dont show --history` MUST include the entity's event timeline. `dont why` MUST include the entity, its events, and all currently applicable rules with remediation for unmet conditions.
+The system SHALL provide `dont show <entity-id>` for the current view of one entity and `dont why <entity-id>` for the current view plus explanatory context. `dont show` MUST include the entity's event timeline in the response. `dont why` MUST include the entity, its events, and all currently applicable rules with remediation for unmet conditions.
 
-#### Scenario: show returns current entity view
+> **Note**: The `ClaimView` returned by `dont show` always includes an `events` array in its payload. There is no `--history` flag — the event timeline is unconditionally present. The spec originally described a `--history` opt-in flag; the actual design bundles events into every `ClaimView` response instead.
+
+#### Scenario: show returns current entity view with events
 - **WHEN** the caller runs `dont show claim:01HX05A9K8VP --json`
 - **THEN** the command returns the current `ClaimView` or `TermView` for that entity
-- **AND** the default response omits the full event timeline unless `--history` is set
-
-#### Scenario: show history includes timeline
-- **WHEN** the caller runs `dont show claim:01HX05A9K8VP --history --json`
-- **THEN** the response includes the entity's event timeline in addition to the current view
+- **AND** the response includes the entity's `events` array unconditionally
 
 #### Scenario: why explains current blockers
 - **WHEN** the caller runs `dont why claim:01HX05A9K8VP --json`
