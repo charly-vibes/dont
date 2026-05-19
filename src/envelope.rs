@@ -22,6 +22,7 @@ pub enum EnvelopeKind {
     Claims,
     Term,
     Terms,
+    All,
     Trace,
     Rule,
     RuleList,
