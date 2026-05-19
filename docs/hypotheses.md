@@ -22,32 +22,34 @@ dont conclude "API calls to the pricing endpoint are timing out intermittently"
 
 **2. Add competing hypotheses:**
 
-You can add hypotheses at any point before locking — before or after gathering initial evidence.
+You can add hypotheses at any point before locking — before or after gathering initial evidence. Each hypothesis is assigned a 0-based index in the order it was added.
 
 ```bash
 dont hypothesis add claim-abc --text "The upstream rate limit is being hit on burst traffic"
-# → hypothesis-001
+# → index 0
 
 dont hypothesis add claim-abc --text "A database lock contention slows queries beyond the client timeout"
-# → hypothesis-002
+# → index 1
 
 dont hypothesis add claim-abc --text "TLS handshake overhead on cold connections is the bottleneck"
-# → hypothesis-003
+# → index 2
 ```
 
 **3. Assess each with evidence:**
 
 Both `dont flag` calls and `--supporting` assessments count as independent evidence sources toward the lockability threshold.
 
+Hypotheses are referenced by their 0-based index (use `dont show <claim-id>` to see indices).
+
 ```bash
-# Found rate limit logs — supports hypothesis-001
-dont hypothesis assess claim-abc hypothesis-001 --supporting logs/api-2026-05-07.log --lines 144-151
+# Found rate limit logs — supports hypothesis 0
+dont hypothesis assess claim-abc 0 --supporting logs/api-2026-05-07.log --lines 144-151
 
 # Checked DB profiler — no long-running queries during timeout windows
-dont hypothesis assess claim-abc hypothesis-002 --refuting reports/db-profile.txt
+dont hypothesis assess claim-abc 1 --refuting reports/db-profile.txt
 
 # TLS session reuse is enabled — refuted
-dont hypothesis assess claim-abc hypothesis-003 --refuting src/client.rs --lines 88-94
+dont hypothesis assess claim-abc 2 --refuting src/client.rs --lines 88-94
 ```
 
 **4. Flag the surviving hypothesis as evidence for the claim:**
@@ -76,19 +78,19 @@ dont conclude "The API client correctly handles all three authentication scenari
 # → claim-xyz
 
 dont atom define claim-xyz --text "Bearer token auth returns 200 on valid credentials"
-# → atom-001
+# → index 0
 
 dont atom define claim-xyz --text "Expired token triggers refresh and retries the request"
-# → atom-002
+# → index 1
 
 dont atom define claim-xyz --text "Missing credentials return 403 without retry"
-# → atom-003
+# → index 2
 ```
 
-Dismiss each atom as you verify it:
+Dismiss each atom as you verify it, using its 0-based index:
 
 ```bash
-dont atom dismiss claim-xyz atom-001 --file tests/auth_test.rs --lines 12-28
-dont atom dismiss claim-xyz atom-002 --file tests/auth_test.rs --lines 31-55
-dont atom dismiss claim-xyz atom-003 --file tests/auth_test.rs --lines 58-74
+dont atom dismiss claim-xyz 0 --evidence tests/auth_test.rs --lines 12-28
+dont atom dismiss claim-xyz 1 --evidence tests/auth_test.rs --lines 31-55
+dont atom dismiss claim-xyz 2 --evidence tests/auth_test.rs --lines 58-74
 ```
