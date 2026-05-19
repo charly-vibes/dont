@@ -306,6 +306,13 @@ enum Command {
         kind: Option<String>,
     },
 
+    /// List defined terms (alias for `list --kind term`).
+    Vocab {
+        /// Filter terms by status.
+        #[arg(long)]
+        status: Option<String>,
+    },
+
     /// Explain the blocker-path for a claim or term.
     Trace {
         /// Entity identifier (claim:... or term:...).
@@ -4411,6 +4418,50 @@ fn main() {
                     emit_json(&env);
                 }
             }
+        }
+
+        Command::Vocab { status } => {
+            let project = open_project_or_exit();
+            let status_filter = match status {
+                Some(raw) => match parse_claim_status_filter(&raw) {
+                    Some(status) => Some(status),
+                    None => emit_error_and_exit(
+                        refusal(
+                            "invalid-status",
+                            &format!(
+                                "unsupported status '{raw}'; expected one of: unverified, verified, doubted, ignored"
+                            ),
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont vocab --status unverified".to_string(),
+                                description: "Use one of: unverified, verified, doubted, ignored"
+                                    .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                },
+                None => None,
+            };
+            let mut terms = match project.store.list_terms() {
+                Ok(t) => t,
+                Err(err) => handle_store_error(err, None),
+            };
+            if let Some(status_filter) = status_filter {
+                terms.retain(|term| term.status == status_filter);
+            }
+            terms.sort_by(|a, b| {
+                b.created_at
+                    .cmp(&a.created_at)
+                    .then_with(|| b.id.cmp(&a.id))
+            });
+            let views: Vec<Value> = terms
+                .iter()
+                .map(|term| build_term_view(term, &project.store))
+                .collect();
+            let env = Envelope::success(EnvelopeKind::Terms, views, vec![], vec![]);
+            emit_json(&env);
         }
 
         Command::Trace { id } => {
