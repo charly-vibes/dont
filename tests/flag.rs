@@ -342,10 +342,16 @@ fn flag_no_evidence_without_file_flag_refused() {
 // --- Git provenance helpers ---
 
 fn init_git_repo(dir: &TempDir) {
+    // Unset git hook environment variables so that `git init` creates a new
+    // isolated repo in `dir` rather than re-initialising the outer repo that
+    // is running the pre-push hook.
     let run = |args: &[&str]| {
         std::process::Command::new("git")
             .args(args)
             .current_dir(dir.path())
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .output()
             .unwrap();
     };
@@ -359,6 +365,9 @@ fn git_add_commit(dir: &TempDir, file: &str) {
         std::process::Command::new("git")
             .args(args)
             .current_dir(dir.path())
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .output()
             .unwrap();
     };
@@ -370,6 +379,9 @@ fn git_stage(dir: &TempDir, file: &str) {
     std::process::Command::new("git")
         .args(["add", file])
         .current_dir(dir.path())
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
         .output()
         .unwrap();
 }
