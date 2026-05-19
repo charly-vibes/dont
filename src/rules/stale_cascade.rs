@@ -65,7 +65,7 @@ mod stale_cascade_tests {
                 claim_id,
                 Status::Unverified,
                 Status::Verified,
-                StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
+                StoreEvent { kind: StoreEventKind::Trusted, note: None, evidence: vec![] },
             )
             .unwrap();
     }
