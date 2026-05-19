@@ -680,6 +680,98 @@ fn flag_malformed_evidence_uri_does_not_change_claim_status() {
     );
 }
 
+// --- Multi-file evidence accumulation ---
+
+/// Two sequential `--file` invocations on different files accumulate both
+/// structured locators under `dont show --json`.
+#[test]
+fn flag_multi_file_evidence_both_appear_in_show() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    std::fs::write(dir.path().join("docs.md"), "documentation content\n").unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/impl.rs"), "fn main() {}\n").unwrap();
+    let id = conclude_claim(&dir, "claim supported by two separate source files");
+
+    // First file evidence
+    let out1 = flag_file(&dir, &id, &["--file", "docs.md"]);
+    let v1: Value = serde_json::from_slice(&out1).unwrap();
+    assert_eq!(v1["ok"], true, "first --file flag should succeed: {v1}");
+
+    // Second file evidence — different path
+    let out2 = flag_file(&dir, &id, &["--file", "src/impl.rs"]);
+    let v2: Value = serde_json::from_slice(&out2).unwrap();
+    assert_eq!(v2["ok"], true, "second --file flag should succeed: {v2}");
+
+    // Verify via `dont show --json` that both locators are present
+    let show_out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let sv: Value = serde_json::from_slice(&show_out).unwrap();
+    assert_eq!(sv["ok"], true, "show must succeed: {sv}");
+    let evidence = sv["data"]["evidence"].as_array().unwrap();
+    assert_eq!(
+        evidence.iter().filter(|e| e.is_object()).count(),
+        2,
+        "show must expose exactly two repo-file locators; got: {evidence:?}"
+    );
+    let paths: Vec<&str> = evidence
+        .iter()
+        .filter_map(|e| e["path"].as_str())
+        .collect();
+    assert!(paths.contains(&"docs.md"), "docs.md locator missing from show: {paths:?}");
+    assert!(paths.contains(&"src/impl.rs"), "src/impl.rs locator missing from show: {paths:?}");
+}
+
+/// `dont why --json` exposes both file locators in `data.entity.evidence`
+/// when two different files have been flagged against the same claim.
+#[test]
+fn flag_multi_file_evidence_both_appear_in_why() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    std::fs::write(dir.path().join("spec.md"), "spec content\n").unwrap();
+    std::fs::write(dir.path().join("test.rs"), "// test\n").unwrap();
+    let id = conclude_claim(&dir, "claim verifiable from spec and test file");
+
+    flag_file(&dir, &id, &["--file", "spec.md"]);
+    flag_file(&dir, &id, &["--file", "test.rs"]);
+
+    let why_out = dont()
+        .args(["why", &id, "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let wv: Value = serde_json::from_slice(&why_out).unwrap();
+    assert_eq!(wv["ok"], true, "why must succeed: {wv}");
+
+    // `data.entity.evidence` mirrors the claim view
+    let evidence = wv["data"]["entity"]["evidence"].as_array().unwrap();
+    assert_eq!(
+        evidence.iter().filter(|e| e.is_object()).count(),
+        2,
+        "why must expose exactly two repo-file locators; got: {evidence:?}"
+    );
+    let paths: Vec<&str> = evidence
+        .iter()
+        .filter_map(|e| e["path"].as_str())
+        .collect();
+    assert!(paths.contains(&"spec.md"), "spec.md locator missing from why: {paths:?}");
+    assert!(paths.contains(&"test.rs"), "test.rs locator missing from why: {paths:?}");
+
+    // `data.history` must contain two flagged events
+    let history = wv["data"]["history"].as_array().unwrap();
+    let flagged_count = history.iter().filter(|h| h["event_kind"] == "flagged").count();
+    assert_eq!(flagged_count, 2, "why history must show two flagged events; got: {history:?}");
+}
+
 /// A `file:` scheme URI is not an accepted evidence scheme; it must be rejected.
 #[test]
 fn flag_file_scheme_uri_is_rejected_as_malformed() {
