@@ -6,4 +6,6 @@ pre-commit:
 pre-push:
   commands:
     test:
-      run: just test
+      # Unset GIT_DIR so that integration tests that create their own
+      # temporary git repos are not polluted by the hook environment.
+      run: env -u GIT_DIR -u GIT_INDEX_FILE just test

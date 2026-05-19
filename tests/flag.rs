@@ -346,6 +346,12 @@ fn init_git_repo(dir: &TempDir) {
         std::process::Command::new("git")
             .args(args)
             .current_dir(dir.path())
+            // Unset hook-injected vars so git operates on this temp repo,
+            // not on the surrounding worktree (e.g. during prek/lefthook runs).
+            // GIT_WORK_TREE without GIT_DIR is also fatal to git.
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_WORK_TREE")
             .output()
             .unwrap();
     };
@@ -359,6 +365,9 @@ fn git_add_commit(dir: &TempDir, file: &str) {
         std::process::Command::new("git")
             .args(args)
             .current_dir(dir.path())
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_WORK_TREE")
             .output()
             .unwrap();
     };
@@ -370,6 +379,9 @@ fn git_stage(dir: &TempDir, file: &str) {
     std::process::Command::new("git")
         .args(["add", file])
         .current_dir(dir.path())
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_WORK_TREE")
         .output()
         .unwrap();
 }
