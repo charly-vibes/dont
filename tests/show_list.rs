@@ -550,10 +550,8 @@ fn list_derived_assessment_filter_returns_only_stale_claims() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    // Define a term and leave it unverified so claims depending on it become stale.
     let term_id = define_term(&dir, "WB:P100", "a term that stays unverified");
 
-    // claim_stale depends on WB:P100 (unverified → stale)
     let out = dont()
         .args(["conclude", "stale claim", "--depends-on", "WB:P100", "--json"])
         .env("DONT_DIR", dir.path())
@@ -567,10 +565,7 @@ fn list_derived_assessment_filter_returns_only_stale_claims() {
         .unwrap()
         .to_string();
 
-    // claim_clean has no dependencies → no derived assessments
     let _clean_id = conclude_claim(&dir, "clean claim with no dependencies");
-
-    // Suppress unused variable warning
     let _ = &term_id;
 
     let out = dont()
@@ -593,4 +588,90 @@ fn list_derived_assessment_filter_returns_only_stale_claims() {
         assessments.iter().any(|a| a.as_str() == Some("stale")),
         "derived_assessments must contain 'stale'"
     );
+}
+
+// --- list --as-of (dont-tk0t) ---
+
+#[test]
+fn list_as_of_flag_is_accepted_not_unexpected_argument() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["list", "--as-of", "2026-01-01", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "as-of should return error envelope");
+    assert_eq!(
+        v["data"]["code"], "not-yet-implemented",
+        "should report not-yet-implemented, got: {:?}", v["data"]["code"]
+    );
+}
+
+#[test]
+fn list_as_of_invalid_timestamp_returns_validation_error() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["list", "--as-of", "not-a-date", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "invalid-timestamp");
+}
+
+// --- vocab --as-of (dont-tk0t) ---
+
+#[test]
+fn vocab_as_of_flag_is_accepted_not_unexpected_argument() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["vocab", "--as-of", "2026-01-01", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "not-yet-implemented",
+        "vocab --as-of should return not-yet-implemented, got: {:?}", v["data"]["code"]
+    );
+}
+
+#[test]
+fn vocab_as_of_invalid_timestamp_returns_validation_error() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["vocab", "--as-of", "not-a-date", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "invalid-timestamp");
 }
