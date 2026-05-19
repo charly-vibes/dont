@@ -304,6 +304,10 @@ enum Command {
         /// Choose whether to list claims or terms.
         #[arg(long)]
         kind: Option<String>,
+
+        /// List both claims and terms together.
+        #[arg(long)]
+        all: bool,
     },
 
     /// Explain the blocker-path for a claim or term.
@@ -1306,6 +1310,7 @@ fn parse_claim_status_filter(status: &str) -> Option<Status> {
 enum ListKind {
     Claims,
     Terms,
+    All,
 }
 
 fn parse_list_kind(kind: &str) -> Option<ListKind> {
@@ -4308,7 +4313,7 @@ fn main() {
             }
         }
 
-        Command::List { status, kind } => {
+        Command::List { status, kind, all } => {
             let project = open_project_or_exit();
             let status_filter = match status {
                 Some(raw) => match parse_claim_status_filter(&raw) {
@@ -4332,27 +4337,31 @@ fn main() {
                 },
                 None => None,
             };
-            let default_kind = kind.is_none();
-            let list_kind = match kind {
-                Some(raw) => match parse_list_kind(&raw) {
-                    Some(kind) => kind,
-                    None => emit_error_and_exit(
-                        refusal(
-                            "invalid-kind",
-                            &format!(
-                                "unsupported list kind '{raw}'; expected one of: claims, terms"
+            let default_kind = kind.is_none() && !all;
+            let list_kind = if all {
+                ListKind::All
+            } else {
+                match kind {
+                    Some(raw) => match parse_list_kind(&raw) {
+                        Some(kind) => kind,
+                        None => emit_error_and_exit(
+                            refusal(
+                                "invalid-kind",
+                                &format!(
+                                    "unsupported list kind '{raw}'; expected one of: claims, terms"
+                                ),
+                                None,
+                                vec![RemediationEntry {
+                                    command: "dont list --kind terms".to_string(),
+                                    description: "Use one of: claims, terms".to_string(),
+                                }],
                             ),
-                            None,
-                            vec![RemediationEntry {
-                                command: "dont list --kind terms".to_string(),
-                                description: "Use one of: claims, terms".to_string(),
-                            }],
+                            vec![],
+                            1,
                         ),
-                        vec![],
-                        1,
-                    ),
-                },
-                None => ListKind::Claims,
+                    },
+                    None => ListKind::Claims,
+                }
             };
             match list_kind {
                 ListKind::Claims => {
@@ -4408,6 +4417,47 @@ fn main() {
                         .map(|term| build_term_view(term, &project.store))
                         .collect();
                     let env = Envelope::success(EnvelopeKind::Terms, views, vec![], vec![]);
+                    emit_json(&env);
+                }
+                ListKind::All => {
+                    let mut claims = match project.store.list_claims() {
+                        Ok(c) => c,
+                        Err(err) => handle_store_error(err, None),
+                    };
+                    if let Some(status_filter) = status_filter {
+                        claims.retain(|claim| claim.status == status_filter);
+                    }
+                    claims.sort_by(|a, b| {
+                        b.created_at
+                            .cmp(&a.created_at)
+                            .then_with(|| b.id.cmp(&a.id))
+                    });
+                    let claim_views: Vec<Value> = claims
+                        .iter()
+                        .map(|c| build_claim_view(c, &project.store))
+                        .collect();
+                    let mut terms = match project.store.list_terms() {
+                        Ok(t) => t,
+                        Err(err) => handle_store_error(err, None),
+                    };
+                    if let Some(status_filter) = status_filter {
+                        terms.retain(|term| term.status == status_filter);
+                    }
+                    terms.sort_by(|a, b| {
+                        b.created_at
+                            .cmp(&a.created_at)
+                            .then_with(|| b.id.cmp(&a.id))
+                    });
+                    let term_views: Vec<Value> = terms
+                        .iter()
+                        .map(|term| build_term_view(term, &project.store))
+                        .collect();
+                    let payload = json!({
+                        "as_of": chrono::Utc::now().to_rfc3339(),
+                        "claims": claim_views,
+                        "terms": term_views,
+                    });
+                    let env = Envelope::success(EnvelopeKind::All, payload, vec![], vec![]);
                     emit_json(&env);
                 }
             }

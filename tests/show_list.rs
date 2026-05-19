@@ -453,6 +453,33 @@ fn list_kind_terms_supports_status_filter() {
 }
 
 #[test]
+fn list_all_flag_returns_both_claims_and_terms() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let claim_id = conclude_claim(&dir, "a claim for all-listing");
+    let term_id = define_term(&dir, "WB:P001", "a process by which X becomes Y");
+
+    let out = dont()
+        .args(["list", "--all", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "all");
+    let claims = v["data"]["claims"].as_array().unwrap();
+    let terms = v["data"]["terms"].as_array().unwrap();
+    let claim_ids: Vec<&str> = claims.iter().filter_map(|c| c["id"].as_str()).collect();
+    let term_ids: Vec<&str> = terms.iter().filter_map(|t| t["id"].as_str()).collect();
+    assert!(claim_ids.contains(&claim_id.as_str()), "claim missing from --all output");
+    assert!(term_ids.contains(&term_id.as_str()), "term missing from --all output");
+}
+
+#[test]
 fn list_invalid_kind_returns_validation_error_exit_1() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
