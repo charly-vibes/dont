@@ -34,6 +34,13 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
 fn unmet_reasons(claim: &ClaimRecord, store: &Store) -> Result<Vec<String>, StoreError> {
     let mut reasons = Vec::new();
 
+    if !matches!(claim.status, Status::Verified) {
+        reasons.push(format!(
+            "claim must be in verified status before locking; has {}",
+            claim.status.as_str()
+        ));
+    }
+
     let assessed = assessed_count(&claim.hypotheses);
     if assessed < MIN_ASSESSED_HYPOTHESES {
         reasons.push(format!(
@@ -183,6 +190,27 @@ mod lockable_tests {
     }
 
     #[test]
+    fn fires_when_claim_is_unverified_despite_other_conditions_met() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let result = store.append_claim("a claim", &[], None).unwrap();
+        add_hypotheses(&store, &result.id);
+        add_evidence(
+            &store,
+            &result.id,
+            &["https://source-a.example.com", "https://source-b.example.com"],
+        );
+        // Intentionally NOT verifying — claim stays Unverified
+        let matches = check(&store).unwrap();
+        assert!(
+            matches.iter().any(|m| m.entity_id == result.id
+                && m.detail.to_lowercase().contains("verified")),
+            "lockable must fire when claim is not in verified status; got: {:?}",
+            matches.iter().find(|m| m.entity_id == result.id)
+        );
+    }
+
+    #[test]
     fn silent_when_all_conditions_met() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
@@ -193,6 +221,14 @@ mod lockable_tests {
             &result.id,
             &["https://source-a.example.com", "https://source-b.example.com"],
         );
+        store
+            .append_status_change(
+                &result.id,
+                Status::Unverified,
+                Status::Verified,
+                StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
+            )
+            .unwrap();
         let matches = check(&store).unwrap();
         assert!(
             !matches.iter().any(|m| m.entity_id == result.id),

@@ -1647,11 +1647,21 @@ fn build_event_history(events: &[EventRecord]) -> Vec<Value> {
 
 fn build_claim_why_view(record: &ClaimRecord, store: &Store) -> Value {
     let entity = build_claim_view(record, store);
+    let unmet = lockable_unmet_clauses(record, store);
+    let remediation: Vec<Value> = if unmet.is_empty() {
+        vec![]
+    } else {
+        vec![json!({
+            "rule_name": "lockable",
+            "command": format!("dont check --lock-readiness {}", record.id),
+            "description": unmet.iter().map(|c| c.fix.as_str()).collect::<Vec<_>>().join("; "),
+        })]
+    };
     json!({
         "entity": entity,
         "history": build_event_history(&record.events),
         "applicable_rules": entity["applicable_rules"].clone(),
-        "remediation": [],
+        "remediation": remediation,
     })
 }
 
@@ -2006,6 +2016,20 @@ fn blocker_path_to_value(bp: BlockerPath) -> Value {
 
 fn lockable_unmet_clauses(record: &ClaimRecord, store: &Store) -> Vec<UnmetClause> {
     let mut unmet = Vec::new();
+
+    if !matches!(record.status, Status::Verified) {
+        unmet.push(UnmetClause {
+            clause: format!(
+                "claim must be in verified status before locking; has {}",
+                record.status.as_str()
+            ),
+            fix: format!(
+                "verify the claim first: dont dismiss {} --evidence <uri>",
+                record.id
+            ),
+        });
+    }
+
     let hypothesis_count = assessed_hypothesis_count(&record.hypotheses);
     if hypothesis_count < 3 {
         unmet.push(UnmetClause {
