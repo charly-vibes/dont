@@ -4946,7 +4946,7 @@ fn main() {
                         &format!("import adapter '{adapter}' is not yet implemented; only 'linkml' is currently supported"),
                         None,
                         vec![RemediationEntry {
-                            command: format!("dont import linkml <schema.yaml>"),
+                            command: "dont import linkml <schema.yaml>".to_string(),
                             description: "Use the linkml adapter, the only currently supported adapter".to_string(),
                         }],
                     ),
