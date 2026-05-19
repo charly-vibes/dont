@@ -2168,6 +2168,11 @@ fn check_git_provenance(
 
     let status = std::process::Command::new("git")
         .args(["-C", &root, "status", "--porcelain", &rel])
+        // Unset git environment variables inherited from a parent git hook so
+        // that `-C <root>` selects the correct repo rather than the hook's repo.
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
         .output();
 
     let output = match status {
@@ -2183,6 +2188,9 @@ fn check_git_provenance(
         // and must use forward slashes even on Windows.
         let toplevel_out = std::process::Command::new("git")
             .args(["-C", &root, "rev-parse", "--show-toplevel"])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .output();
         let git_root = match toplevel_out {
             Ok(o) if o.status.success() => {
@@ -2197,6 +2205,9 @@ fn check_git_provenance(
         };
         let sha_out = std::process::Command::new("git")
             .args(["-C", &root, "rev-parse", &format!("HEAD:{git_rel}")])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .output();
         return match sha_out {
             Ok(o) if o.status.success() => {
