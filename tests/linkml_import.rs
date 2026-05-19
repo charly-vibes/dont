@@ -21,6 +21,52 @@ fn write_schema(dir: &TempDir, name: &str, content: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// LinkML CLI availability
+// ---------------------------------------------------------------------------
+
+/// When the LinkML CLI is absent from PATH, import must refuse immediately
+/// with `config-missing` and install guidance.
+#[test]
+fn linkml_import_refuses_when_linkml_cli_missing() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let schema = r#"
+id: https://example.org/basic-test
+name: basic-test
+prefixes:
+  ex: https://example.org/
+default_range: string
+
+classes:
+  Observation:
+    class_uri: ex:Observation
+"#;
+    let schema_path = write_schema(&dir, "basic.yaml", schema);
+
+    let out = dont()
+        .args(["import", "linkml", &schema_path, "--json"])
+        .env("DONT_DIR", dir.path())
+        .env("PATH", "")
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "import must fail when linkml CLI is missing");
+    assert_eq!(v["data"]["code"], "config-missing");
+    let message = v["data"]["message"].as_str().unwrap_or("");
+    assert!(message.contains("linkml"), "message must mention linkml: {message}");
+    let remediation = v["data"]["remediation"].as_array().unwrap();
+    assert!(
+        remediation.iter().any(|r| r["description"].as_str().unwrap_or("").contains("install")),
+        "remediation must include install guidance: {remediation:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Requirement: Refusal-tier unsupported features
 // Scenario: unsupported feature refuses import
 // ---------------------------------------------------------------------------

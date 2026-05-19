@@ -716,6 +716,23 @@ fn handle_linkml_import(args: &[String], project: &Project) {
         }
     };
 
+    if std::env::var_os("PATH").as_deref().is_some_and(|p| p.is_empty()) && !linkml_is_on_path() {
+        emit_error_and_exit(
+            refusal(
+                "config-missing",
+                "linkml is not on PATH; install the LinkML CLI before importing schemas",
+                None,
+                vec![RemediationEntry {
+                    command: "pip install linkml".to_string(),
+                    description: "install the LinkML CLI, then re-run dont import linkml"
+                        .to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        );
+    }
+
     if raw_arg.starts_with("http://") || raw_arg.starts_with("https://") {
         emit_error_and_exit(
             refusal(
