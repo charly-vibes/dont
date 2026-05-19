@@ -195,6 +195,105 @@ fn ground_rejects_stdin_dash_with_usage_error() {
     assert_eq!(v["ok"], false);
 }
 
+// --- batch processing (5+ items) ---
+
+/// Piping 5+ valid IDs must produce exactly one NDJSON envelope per ID,
+/// all ok=true, exit code 0.
+#[test]
+fn show_stdin_batch_five_items_all_processed() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let ids: Vec<String> = (0..5)
+        .map(|i| conclude_claim(&dir, &format!("batch item {i}")))
+        .collect();
+
+    let input = ids.join("\n") + "\n";
+    let raw = dont()
+        .args(["show", "-", "--json"])
+        .env("DONT_DIR", dir.path())
+        .write_stdin(input)
+        .output()
+        .unwrap();
+
+    assert!(raw.status.success(), "all-valid 5-item batch must exit 0");
+    let stdout = String::from_utf8(raw.stdout).unwrap();
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 5, "must emit one envelope per item");
+    for (i, line) in lines.iter().enumerate() {
+        let v: Value = serde_json::from_str(line)
+            .unwrap_or_else(|_| panic!("line {i} must be valid JSON"));
+        assert_eq!(v["ok"], true, "line {i} must be ok=true");
+    }
+}
+
+/// One malformed ID in the middle of a 5-item batch must not abort processing:
+/// the remaining items after the error must still be processed and appear in output.
+#[test]
+fn show_stdin_batch_partial_failure_continues_processing() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let id1 = conclude_claim(&dir, "partial batch a");
+    let id2 = conclude_claim(&dir, "partial batch b");
+    let id3 = conclude_claim(&dir, "partial batch c");
+    let id4 = conclude_claim(&dir, "partial batch d");
+
+    // malformed ID at position 2 (0-indexed)
+    let input = format!("{id1}\n{id2}\nclaim:does-not-exist\n{id3}\n{id4}\n");
+    let raw = dont()
+        .args(["show", "-", "--json"])
+        .env("DONT_DIR", dir.path())
+        .write_stdin(input)
+        .output()
+        .unwrap();
+
+    // exit code must reflect the partial failure
+    assert_eq!(raw.status.code(), Some(1), "partial failure must exit 1");
+
+    let stdout = String::from_utf8(raw.stdout).unwrap();
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 5, "must emit one envelope per input line including errors");
+
+    // parse all lines
+    let vs: Vec<Value> = lines
+        .iter()
+        .enumerate()
+        .map(|(i, l)| serde_json::from_str(l).unwrap_or_else(|_| panic!("line {i} invalid JSON")))
+        .collect();
+
+    assert_eq!(vs[0]["ok"], true, "line 0 must succeed");
+    assert_eq!(vs[1]["ok"], true, "line 1 must succeed");
+    assert_eq!(vs[2]["ok"], false, "line 2 (malformed id) must be error");
+    assert_eq!(vs[3]["ok"], true, "line 3 must succeed (processing continues after error)");
+    assert_eq!(vs[4]["ok"], true, "line 4 must succeed");
+}
+
+/// All-invalid batch must exit 1 and emit one error envelope per line.
+#[test]
+fn show_stdin_batch_all_invalid_exits_nonzero() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let input = "claim:fake1\nclaim:fake2\nclaim:fake3\n";
+    let raw = dont()
+        .args(["show", "-", "--json"])
+        .env("DONT_DIR", dir.path())
+        .write_stdin(input)
+        .output()
+        .unwrap();
+
+    assert_eq!(raw.status.code(), Some(1));
+    let stdout = String::from_utf8(raw.stdout).unwrap();
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 3);
+    for (i, line) in lines.iter().enumerate() {
+        let v: Value = serde_json::from_str(line)
+            .unwrap_or_else(|_| panic!("line {i} must be valid JSON"));
+        assert_eq!(v["ok"], false, "line {i} must be ok=false");
+    }
+}
+
 // --- lock stdin ---
 
 #[test]
