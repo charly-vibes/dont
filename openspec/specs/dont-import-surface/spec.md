@@ -1,7 +1,32 @@
 # dont-import-surface Specification
 
 ## Purpose
-TBD - created by archiving change add-dont-import-specs. Update Purpose after archive.
+Defines the full `dont import` command family — syntax, supported adapters, output envelope,
+idempotence contract, HTTP rate-limiting policy, URL-safety rules, and error-code mapping.
+
+Import commands are lightweight grounding adapters: they fetch or read an external source and
+project the result into local `imported_term`, `reference`, or `prefix` relations.  They do not
+invoke an LLM and do not require MCP.  Only `dont import linkml` requires an auxiliary CLI tool
+(see `dont-linkml-import`); all other adapters are self-contained.
+
+The supported adapter set for v0.3 is:
+- `dont import obo <path.owl|.obo|.ttl|url>` — OBO/OWL/Turtle files or HTTP URLs
+- `dont import ols <ontology-prefix>` — OLS REST API
+- `dont import wikidata --entity <Qid> | --sparql <file.rq>` — Wikidata entity or SPARQL query
+- `dont import openalex --work <doi> | --snapshot <path>` — OpenAlex paper or local snapshot
+- `dont import bioregistry` — Bioregistry prefix registry
+- `dont import jsonld <file>` — local JSON-LD file
+- `dont import ttl <file>` — local Turtle file
+- `dont import linkml <schema.yaml>` — LinkML schema (subprocess adapter, lossy)
+
+Every adapter produces a standard success envelope (`ok: true`) with an `adapter`, `schema_name`
+(or equivalent source identifier), and `stored` count in `data`, plus any warnings in
+`warnings[]`.  Every error path produces a standard error envelope (`ok: false`) with a
+deterministic `code` value and non-empty `remediation[]`.
+
+Each adapter may be disabled per-project by setting `enabled = false` under the corresponding
+`[import.<adapter>]` block in `config.toml`.  Disabled adapters refuse immediately with
+`code: "adapter-disabled"` and a remediation showing the config stanza to re-enable.
 ## Requirements
 ### Requirement: Supported import command family
 The system SHALL provide the following importer commands: `dont import obo <path.owl|.obo|.ttl|url>`, `dont import ols <ontology-prefix>`, `dont import wikidata --entity <Qid> | --sparql <file.rq>`, `dont import openalex --work <doi> | --snapshot <path>`, `dont import bioregistry`, `dont import jsonld <file>`, `dont import ttl <file>`, and `dont import linkml <schema.yaml>`.

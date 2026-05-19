@@ -1,7 +1,33 @@
 # dont-linkml-import Specification
 
 ## Purpose
-TBD - created by archiving change add-dont-import-specs. Update Purpose after archive.
+Specifies the `dont import linkml <schema.yaml>` adapter — the one importer that delegates to an
+external subprocess rather than running as a pure-Rust in-process adapter.
+
+The adapter lowers a LinkML YAML schema into local `imported_term` rows that `dont` can use for
+CURIE resolution and rule evaluation.  It is **lossy by design**: it grounds useful vocabulary
+and constraints for `dont`; it is not a round-trip implementation of full LinkML semantics.
+Projects needing complete LinkML fidelity should use LinkML tooling directly.
+
+The adapter applies a three-tier feature policy:
+
+1. **Flattened silently** — `is_a` inheritance becomes a transitive `kind_of` chain; mixins are
+   merged into the inheriting class's attribute set; `slot_usage` refinements are expanded into
+   per-class attribute predicates.  These are expected structural lowerings, not failures.
+
+2. **Imported with warning** — `permissible_values` enums, string-pattern constraints,
+   value-range constraints, and minimum-cardinality constraints are translated approximately into
+   local rule representations.  The import result records a warning naming each approximated
+   feature per source so consumers can spot-check the generated output.
+
+3. **Refused** — schemas containing SPARQL-evaluated expressions, reified slots, or
+   `python_class` injections are rejected with `code: "linkml-unsupported-feature"` and a list
+   of every offending construct.  No partial import occurs: either all terms are stored or none
+   are.
+
+When the LinkML CLI is unavailable the command refuses immediately with `code: "config-missing"`
+and a remediation pointing at installation.  `dont doctor` reports LinkML availability as a
+`warn` check (not a `fail`) so projects that do not use this adapter remain healthy.
 ## Requirements
 ### Requirement: LinkML adapter shell-out and lowering contract
 The system SHALL implement `dont import linkml <schema.yaml>` as a subprocess-backed adapter over the LinkML CLI. The adapter MUST shell out to LinkML tooling to derive intermediate forms, lower the result into local import relations, and MAY additionally generate Datalog rules for imported constraints.
