@@ -478,7 +478,7 @@ classes:
 // ---------------------------------------------------------------------------
 
 /// A basic, clean LinkML schema with no unsupported features must import
-/// successfully and add terms to the local store.
+/// successfully and add import data without creating coined terms.
 #[test]
 fn linkml_basic_schema_lowers_to_local_relations() {
     let dir = TempDir::new().unwrap();
@@ -520,4 +520,43 @@ classes:
         !data.is_null(),
         "import result must include data about what was imported"
     );
+
+    let vocab_out = dont()
+        .args(["vocab", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let vocab_v: Value = serde_json::from_slice(&vocab_out).unwrap();
+    let empty = vec![];
+    let items = vocab_v["data"].as_array().unwrap_or(&empty);
+    let has_observation_term = items.iter().any(|item| {
+        item["id"].as_str().unwrap_or("").contains("Observation")
+            || item["label"].as_str().unwrap_or("") == "Observation"
+            || item["curie"].as_str().unwrap_or("") == "ex:Observation"
+    });
+    assert!(
+        !has_observation_term,
+        "imported LinkML classes must not appear in coined-term vocab output"
+    );
+
+    dont()
+        .args([
+            "conclude",
+            "Observation is grounded by imported LinkML vocabulary",
+            "--depends-on",
+            "ex:Observation",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    dont()
+        .args(["show", "ex:Observation", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1);
 }

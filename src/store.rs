@@ -156,6 +156,22 @@ pub struct TermRecord {
     pub events: Vec<EventRecord>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedTermRecord {
+    pub id: String,
+    pub curie: String,
+    pub label: Option<String>,
+    pub definition: String,
+    pub source: String,
+    pub imported_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CurieResolution {
+    Coined(TermRecord),
+    Imported(ImportedTermRecord),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventRecord {
     pub id: String,
@@ -676,6 +692,73 @@ impl Store {
         })
     }
 
+    pub fn append_imported_term(
+        &self,
+        curie: &str,
+        definition: &str,
+        label: Option<&str>,
+        source: &str,
+    ) -> Result<AppendResult, StoreError> {
+        self.with_write_lock(|store| {
+            if let Some(existing) = store.imported_term_by_curie(curie)? {
+                return Err(StoreError::CurieConflict {
+                    curie: curie.to_string(),
+                    existing_id: existing.id,
+                });
+            }
+            let tx = store.next_tx()?;
+            let imported_term_id = prefixed_ulid("imported_term");
+            let now = now_rfc3339_seconds();
+            let mut datoms = vec![
+                Datom::assert(
+                    &imported_term_id,
+                    "entity_type",
+                    Value::String("imported_term".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &imported_term_id,
+                    "curie",
+                    Value::String(curie.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &imported_term_id,
+                    "definition",
+                    Value::String(definition.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &imported_term_id,
+                    "source",
+                    Value::String(source.to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &imported_term_id,
+                    "imported_at",
+                    Value::String(now.clone()),
+                    tx,
+                ),
+            ];
+            if let Some(lbl) = label {
+                datoms.push(Datom::assert(
+                    &imported_term_id,
+                    "label",
+                    Value::String(lbl.to_string()),
+                    tx,
+                ));
+            }
+            store.put_datoms(&datoms)?;
+            Ok(AppendResult {
+                id: imported_term_id,
+                event_id: String::new(),
+                tx,
+                created_at: now,
+            })
+        })
+    }
+
     pub fn append_status_change(
         &self,
         claim_id: &str,
@@ -1167,6 +1250,61 @@ impl Store {
         self.term_by_id(term_id)
     }
 
+    pub fn imported_term_by_curie(&self, curie: &str) -> Result<Option<ImportedTermRecord>, StoreError> {
+        let script = format!(
+            r#"?[entity] := *datoms[entity, "curie", {}, _, true], *datoms[entity, "entity_type", "imported_term", _, true]"#,
+            json_string(curie)
+        );
+        let rows = self.query_rows(&script)?;
+        let Some(imported_term_id) = rows
+            .first()
+            .and_then(|row| row.first())
+            .and_then(Value::as_str)
+        else {
+            return Ok(None);
+        };
+        let datoms = self.datoms_for_entity(imported_term_id)?;
+        let definition = latest_asserted_value(&datoms, "definition")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                StoreError::Malformed(format!(
+                    "imported_term {imported_term_id} has no definition"
+                ))
+            })?
+            .to_string();
+        let source = latest_asserted_value(&datoms, "source")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                StoreError::Malformed(format!(
+                    "imported_term {imported_term_id} has no source"
+                ))
+            })?
+            .to_string();
+        let imported_at = latest_asserted_value(&datoms, "imported_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let label = latest_asserted_value(&datoms, "label")
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
+        Ok(Some(ImportedTermRecord {
+            id: imported_term_id.to_string(),
+            curie: curie.to_string(),
+            label,
+            definition,
+            source,
+            imported_at,
+        }))
+    }
+
+    pub fn resolve_curie_reference(&self, curie: &str) -> Result<Option<CurieResolution>, StoreError> {
+        if let Some(term) = self.term_by_curie(curie)? {
+            return Ok(Some(CurieResolution::Coined(term)));
+        }
+        self.imported_term_by_curie(curie)
+            .map(|opt| opt.map(CurieResolution::Imported))
+    }
+
     /// Resolve an entity identifier, CURIE, or short ULID prefix to a concrete record.
     ///
     /// Resolution rules (in priority order):
@@ -1594,5 +1732,19 @@ mod data_model {
         let term = store.term_by_curie("WB:P001").unwrap().unwrap();
         assert_eq!(term.id, first.id);
         assert_eq!(term.definition, "a first definition");
+    }
+
+    #[test]
+    fn imported_terms_resolve_without_entering_coined_term_table() {
+        let dir = TempDir::new().unwrap();
+        let store = Store::open_dont_dir(dir.path()).unwrap();
+
+        store
+            .append_imported_term("EX:Observation", "imported definition", Some("Observation"), "linkml:basic")
+            .unwrap();
+
+        assert!(store.term_by_curie("EX:Observation").unwrap().is_none());
+        let resolved = store.resolve_curie_reference("EX:Observation").unwrap();
+        assert!(matches!(resolved, Some(CurieResolution::Imported(_))));
     }
 }

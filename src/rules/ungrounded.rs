@@ -16,7 +16,7 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
                 continue;
             }
             // Short-circuit for malformed deps (no ':') — always unresolvable.
-            if !dep.contains(':') || store.term_by_curie(dep)?.is_none() {
+            if !dep.contains(':') || store.resolve_curie_reference(dep)?.is_none() {
                 matches.push(RuleMatch {
                     entity_id: claim.id.clone(),
                     detail: format!("depends on unresolved term CURIE '{dep}'"),

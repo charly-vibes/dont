@@ -13,9 +13,9 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
     for claim in claims {
         for dep in &claim.depends_on {
             let resolved = if dep.starts_with("term:") {
-                store.term_by_id(dep)?
+                store.term_by_id(dep)?.map(crate::store::CurieResolution::Coined)
             } else {
-                store.term_by_curie(dep)?
+                store.resolve_curie_reference(dep)?
             };
             if resolved.is_none() {
                 matches.push(RuleMatch {

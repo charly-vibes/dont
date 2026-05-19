@@ -21,8 +21,8 @@ use dont::model::{
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::rules::{RuleError, shipped_rule_names};
 use dont::store::{
-    AppendResult, ClaimRecord, EntityResolution, EventRecord, HypothesisRecord, Store, StoreError,
-    StoreEvent, StoreEventKind, TermRecord,
+    AppendResult, ClaimRecord, CurieResolution, EntityResolution, EventRecord, HypothesisRecord,
+    Store, StoreError, StoreEvent, StoreEventKind, TermRecord,
 };
 
 thread_local! {
@@ -802,16 +802,21 @@ fn handle_linkml_import(args: &[String], project: &Project) {
                 })
                 .collect();
             for term in &result.terms {
-                match project.store.append_term(&term.curie, &term.definition, Some(&term.label)) {
+                match project.store.append_imported_term(
+                    &term.curie,
+                    &term.definition,
+                    Some(&term.label),
+                    &format!("linkml:{schema_name}"),
+                ) {
                     Ok(_) => stored += 1,
                     Err(StoreError::CurieConflict { .. }) => {
-                        // Idempotent re-import: term already exists, skip silently.
+                        // Idempotent re-import: imported term already exists, skip silently.
                     }
                     Err(e) => {
                         warnings.push(Warning {
                             rule_name: "linkml-store-warn".to_string(),
                             entity_id: Some(term.curie.clone()),
-                            message: format!("could not store term {}: {e}", term.curie),
+                            message: format!("could not store imported term {}: {e}", term.curie),
                             suggested_remediation: None,
                         });
                     }
@@ -1796,12 +1801,12 @@ fn derived_assessments_for_claim(record: &ClaimRecord, store: &Store) -> Vec<Str
 
     for dep in &record.depends_on {
         let lookup = if dep.starts_with("term:") {
-            store.term_by_id(dep)
+            store.term_by_id(dep).map(|opt| opt.map(CurieResolution::Coined))
         } else {
-            store.term_by_curie(dep)
+            store.resolve_curie_reference(dep)
         };
         match lookup {
-            Ok(Some(term)) => match term.status {
+            Ok(Some(CurieResolution::Coined(term))) => match term.status {
                 Status::Verified => {}
                 Status::Ignored | Status::Locked => {
                     if !derived.iter().any(|d| d == "compromised-support") {
@@ -1814,6 +1819,7 @@ fn derived_assessments_for_claim(record: &ClaimRecord, store: &Store) -> Vec<Str
                     }
                 }
             },
+            Ok(Some(CurieResolution::Imported(_))) => {}
             Ok(None) => {
                 if !derived.iter().any(|d| d == "unresolved-term") {
                     derived.push("unresolved-term".to_string());
@@ -1843,11 +1849,11 @@ struct BlockerPath {
 fn blocker_path_for_dep(
     start_id: &str,
     dep: &str,
-    term_result: Result<Option<TermRecord>, StoreError>,
+    term_result: Result<Option<CurieResolution>, StoreError>,
 ) -> Option<BlockerPath> {
     let path = vec![start_id.to_string(), dep.to_string()];
     match term_result {
-        Ok(Some(term)) => {
+        Ok(Some(CurieResolution::Coined(term))) => {
             let (kind, remediation) = match term.status {
                 Status::Unverified | Status::Doubted => (
                     "stale",
@@ -1874,6 +1880,7 @@ fn blocker_path_for_dep(
                 remediation,
             })
         }
+        Ok(Some(CurieResolution::Imported(_))) => None,
         Ok(None) => Some(BlockerPath {
             kind: "unresolved-term".to_string(),
             start_entity: start_id.to_string(),
@@ -1918,9 +1925,9 @@ fn trace_claim(record: &ClaimRecord) -> Vec<BlockerPath> {
         visited.insert(dep.clone());
 
         let result = if dep.starts_with("term:") {
-            project.store.term_by_id(dep)
+            project.store.term_by_id(dep).map(|opt| opt.map(CurieResolution::Coined))
         } else {
-            project.store.term_by_curie(dep)
+            project.store.resolve_curie_reference(dep)
         };
 
         if let Some(bp) = blocker_path_for_dep(&record.id, dep, result) {
@@ -2888,8 +2895,11 @@ fn main() {
                         Err(err) => handle_store_error(err, None),
                     }
                 } else {
-                    match project.store.term_by_curie(dep) {
-                        Ok(Some(term)) => resolved_depends_on.push(term.id),
+                    match project.store.resolve_curie_reference(dep) {
+                        Ok(Some(CurieResolution::Coined(term))) => resolved_depends_on.push(term.id),
+                        Ok(Some(CurieResolution::Imported(_))) => {
+                            resolved_depends_on.push(dep.clone())
+                        }
                         Ok(None) => unresolved.push(dep.clone()),
                         Err(err) => handle_store_error(err, None),
                     }

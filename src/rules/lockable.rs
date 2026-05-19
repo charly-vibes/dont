@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::store::{ClaimRecord, EventRecord, HypothesisRecord, Status, Store, StoreError};
+use crate::store::{ClaimRecord, CurieResolution, EventRecord, HypothesisRecord, Status, Store, StoreError};
 
 use super::{source_key, RuleMatch};
 
@@ -50,13 +50,12 @@ fn unmet_reasons(claim: &ClaimRecord, store: &Store) -> Result<Vec<String>, Stor
 
     for dep in &claim.depends_on {
         let term = if dep.starts_with("term:") {
-            store.term_by_id(dep)?
+            store.term_by_id(dep)?.map(CurieResolution::Coined)
         } else {
-            store.term_by_curie(dep)?
+            store.resolve_curie_reference(dep)?
         };
-        if let Some(term) = term {
-            // Any status other than Verified is blocking.
-            match term.status {
+        match term {
+            Some(CurieResolution::Coined(term)) => match term.status {
                 Status::Verified => {}
                 _ => {
                     reasons.push(format!(
@@ -65,9 +64,9 @@ fn unmet_reasons(claim: &ClaimRecord, store: &Store) -> Result<Vec<String>, Stor
                         term.status.as_str()
                     ));
                 }
-            }
-        } else {
-            reasons.push(format!("dependency {dep} is unresolved"));
+            },
+            Some(CurieResolution::Imported(_)) => {}
+            None => reasons.push(format!("dependency {dep} is unresolved")),
         }
     }
 
