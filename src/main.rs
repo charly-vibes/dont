@@ -7,6 +7,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::linkml as linkml_adapter;
@@ -695,6 +696,14 @@ fn linkml_is_on_path() -> bool {
     })
 }
 
+fn canonical_source_id_for_local_file(schema_path: &Path, content: &str) -> std::io::Result<String> {
+    let realpath = schema_path.canonicalize()?;
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    let digest = format!("{:x}", hasher.finalize());
+    Ok(format!("linkml:file:{}#{digest}", realpath.display()))
+}
+
 /// Handle `dont import linkml <schema.yaml>` by delegating to the linkml adapter.
 fn handle_linkml_import(args: &[String], project: &Project) {
     let raw_arg = match args.first() {
@@ -772,6 +781,28 @@ fn handle_linkml_import(args: &[String], project: &Project) {
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("schema");
+    let canonical_source_id = match canonical_source_id_for_local_file(schema_path, &content) {
+        Ok(id) => id,
+        Err(e) => {
+            emit_error_and_exit(
+                refusal(
+                    "io-error",
+                    &format!(
+                        "cannot canonicalize schema file {}: {e}",
+                        schema_path.display()
+                    ),
+                    None,
+                    vec![RemediationEntry {
+                        command: "dont import linkml <schema.yaml>".to_string(),
+                        description: "Ensure the schema file path exists and resolves cleanly"
+                            .to_string(),
+                    }],
+                ),
+                vec![],
+                1,
+            );
+        }
+    };
     match linkml_adapter::import_schema(schema_name, &content) {
         Err(err) => {
             let unmet: Vec<UnmetClause> = err
@@ -823,7 +854,7 @@ fn handle_linkml_import(args: &[String], project: &Project) {
                     &term.curie,
                     &term.definition,
                     Some(&term.label),
-                    &format!("linkml:{schema_name}"),
+                    &canonical_source_id,
                 ) {
                     Ok(_) => stored += 1,
                     Err(StoreError::CurieConflict { .. }) => {
@@ -842,6 +873,7 @@ fn handle_linkml_import(args: &[String], project: &Project) {
             let payload = json!({
                 "adapter": "linkml",
                 "schema_name": schema_name,
+                "canonical_source_id": canonical_source_id,
                 "stored": stored,
             });
             let env = Envelope::success(EnvelopeKind::Empty, payload, warnings, vec![]);

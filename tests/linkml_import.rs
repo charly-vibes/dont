@@ -606,3 +606,105 @@ classes:
         .assert()
         .code(1);
 }
+
+/// Re-importing the same LinkML file must be idempotent and report a stable
+/// canonical_source_id.
+#[test]
+fn linkml_reimport_is_idempotent_with_canonical_source_id() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let schema = r#"
+id: https://example.org/basic-test
+name: basic-test
+prefixes:
+  ex: https://example.org/
+default_range: string
+
+classes:
+  Observation:
+    class_uri: ex:Observation
+"#;
+    let schema_path = write_schema(&dir, "basic.yaml", schema);
+
+    let first_out = dont()
+        .args(["import", "linkml", &schema_path, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let first: Value = serde_json::from_slice(&first_out).unwrap();
+
+    let second_out = dont()
+        .args(["import", "linkml", &schema_path, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let second: Value = serde_json::from_slice(&second_out).unwrap();
+
+    let first_id = first["data"]["canonical_source_id"].as_str().unwrap_or("");
+    let second_id = second["data"]["canonical_source_id"].as_str().unwrap_or("");
+    assert!(
+        !first_id.is_empty(),
+        "import payload must include canonical_source_id: {first:?}"
+    );
+    assert_eq!(first_id, second_id, "canonical_source_id must be stable");
+    assert_eq!(first["data"]["stored"], 1, "first import should store one term");
+    assert_eq!(second["data"]["stored"], 0, "second import must be idempotent");
+}
+
+/// Importing the same bytes via a path alias must deduplicate by content
+/// identity and reuse the same canonical_source_id.
+#[test]
+fn linkml_path_aliases_share_canonical_source_id() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let schema = r#"
+id: https://example.org/basic-test
+name: basic-test
+prefixes:
+  ex: https://example.org/
+default_range: string
+
+classes:
+  Observation:
+    class_uri: ex:Observation
+"#;
+    let schema_path = dir.path().join("basic.yaml");
+    fs::write(&schema_path, schema).unwrap();
+    let alias_path = dir.path().join("alias.yaml");
+    std::os::unix::fs::symlink(&schema_path, &alias_path).unwrap();
+
+    let first_out = dont()
+        .args(["import", "linkml", schema_path.to_str().unwrap(), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let first: Value = serde_json::from_slice(&first_out).unwrap();
+
+    let alias_out = dont()
+        .args(["import", "linkml", alias_path.to_str().unwrap(), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let alias: Value = serde_json::from_slice(&alias_out).unwrap();
+
+    assert_eq!(
+        first["data"]["canonical_source_id"],
+        alias["data"]["canonical_source_id"],
+        "path aliases must normalize to the same canonical_source_id"
+    );
+    assert_eq!(alias["data"]["stored"], 0, "alias import must be deduplicated");
+}
