@@ -3157,7 +3157,7 @@ fn main() {
                     return emit_error_no_exit(
                         refusal(
                             "wrong-entity-kind",
-                            "lock applies to claims only in this version",
+                            "forget (lock) applies to claims only; terms cannot be locked",
                             Some(id),
                             vec![RemediationEntry {
                                 command: format!("dont show {id}"),
@@ -4943,9 +4943,12 @@ fn main() {
                 emit_error_and_exit(
                     refusal(
                         "not-implemented",
-                        &format!("import adapter '{adapter}' is not yet implemented"),
+                        &format!("import adapter '{adapter}' is not yet implemented; only 'linkml' is currently supported"),
                         None,
-                        vec![],
+                        vec![RemediationEntry {
+                            command: format!("dont import linkml <schema.yaml>"),
+                            description: "Use the linkml adapter, the only currently supported adapter".to_string(),
+                        }],
                     ),
                     vec![],
                     1,
@@ -5155,7 +5158,7 @@ fn main() {
                         Some(Err(e)) => emit_error_and_exit(
                             refusal(
                                 "rule-eval-error",
-                                &e.to_string(),
+                                &format!("rule {name:?} failed to evaluate: {e}"),
                                 None,
                                 vec![RemediationEntry {
                                     command: format!("dont rules show {name}"),
@@ -5187,7 +5190,7 @@ fn main() {
                             Err(e) => emit_error_and_exit(
                                 refusal(
                                     "rule-eval-error",
-                                    &e.to_string(),
+                                    &format!("rule {name:?} failed to evaluate: {e}"),
                                     None,
                                     vec![RemediationEntry {
                                         command: format!("dont rules show {name}"),
