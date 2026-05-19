@@ -235,4 +235,72 @@ mod lockable_tests {
             "expected lockable to be silent when all conditions met"
         );
     }
+
+    // Spec condition 1: the claim must be in :verified status.
+    // Claims not yet verified are not candidates for locking — lockable should be silent.
+    #[test]
+    fn silent_for_unverified_claim() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        // Claim stays in default :unverified status
+        let result = store.append_claim("an unverified claim", &[], None).unwrap();
+        let matches = check(&store).unwrap();
+        assert!(
+            !matches.iter().any(|m| m.entity_id == result.id),
+            "lockable should be silent for claims not in :verified status"
+        );
+    }
+
+    // Spec condition 1: the claim must be in :verified status.
+    // A doubted claim is not a lock candidate.
+    #[test]
+    fn silent_for_doubted_claim() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let result = store.append_claim("a doubted claim", &[], None).unwrap();
+        store
+            .append_status_change(
+                &result.id,
+                Status::Unverified,
+                Status::Doubted,
+                StoreEvent {
+                    kind: StoreEventKind::Flagged,
+                    note: None,
+                    evidence: vec![],
+                },
+            )
+            .unwrap();
+        let matches = check(&store).unwrap();
+        assert!(
+            !matches.iter().any(|m| m.entity_id == result.id),
+            "lockable should be silent for claims in :doubted status"
+        );
+    }
+
+    // Spec condition 1: the claim must be in :verified status.
+    // A verified claim that lacks other conditions SHOULD trigger lockable.
+    #[test]
+    fn fires_for_verified_claim_missing_hypotheses() {
+        let dir = TempDir::new().unwrap();
+        let store = make_store(&dir);
+        let result = store.append_claim("a verified claim", &[], None).unwrap();
+        store
+            .append_status_change(
+                &result.id,
+                Status::Unverified,
+                Status::Verified,
+                StoreEvent {
+                    kind: StoreEventKind::Trusted,
+                    note: None,
+                    evidence: vec![],
+                },
+            )
+            .unwrap();
+        let matches = check(&store).unwrap();
+        assert!(
+            matches.iter().any(|m| m.entity_id == result.id
+                && m.detail.contains("assessed hypotheses")),
+            "lockable should fire for a :verified claim lacking sufficient hypotheses"
+        );
+    }
 }
