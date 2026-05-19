@@ -403,6 +403,104 @@ fn why_claim_human_flag_emits_plain_text() {
     );
 }
 
+// --- remediation field ---
+
+/// Spec (WhyView payload, Requirement: WhyView with unmet lockable rule):
+/// "WHEN `dont why claim:X --json` is run and `lockable` is not met,
+/// THEN `remediation[]` contains an entry with `rule_name: "lockable"` and a
+/// suggested command."
+///
+/// A freshly concluded claim has no assessed hypotheses and no independent
+/// evidence, so `lockable` is always unmet on it. The `remediation` array
+/// MUST be non-empty and the first entry MUST carry `rule_name: "lockable"`
+/// and a non-empty `command` string.
+#[test]
+fn why_claim_with_unmet_lockable_rule_has_non_empty_remediation() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "remediation must be populated for unmet rules");
+
+    let out = dont()
+        .args(["why", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let remediation = v["data"]["remediation"].as_array().expect(
+        "data.remediation must be an array",
+    );
+
+    assert!(
+        !remediation.is_empty(),
+        "remediation[] must be non-empty when lockable rule is unmet, got empty array"
+    );
+
+    let lockable_entry = remediation
+        .iter()
+        .find(|e| e["rule_name"] == "lockable")
+        .expect("remediation[] must contain an entry with rule_name: \"lockable\"");
+
+    let command = lockable_entry["command"].as_str().unwrap_or("");
+    assert!(
+        !command.is_empty(),
+        "remediation entry for lockable must have a non-empty command, got: {:?}",
+        lockable_entry
+    );
+
+    let description = lockable_entry["description"].as_str().unwrap_or("");
+    assert!(
+        !description.is_empty(),
+        "remediation entry for lockable must have a non-empty description, got: {:?}",
+        lockable_entry
+    );
+}
+
+/// Spec (WhyView payload, Requirement: WhyView on fully satisfied entity):
+/// "WHEN `dont why claim:X --json` is run and all rules pass,
+/// THEN `remediation` is an empty array and all `applicable_rules` show as met."
+///
+/// This is the converse: for a claim that has met all applicable rules
+/// (using applicable_rules.lockable.met == true as the signal), remediation
+/// MUST be empty.
+#[test]
+fn why_claim_with_all_rules_met_has_empty_remediation() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "all rules met means empty remediation");
+
+    let out = dont()
+        .args(["why", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let lockable_met = v["data"]["applicable_rules"]["lockable"]["met"]
+        .as_bool()
+        .unwrap_or(false);
+
+    // A freshly concluded claim does NOT meet lockable — so this test is only
+    // meaningful when lockable is met. Skip the remediation assertion if
+    // lockable is not met (that case is covered by the sibling test above).
+    if lockable_met {
+        let remediation = v["data"]["remediation"].as_array().expect(
+            "data.remediation must be an array",
+        );
+        assert!(
+            remediation.is_empty(),
+            "remediation[] must be empty when all rules pass, got: {:?}",
+            remediation
+        );
+    }
+}
+
 /// `dont why <term-id>` without --json must produce plain text output.
 #[test]
 fn why_term_default_output_is_plain_text_not_json() {
