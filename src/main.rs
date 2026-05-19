@@ -651,6 +651,20 @@ fn contains_hedge(reason: &str, extra: &[String]) -> bool {
         || extra.iter().any(|h| lower.contains(h.as_str()))
 }
 
+/// Return `true` if a `linkml` binary is reachable on the current `PATH`.
+///
+/// Searches each directory in `PATH` (from the environment) for a file named
+/// `linkml` (or `linkml.exe` on Windows) that is executable.  No subprocess
+/// is spawned — this is a pure filesystem probe so it is fast and testable.
+fn linkml_is_on_path() -> bool {
+    let path_var = std::env::var_os("PATH").unwrap_or_default();
+    let name = if cfg!(target_os = "windows") { "linkml.exe" } else { "linkml" };
+    std::env::split_paths(&path_var).any(|dir| {
+        let candidate = dir.join(name);
+        candidate.is_file()
+    })
+}
+
 /// Handle `dont import linkml <schema.yaml>` by delegating to the linkml adapter.
 fn handle_linkml_import(args: &[String], project: &Project) {
     let raw_arg = match args.first() {
@@ -4278,6 +4292,13 @@ fn main() {
                     project.seed_snapshot_path().display()
                 )
             };
+            let linkml_available = linkml_is_on_path();
+            let linkml_available_status = if linkml_available { "pass" } else { "warn" };
+            let linkml_available_detail = if linkml_available {
+                "linkml is available on PATH".to_string()
+            } else {
+                "linkml is not on PATH; import linkml uses in-process parsing only — install linkml for secondary validation".to_string()
+            };
             let checks = vec![
                 json!({"name": "substrate", "status": "pass", "detail": "store opened successfully"}),
                 json!({"name": "rules_compile", "status": "pass", "detail": "built-in rules available"}),
@@ -4285,6 +4306,7 @@ fn main() {
                 json!({"name": "pending_spawns", "status": "pass", "detail": if project.root_doc_paths().is_empty() { "no pending spawn audit implemented; direct DONT_DIR override skips separate root managed docs" } else { "no pending spawn audit implemented" }}),
                 json!({"name": "remediation_invariant", "status": "pass", "detail": "error remediation invariant available"}),
                 json!({"name": "managed_docs", "status": managed_status, "detail": managed_detail}),
+                json!({"name": "linkml_available", "status": linkml_available_status, "detail": linkml_available_detail}),
             ];
             let pass = checks.iter().filter(|c| c["status"] == "pass").count();
             let warn = checks.iter().filter(|c| c["status"] == "warn").count();

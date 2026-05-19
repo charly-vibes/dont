@@ -639,6 +639,47 @@ fn doctor_report_structure() {
     }
 }
 
+// --- DoctorReport: linkml_available check ---
+//
+// Ticket: dont-rhck
+// When `linkml` is not on PATH the doctor report must include a check named
+// `linkml_available` with status `warn`.
+
+#[test]
+fn doctor_warns_when_linkml_not_on_path() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    // Run doctor with an empty PATH so linkml cannot be found.
+    let out = dont()
+        .args(["doctor", "--json"])
+        .env("DONT_DIR", dir.path())
+        .env("PATH", "")
+        .assert()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let checks = v["data"]["checks"].as_array().expect("checks must be array");
+
+    let linkml_check = checks.iter().find(|c| c["name"] == "linkml_available");
+    assert!(
+        linkml_check.is_some(),
+        "doctor must include a 'linkml_available' check; got checks: {:?}",
+        checks.iter().map(|c| c["name"].as_str().unwrap_or("?")).collect::<Vec<_>>()
+    );
+    let linkml_check = linkml_check.unwrap();
+    assert_eq!(
+        linkml_check["status"], "warn",
+        "linkml_available check must be 'warn' when linkml is absent from PATH"
+    );
+    assert!(
+        linkml_check["detail"].as_str().unwrap_or("").contains("linkml"),
+        "linkml_available detail must mention 'linkml'"
+    );
+}
+
 // --- ConcludeInput: --confidence flag stores the value in ClaimView ---
 //
 // Spec (ConcludeInput schema):
