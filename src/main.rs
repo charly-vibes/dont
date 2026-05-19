@@ -263,6 +263,10 @@ enum Command {
     Show {
         /// Claim or term identifier (claim:ID, term:ID, or CURIE like WB:P001).
         id: String,
+
+        /// Include full event history in the output.
+        #[arg(long)]
+        history: bool,
     },
 
     /// Explain why a claim or term has its current status.
@@ -1486,6 +1490,14 @@ fn build_claim_view(record: &ClaimRecord, store: &Store) -> Value {
         "created_at": record.created_at,
         "updated_at": updated_at(record),
     })
+}
+
+fn build_claim_show_view(record: &ClaimRecord, store: &Store, history: bool) -> Value {
+    let mut obj = build_claim_view(record, store);
+    if !history {
+        obj.as_object_mut().unwrap().remove("events");
+    }
+    obj
 }
 
 fn build_term_view(record: &TermRecord, store: &Store) -> Value {
@@ -3921,11 +3933,11 @@ fn main() {
             }
         }
 
-        Command::Show { id } => {
+        Command::Show { id, history } => {
             let project = open_project_or_exit();
             run_per_entity(id, |id| match project.store.resolve_entity(id) {
                 Ok(Some(EntityResolution::Claim(record))) => {
-                    let payload = build_claim_view(&record, &project.store);
+                    let payload = build_claim_show_view(&record, &project.store, history);
                     let env = Envelope::success(
                         EnvelopeKind::Claim,
                         payload,

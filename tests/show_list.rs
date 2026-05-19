@@ -189,6 +189,50 @@ fn show_unknown_curie_returns_term_not_found_exit_1() {
     assert!(msg.contains("WB:ZZZZ"), "error message must echo the curie: {msg}");
 }
 
+// --- show --history ---
+
+#[test]
+fn show_default_omits_events() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "events omitted by default");
+
+    let out = dont()
+        .args(["show", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert!(
+        v["data"]["events"].is_null() || !v["data"].as_object().unwrap().contains_key("events"),
+        "events field must be absent or null in default show output"
+    );
+}
+
+#[test]
+fn show_history_includes_events() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "events present with --history");
+
+    let out = dont()
+        .args(["show", &id, "--history", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let events = v["data"]["events"].as_array().expect("events must be an array when --history is set");
+    assert!(!events.is_empty(), "events array must be non-empty after conclude");
+}
+
 // --- list ---
 
 #[test]
