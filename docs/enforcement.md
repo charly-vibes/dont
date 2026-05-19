@@ -57,7 +57,7 @@ config can only extend it, never replace it.
 
 `dont prime` has two roles:
 
-**Orientation** — run it at the start of a session to see what's doubted or unverified. It prints the open epistemic state so you know what needs resolution before introducing new claims. When the store is clean it exits 0 silently.
+**Orientation** — run it at the start of a session to see what's doubted or unverified. It always prints the project status summary (mode, counts by status, and any blocking entities). When the store is clean it exits 0.
 
 **Terminal gate** — run it at the end (CI, pre-commit, agent stop hook) to confirm nothing was left unresolved. It exits 1 if any claim is `Doubted`, regardless of project mode.
 
@@ -66,7 +66,11 @@ Projects initialize in permissive mode by default (pass `--strict` to `dont init
 ### 6. Lockability rule
 
 To lock a verified claim you need ≥ 3 assessed hypotheses and ≥ 2 independent
-evidence sources. This is a rule, not a suggestion, and the rule is always strict.
+evidence sources. This gate is enforced in-code inside the `dont lock` handler
+and cannot be bypassed — `dont lock` exits 1 if the gate is unmet, regardless
+of project mode or rule-engine config. (The `lockable` rule engine severity
+defaults to `Warn` so it does not block non-lock operations in the background;
+the hard enforcement is the in-command gate, not the background rule engine.)
 
 ## Hook infrastructure
 
@@ -111,7 +115,7 @@ doubted claims at the end of every session:
 
 When `dont prime` exits 1, Claude Code displays the output as an error — a
 signal that the session ended with unresolved doubt. When claims are clean it
-exits 0 silently.
+exits 0 (output is still produced but not treated as an error by Claude Code).
 
 ### CI
 
