@@ -32,6 +32,12 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
 }
 
 fn unmet_reasons(claim: &ClaimRecord, store: &Store) -> Result<Vec<String>, StoreError> {
+    // Spec condition 1: only :verified claims are candidates for locking.
+    // Claims in any other status are not lock candidates — lockable is silent for them.
+    if claim.status != Status::Verified {
+        return Ok(vec![]);
+    }
+
     let mut reasons = Vec::new();
 
     if !matches!(claim.status, Status::Verified) {
@@ -139,11 +145,27 @@ mod lockable_tests {
         }
     }
 
+    fn verify_claim(store: &Store, claim_id: &str) {
+        store
+            .append_status_change(
+                claim_id,
+                Status::Unverified,
+                Status::Verified,
+                StoreEvent {
+                    kind: StoreEventKind::Trusted,
+                    note: None,
+                    evidence: vec![],
+                },
+            )
+            .unwrap();
+    }
+
     #[test]
     fn fires_when_hypotheses_below_threshold() {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         let result = store.append_claim("a claim", &[], None).unwrap();
+        verify_claim(&store, &result.id);
         let matches = check(&store).unwrap();
         assert!(
             matches.iter().any(|m| m.entity_id == result.id
@@ -157,6 +179,7 @@ mod lockable_tests {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         let result = store.append_claim("a claim", &[], None).unwrap();
+        verify_claim(&store, &result.id);
         add_hypotheses(&store, &result.id);
         // Only one evidence source
         add_evidence(&store, &result.id, &["https://source-a.example.com/page"]);
@@ -175,6 +198,7 @@ mod lockable_tests {
         let result = store
             .append_claim("a claim", &["ns:missing".to_string()], None)
             .unwrap();
+        verify_claim(&store, &result.id);
         add_hypotheses(&store, &result.id);
         add_evidence(
             &store,
@@ -215,6 +239,7 @@ mod lockable_tests {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         let result = store.append_claim("a claim", &[], None).unwrap();
+        verify_claim(&store, &result.id);
         add_hypotheses(&store, &result.id);
         add_evidence(
             &store,
