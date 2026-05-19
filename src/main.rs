@@ -2167,12 +2167,14 @@ fn check_git_provenance(
     let root = project_root.to_string_lossy();
     let rel = rel_path.to_string_lossy();
 
-    // Unset GIT_DIR and GIT_INDEX_FILE so that hook environments (e.g. lefthook)
-    // do not override the repo that -C discovers from the project_root path.
+    // Unset GIT_DIR, GIT_INDEX_FILE, and GIT_WORK_TREE so that hook environments
+    // (e.g. prek/lefthook) do not override the repo that -C discovers from
+    // the project_root path.  GIT_WORK_TREE without GIT_DIR is also fatal to git.
     let status = std::process::Command::new("git")
         .args(["-C", &root, "status", "--porcelain", &rel])
         .env_remove("GIT_DIR")
         .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_WORK_TREE")
         .output();
 
     let output = match status {
@@ -2190,6 +2192,7 @@ fn check_git_provenance(
             .args(["-C", &root, "rev-parse", "--show-toplevel"])
             .env_remove("GIT_DIR")
             .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_WORK_TREE")
             .output();
         let git_root = match toplevel_out {
             Ok(o) if o.status.success() => {
@@ -2206,6 +2209,7 @@ fn check_git_provenance(
             .args(["-C", &root, "rev-parse", &format!("HEAD:{git_rel}")])
             .env_remove("GIT_DIR")
             .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_WORK_TREE")
             .output();
         return match sha_out {
             Ok(o) if o.status.success() => {
