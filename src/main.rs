@@ -301,6 +301,10 @@ enum Command {
         #[arg(long)]
         status: Option<String>,
 
+        /// Filter claims by derived assessment (e.g. stale, compromised-support).
+        #[arg(long)]
+        derived_assessment: Option<String>,
+
         /// Choose whether to list claims or terms.
         #[arg(long)]
         kind: Option<String>,
@@ -4342,7 +4346,7 @@ fn main() {
             }
         }
 
-        Command::List { status, kind, all } => {
+        Command::List { status, kind, all, derived_assessment } => {
             let project = open_project_or_exit();
             let status_filter = match status {
                 Some(raw) => match parse_claim_status_filter(&raw) {
@@ -4400,6 +4404,13 @@ fn main() {
                     };
                     if let Some(status_filter) = status_filter {
                         claims.retain(|claim| claim.status == status_filter);
+                    }
+                    if let Some(ref assessment) = derived_assessment {
+                        claims.retain(|claim| {
+                            derived_assessments_for_claim(claim, &project.store)
+                                .iter()
+                                .any(|a| a == assessment)
+                        });
                     }
                     // Sort by created_at descending; use id (ULID) as tiebreaker within same second
                     claims.sort_by(|a, b| {

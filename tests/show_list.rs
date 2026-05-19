@@ -498,3 +498,55 @@ fn list_invalid_kind_returns_validation_error_exit_1() {
     assert_eq!(v["data"]["code"], "invalid-kind");
     assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
 }
+
+// --- list --derived-assessment ---
+
+#[test]
+fn list_derived_assessment_filter_returns_only_stale_claims() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    // Define a term and leave it unverified so claims depending on it become stale.
+    let term_id = define_term(&dir, "WB:P100", "a term that stays unverified");
+
+    // claim_stale depends on WB:P100 (unverified → stale)
+    let out = dont()
+        .args(["conclude", "stale claim", "--depends-on", "WB:P100", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stale_id = serde_json::from_slice::<Value>(&out).unwrap()["data"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // claim_clean has no dependencies → no derived assessments
+    let _clean_id = conclude_claim(&dir, "clean claim with no dependencies");
+
+    // Suppress unused variable warning
+    let _ = &term_id;
+
+    let out = dont()
+        .args(["list", "--derived-assessment", "stale", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "claims");
+    let claims = v["data"]["claims"].as_array().unwrap();
+    assert_eq!(claims.len(), 1, "only the stale claim should be returned");
+    assert_eq!(claims[0]["id"], stale_id.as_str());
+    let assessments = claims[0]["derived_assessments"].as_array().unwrap();
+    assert!(
+        assessments.iter().any(|a| a.as_str() == Some("stale")),
+        "derived_assessments must contain 'stale'"
+    );
+}
