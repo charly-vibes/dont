@@ -304,6 +304,24 @@ enum Command {
         /// Choose whether to list claims or terms.
         #[arg(long)]
         kind: Option<String>,
+
+        /// Evaluate entity state at a historical timestamp (ISO 8601 / RFC 3339 or YYYY-MM-DD).
+        #[arg(long, value_name = "TIMESTAMP")]
+        as_of: Option<String>,
+    },
+
+    /// List term entities (equivalent to `list --kind terms`).
+    #[command(after_help = "Examples:
+  dont vocab                         # list all terms
+  dont vocab --status unverified     # list only unverified terms")]
+    Vocab {
+        /// Filter terms by status.
+        #[arg(long)]
+        status: Option<String>,
+
+        /// Evaluate term state at a historical timestamp (ISO 8601 / RFC 3339 or YYYY-MM-DD).
+        #[arg(long, value_name = "TIMESTAMP")]
+        as_of: Option<String>,
     },
 
     /// Explain the blocker-path for a claim or term.
@@ -1314,6 +1332,15 @@ fn parse_list_kind(kind: &str) -> Option<ListKind> {
         "terms" => Some(ListKind::Terms),
         _ => None,
     }
+}
+
+/// Try to parse `raw` as a valid `--as-of` timestamp.
+/// Accepts RFC 3339 / ISO 8601 datetimes *or* bare `YYYY-MM-DD` date strings.
+/// Returns `true` when the value is recognisable.
+fn is_valid_as_of(raw: &str) -> bool {
+    use chrono::{DateTime, NaiveDate};
+    DateTime::parse_from_rfc3339(raw).is_ok()
+        || NaiveDate::parse_from_str(raw, "%Y-%m-%d").is_ok()
 }
 
 /// Collect all evidence entries from all events in event-tx order.
@@ -4308,7 +4335,43 @@ fn main() {
             }
         }
 
-        Command::List { status, kind } => {
+        Command::List { status, kind, as_of } => {
+            // Validate --as-of if supplied; emit structured error before opening the store.
+            if let Some(ref raw) = as_of {
+                if !is_valid_as_of(raw) {
+                    emit_error_and_exit(
+                        refusal(
+                            "invalid-timestamp",
+                            &format!(
+                                "invalid --as-of value '{raw}'; expected RFC 3339 datetime or YYYY-MM-DD date"
+                            ),
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont list --as-of 2026-01-01".to_string(),
+                                description:
+                                    "Use an ISO 8601 date or RFC 3339 datetime, e.g. 2026-01-01"
+                                        .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    );
+                }
+                // Historical snapshot queries are not yet implemented.
+                emit_error_and_exit(
+                    refusal(
+                        "not-yet-implemented",
+                        "historical snapshot queries (--as-of) are not yet implemented",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont list --json".to_string(),
+                            description: "Omit --as-of to query the current state".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
             let project = open_project_or_exit();
             let status_filter = match status {
                 Some(raw) => match parse_claim_status_filter(&raw) {
@@ -4411,6 +4474,86 @@ fn main() {
                     emit_json(&env);
                 }
             }
+        }
+
+        Command::Vocab { status, as_of } => {
+            // Validate --as-of if supplied; emit structured error before opening the store.
+            if let Some(ref raw) = as_of {
+                if !is_valid_as_of(raw) {
+                    emit_error_and_exit(
+                        refusal(
+                            "invalid-timestamp",
+                            &format!(
+                                "invalid --as-of value '{raw}'; expected RFC 3339 datetime or YYYY-MM-DD date"
+                            ),
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont vocab --as-of 2026-01-01".to_string(),
+                                description:
+                                    "Use an ISO 8601 date or RFC 3339 datetime, e.g. 2026-01-01"
+                                        .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    );
+                }
+                // Historical snapshot queries are not yet implemented.
+                emit_error_and_exit(
+                    refusal(
+                        "not-yet-implemented",
+                        "historical snapshot queries (--as-of) are not yet implemented",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont vocab --json".to_string(),
+                            description: "Omit --as-of to query the current state".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+            let project = open_project_or_exit();
+            let status_filter = match status {
+                Some(raw) => match parse_claim_status_filter(&raw) {
+                    Some(status) => Some(status),
+                    None => emit_error_and_exit(
+                        refusal(
+                            "invalid-status",
+                            &format!(
+                                "unsupported term status '{raw}'; expected one of: unverified, verified, doubted, ignored"
+                            ),
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont vocab --status unverified".to_string(),
+                                description: "Use one of: unverified, verified, doubted, ignored"
+                                    .to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    ),
+                },
+                None => None,
+            };
+            let mut terms = match project.store.list_terms() {
+                Ok(t) => t,
+                Err(err) => handle_store_error(err, None),
+            };
+            if let Some(status_filter) = status_filter {
+                terms.retain(|term| term.status == status_filter);
+            }
+            terms.sort_by(|a, b| {
+                b.created_at
+                    .cmp(&a.created_at)
+                    .then_with(|| b.id.cmp(&a.id))
+            });
+            let views: Vec<Value> = terms
+                .iter()
+                .map(|term| build_term_view(term, &project.store))
+                .collect();
+            let env = Envelope::success(EnvelopeKind::Terms, views, vec![], vec![]);
+            emit_json(&env);
         }
 
         Command::Trace { id } => {

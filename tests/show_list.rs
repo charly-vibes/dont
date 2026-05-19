@@ -471,3 +471,142 @@ fn list_invalid_kind_returns_validation_error_exit_1() {
     assert_eq!(v["data"]["code"], "invalid-kind");
     assert!(!v["data"]["remediation"].as_array().unwrap().is_empty());
 }
+
+// --- list --as-of (dont-tk0t) ---
+
+#[test]
+fn list_as_of_flag_is_accepted_not_unexpected_argument() {
+    // The --as-of flag must be accepted by the CLI parser (no "unexpected argument" crash).
+    // Because historical queries are not yet implemented, the command should exit with code 1
+    // and return a structured error envelope rather than a parser-level crash.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["list", "--as-of", "2026-01-01", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false, "as-of should return error envelope");
+    assert_eq!(
+        v["data"]["code"], "not-yet-implemented",
+        "should report not-yet-implemented, got: {:?}", v["data"]["code"]
+    );
+}
+
+#[test]
+fn list_as_of_invalid_timestamp_returns_validation_error() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["list", "--as-of", "not-a-date", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "invalid-timestamp");
+}
+
+// --- vocab subcommand (dont-tk0t) ---
+
+#[test]
+fn vocab_subcommand_is_accepted_and_returns_terms_envelope() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    define_term(&dir, "WB:P001", "a process by which X becomes Y");
+
+    let out = dont()
+        .args(["vocab", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "terms");
+    let terms = v["data"].as_array().unwrap();
+    assert_eq!(terms.len(), 1);
+    assert_eq!(terms[0]["curie"], "WB:P001");
+}
+
+#[test]
+fn vocab_with_status_filter_returns_matching_terms_only() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    define_term(&dir, "WB:P001", "unverified term");
+    let t2 = define_term(&dir, "WB:P002", "will be ignored");
+    dont()
+        .args(["ignore", &t2, "--reason", "Out of scope for this project", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    let out = dont()
+        .args(["vocab", "--status", "unverified", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let terms = v["data"].as_array().unwrap();
+    assert_eq!(terms.len(), 1);
+    assert_eq!(terms[0]["curie"], "WB:P001");
+}
+
+#[test]
+fn vocab_as_of_flag_is_accepted_not_unexpected_argument() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["vocab", "--as-of", "2026-01-01", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        v["data"]["code"], "not-yet-implemented",
+        "vocab --as-of should return not-yet-implemented, got: {:?}", v["data"]["code"]
+    );
+}
+
+#[test]
+fn vocab_as_of_invalid_timestamp_returns_validation_error() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["vocab", "--as-of", "not-a-date", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "invalid-timestamp");
+}
