@@ -1,5 +1,9 @@
+mod common;
+
+use common::{conclude_claim, dont, init_dir};
 use dont::envelope::{Envelope, EnvelopeKind, ErrorResult, RemediationEntry, UnmetClause, Warning};
 use serde_json::Value;
+use tempfile::TempDir;
 
 // --- Envelope<T> construction and serialization ---
 
@@ -221,4 +225,173 @@ fn readonly_envelope_has_null_tx() {
     let env = Envelope::success(EnvelopeKind::Empty, (), vec![], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert!(v["meta"]["tx"].is_null());
+}
+
+// --- CLI error paths: full envelope structure verification ---
+//
+// Each test below drives the binary with --json, triggers a real error path,
+// and verifies that the output satisfies the complete error-envelope contract:
+//   ok: false
+//   envelope_kind: "error"
+//   envelope_version: "0.2"
+//   data.code       — non-empty string
+//   data.message    — non-empty string
+//   data.remediation — non-empty array; each entry has non-empty command and description
+
+/// Assert the full error envelope contract on a parsed JSON Value.
+fn assert_error_envelope(v: &Value) {
+    assert_eq!(v["ok"], false, "ok must be false on error");
+    assert_eq!(v["envelope_kind"], "error", "envelope_kind must be 'error'");
+    assert_eq!(v["envelope_version"], "0.2", "envelope_version must be '0.2'");
+
+    let data = &v["data"];
+    let code = data["code"].as_str().unwrap_or("");
+    assert!(!code.is_empty(), "data.code must be a non-empty string");
+
+    let message = data["message"].as_str().unwrap_or("");
+    assert!(!message.is_empty(), "data.message must be a non-empty string");
+
+    let remediation = data["remediation"]
+        .as_array()
+        .expect("data.remediation must be an array");
+    assert!(
+        !remediation.is_empty(),
+        "data.remediation must be non-empty (Invariant 3.2.5)"
+    );
+    for (i, entry) in remediation.iter().enumerate() {
+        assert!(
+            entry["command"].as_str().map(|s| !s.is_empty()).unwrap_or(false),
+            "remediation[{i}].command must be a non-empty string"
+        );
+        assert!(
+            entry["description"].as_str().map(|s| !s.is_empty()).unwrap_or(false),
+            "remediation[{i}].description must be a non-empty string"
+        );
+    }
+}
+
+#[test]
+fn cli_error_conclude_empty_statement_is_well_formed_envelope() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args(["conclude", "", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_error_envelope(&v);
+    assert_eq!(v["data"]["code"], "empty-statement");
+}
+
+#[test]
+fn cli_error_conclude_no_project_is_well_formed_envelope() {
+    let dir = TempDir::new().unwrap();
+    // No init — project does not exist
+    let out = dont()
+        .args(["conclude", "some claim", "--json"])
+        .env("DONT_DIR", dir.path().join("nonexistent"))
+        .assert()
+        .code(3)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_error_envelope(&v);
+    assert_eq!(v["data"]["code"], "config-missing");
+}
+
+#[test]
+fn cli_error_show_claim_not_found_is_well_formed_envelope() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args(["show", "claim:01JNONEXISTENT", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_error_envelope(&v);
+    assert_eq!(v["data"]["code"], "claim-not-found");
+}
+
+#[test]
+fn cli_error_show_term_not_found_is_well_formed_envelope() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args(["show", "term:01JNONEXISTENT", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_error_envelope(&v);
+    assert_eq!(v["data"]["code"], "term-not-found");
+}
+
+#[test]
+fn cli_error_trust_reason_required_is_well_formed_envelope() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "a claim to doubt");
+    let out = dont()
+        .args(["trust", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_error_envelope(&v);
+    assert_eq!(v["data"]["code"], "reason-required");
+}
+
+#[test]
+fn cli_error_list_invalid_status_is_well_formed_envelope() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args(["list", "--status", "pending", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_error_envelope(&v);
+    assert_eq!(v["data"]["code"], "invalid-status");
+}
+
+#[test]
+fn cli_error_invalid_transition_is_well_formed_envelope() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim to double-doubt");
+    dont()
+        .args(["trust", &id, "--reason", "First doubt — methodology gap", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+    let out = dont()
+        .args(["trust", &id, "--reason", "Second doubt attempt", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_error_envelope(&v);
+    assert_eq!(v["data"]["code"], "invalid-transition");
 }
