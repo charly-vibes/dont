@@ -1647,12 +1647,35 @@ fn build_event_history(events: &[EventRecord]) -> Vec<Value> {
 
 fn build_claim_why_view(record: &ClaimRecord, store: &Store) -> Value {
     let entity = build_claim_view(record, store);
+    let remediation = why_remediation_for_claim(record, store);
     json!({
         "entity": entity,
         "history": build_event_history(&record.events),
         "applicable_rules": entity["applicable_rules"].clone(),
-        "remediation": [],
+        "remediation": remediation,
     })
+}
+
+/// Build the `remediation[]` array for a WhyView. Each entry covers one unmet
+/// rule and has shape `{rule_name, command, description}` per spec.
+fn why_remediation_for_claim(record: &ClaimRecord, store: &Store) -> Vec<Value> {
+    let mut entries = Vec::new();
+
+    let lockable_unmet = lockable_unmet_clauses(record, store);
+    if !lockable_unmet.is_empty() {
+        let description = lockable_unmet
+            .iter()
+            .map(|c| c.fix.as_str())
+            .collect::<Vec<_>>()
+            .join("; ");
+        entries.push(json!({
+            "rule_name": "lockable",
+            "command": format!("dont lock {}", record.id),
+            "description": description,
+        }));
+    }
+
+    entries
 }
 
 fn build_term_why_view(record: &TermRecord, store: &Store) -> Value {
