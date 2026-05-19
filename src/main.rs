@@ -67,6 +67,13 @@ fn colorize_status(status: &str) -> String {
 #[command(disable_version_flag = true)]
 #[command(disable_help_subcommand = true)]
 #[command(about = "Epistemic forcing-function CLI for grounded claims")]
+#[command(after_help = "Examples:
+  dont init                          # initialise a new project
+  dont conclude \"the sky is blue\"    # add an unverified claim
+  dont flag claim:abc123 -e https://example.com/sky
+  dont lock claim:abc123             # preserve a verified claim
+  dont list --status unverified      # see all unverified claims
+  dont prime                         # session-start orientation")]
 struct Cli {
     /// Print version information. Combine with --json for machine-readable output.
     #[arg(long, global = true)]
@@ -99,6 +106,9 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Initialize dont state in the current project.
+    #[command(after_help = "Examples:
+  dont init             # initialise in permissive mode (default)
+  dont init --strict    # initialise in strict mode (all gates enforced)")]
     Init {
         /// Start the project in strict mode instead of permissive mode.
         #[arg(long)]
@@ -106,6 +116,9 @@ enum Command {
     },
 
     /// Introduce an unverified claim.
+    #[command(after_help = "Examples:
+  dont conclude \"the sky is blue\"
+  dont conclude \"X causes Y\" --depends-on WB:P001 --confidence 0.85")]
     Conclude {
         /// Claim statement text.
         statement: String,
@@ -120,6 +133,9 @@ enum Command {
     },
 
     /// Introduce an unverified coined term.
+    #[command(after_help = "Examples:
+  dont define WB:P001 --label \"a velocity\" --doc \"Rate of change of position\"
+  dont define --label \"a widget\" --doc \"A reusable UI component\"")]
     Define {
         /// Term CURIE, e.g. WB:P001.
         curie: Option<String>,
@@ -134,6 +150,8 @@ enum Command {
     },
 
     /// Register explicit doubt about a claim. Read as 'dont trust' = 'do not trust it'.
+    #[command(after_help = "Examples:
+  dont trust claim:abc123 --reason \"No primary source cited\"")]
     Trust {
         /// Claim identifier.
         id: String,
@@ -144,6 +162,9 @@ enum Command {
     },
 
     /// Verify a claim with evidence. Read as 'dont flag' = 'do not flag it as a concern'. Alias: dismiss.
+    #[command(after_help = "Examples:
+  dont flag claim:abc123 -e https://example.com/evidence
+  dont flag claim:abc123 --file src/lib.rs --lines 10-18 --excerpt \"fn foo() {\"")]
     Flag {
         /// Claim identifier.
         id: String,
@@ -170,6 +191,9 @@ enum Command {
     },
 
     /// Verify a claim or term with evidence. Canonical glossary core-four verb; alias for flag.
+    #[command(after_help = "Examples:
+  dont dismiss claim:abc123 -e https://example.com/evidence
+  dont dismiss term:WB:P001 --file docs/spec.md --anchor terminology")]
     Dismiss {
         /// Claim or term identifier.
         id: String,
@@ -196,18 +220,24 @@ enum Command {
     },
 
     /// Retract doubt on a doubted entity, returning it to unverified. Use 'reopen' for ignored entities.
+    #[command(after_help = "Examples:
+  dont undoubt claim:abc123")]
     Undoubt {
         /// Entity identifier (claim:... or term:...).
         id: String,
     },
 
     /// Permanently preserve a verified claim when the lockable gate is met. Read as 'dont forget' = 'do not forget it'. Alias: lock.
+    #[command(after_help = "Examples:
+  dont forget claim:abc123")]
     Forget {
         /// Claim identifier.
         id: String,
     },
 
     /// Permanently preserve a verified claim when the lockable gate is met. Canonical lifecycle verb. `forget` is a legacy alias.
+    #[command(after_help = "Examples:
+  dont lock claim:abc123")]
     Lock {
         /// Claim identifier.
         id: String,
@@ -623,8 +653,8 @@ fn contains_hedge(reason: &str, extra: &[String]) -> bool {
 
 /// Handle `dont import linkml <schema.yaml>` by delegating to the linkml adapter.
 fn handle_linkml_import(args: &[String], project: &Project) {
-    let schema_path = match args.first() {
-        Some(p) => std::path::Path::new(p),
+    let raw_arg = match args.first() {
+        Some(p) => p.as_str(),
         None => {
             emit_error_and_exit(
                 refusal(
@@ -641,6 +671,24 @@ fn handle_linkml_import(args: &[String], project: &Project) {
             );
         }
     };
+
+    if raw_arg.starts_with("http://") || raw_arg.starts_with("https://") {
+        emit_error_and_exit(
+            refusal(
+                "network-error",
+                &format!("cannot fetch schema from {raw_arg}: network imports are not yet supported — download the schema locally and retry"),
+                None,
+                vec![RemediationEntry {
+                    command: format!("curl -O {raw_arg} && dont import linkml <downloaded-file>"),
+                    description: "Download the schema file locally, then retry the import".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        );
+    }
+
+    let schema_path = std::path::Path::new(raw_arg);
     let content = match std::fs::read_to_string(schema_path) {
         Ok(s) => s,
         Err(e) => {

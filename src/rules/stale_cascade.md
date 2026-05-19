@@ -15,3 +15,7 @@ Re-assess the affected hypotheses or atoms after reviewing the new evidence:
 ## Why it matters
 
 An assessment made before key evidence was available may reach a different conclusion than one made with the full picture. `stale-cascade` ensures that all assessments reflect the current evidence state.
+
+## See also
+
+- `lockable` — requires no `stale` derived assessments before a claim can be permanently preserved.

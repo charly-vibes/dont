@@ -15,3 +15,7 @@
 ## Why it matters
 
 Claims are only as strong as their conceptual foundations. `unresolved-terms` ensures that the dependency chain is fully verified before a claim is treated as settled.
+
+## See also
+
+- `lockable` — requires no `unresolved-term` derived assessments before a claim can be permanently preserved.

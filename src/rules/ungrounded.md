@@ -17,3 +17,7 @@ Note: `term:uuid` ID-format dependencies are handled by the `dangling-definition
 ## Why it matters
 
 A claim that references undefined concepts cannot be verified or assessed because its meaning is incomplete. `ungrounded` blocks verification until all CURIE dependencies resolve to known, defined terms.
+
+## See also
+
+- `dangling-definition` — handles `term:uuid` dependency references that no longer exist; `ungrounded` handles CURIE-format references specifically.

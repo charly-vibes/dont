@@ -17,3 +17,7 @@ Note: CURIE-format references (e.g. `WB:P001`) are handled by the `ungrounded` r
 ## Why it matters
 
 A claim that points to a non-existent term has an undefined foundational concept. `dangling-definition` catches referential integrity violations before they propagate through dependent claims.
+
+## See also
+
+- `ungrounded` — handles CURIE-format dependency references that cannot be resolved; `dangling-definition` handles `term:uuid` references specifically.

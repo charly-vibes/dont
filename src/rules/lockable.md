@@ -20,3 +20,10 @@
 ## Why it matters
 
 `dont forget` is a strong epistemic commitment. The lockable gate ensures that the claim was genuinely challenged, evaluated against alternatives, and grounded in independent corroboration before being permanently preserved.
+
+## See also
+
+- `stale-cascade` — produces the `stale` derived assessment that blocks `lockable`.
+- `correlated-error` — fires when supporting evidence items share a host; resolving it helps satisfy the independent-evidence requirement.
+- `dangling-definition` — produces the `dangling-dependency` derived assessment that blocks `lockable`.
+- `unresolved-terms` — produces the `unresolved-term` derived assessment that blocks `lockable`.
