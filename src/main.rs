@@ -150,11 +150,12 @@ enum Command {
         label: Option<String>,
     },
 
-    /// Register explicit doubt about a claim. Read as 'dont trust' = 'do not trust it'.
+    /// Register explicit doubt about a claim or term. Read as 'dont trust' = 'do not trust it'.
     #[command(after_help = "Examples:
-  dont trust claim:abc123 --reason \"No primary source cited\"")]
+  dont trust claim:abc123 --reason \"No primary source cited\"
+  dont trust term:WB:P001 --reason \"Definition is ambiguous\"")]
     Trust {
-        /// Claim identifier.
+        /// Claim or term identifier (claim:... or term:...).
         id: String,
 
         /// Reason for doubt (required).
@@ -5478,10 +5479,20 @@ fn main() {
                         EnvelopeKind::Empty,
                         serde_json::Value::Null,
                         vec![],
-                        vec![HintEntry {
-                            command: "dont rules list".to_string(),
-                            description: format!("Rule {rule_name:?} is now active"),
-                        }],
+                        vec![
+                            HintEntry {
+                                command: "dont rules list".to_string(),
+                                description: format!("Rule {rule_name:?} is now active"),
+                            },
+                            HintEntry {
+                                command: format!(
+                                    "# In .dont/config.toml under [rules]: warn = [\"{rule_name}\"]"
+                                ),
+                                description: format!(
+                                    "Default severity is warn; add {rule_name:?} to [rules].strict only if you need unconditional refusals"
+                                ),
+                            },
+                        ],
                     ));
                 }
 

@@ -57,6 +57,42 @@ fn rules_add_returns_empty_envelope_on_success() {
 }
 
 #[test]
+fn rules_add_success_hints_include_severity_guidance() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let rule_file = dir.path().join("my-custom-rule.dl");
+    std::fs::write(
+        &rule_file,
+        r#"?[entity_id, detail] <- [["e", "d"]]"#,
+    )
+    .unwrap();
+
+    let out = dont()
+        .args(["rules", "add", rule_file.to_str().unwrap(), "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let hints = v["hints"].as_array().expect("hints array must be present");
+    let hint_commands: Vec<&str> = hints
+        .iter()
+        .filter_map(|h| h["command"].as_str())
+        .collect();
+    // At least one hint must mention severity / config to guide the operator.
+    let has_severity_hint = hint_commands.iter().any(|c| c.contains("warn") || c.contains("strict") || c.contains("severity"));
+    assert!(
+        has_severity_hint,
+        "rules add should hint the operator about severity configuration; got: {:?}",
+        hint_commands
+    );
+}
+
+#[test]
 fn rules_add_makes_rule_appear_in_rules_list() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
