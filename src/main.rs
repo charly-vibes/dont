@@ -10,14 +10,14 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
-use dont::linkml as linkml_adapter;
 use dont::envelope::{
     CLI_VERSION, ENVELOPE_VERSION, Envelope, EnvelopeKind, ErrorResult, HintEntry,
     RemediationEntry, UnmetClause, Warning, set_author,
 };
+use dont::linkml as linkml_adapter;
 use dont::model::{
-    EntityId, Status, flag as model_flag, ignore as model_ignore, lock as model_lock,
-    reopen as model_reopen, trust as model_trust, undoubt as model_undoubt,
+    EntityId, Status, TransitionError, flag as model_flag, ignore as model_ignore,
+    lock as model_lock, reopen as model_reopen, trust as model_trust, undoubt as model_undoubt,
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::rules::{RuleError, shipped_rule_names};
@@ -637,7 +637,6 @@ struct MockEvidenceCheckResult {
     detail: Option<String>,
 }
 
-
 const HELP_TUTORIAL: &[&str] = &[
     "# dont -- First-Session Tutorial\n\n",
     "This walkthrough explains the orient, search, coin, conclude, and spawn loop.\n",
@@ -664,7 +663,7 @@ const HELP_TUTORIAL: &[&str] = &[
     "- `dont help <cmd>` -- per-command reference\n",
     "- `dont help --topics` -- list all how-to topics\n",
     "- `dont help --howto harness-integration` -- integrate dont into a new harness\n",
-    "- `.dont/AGENTS.md` -- canonical orientation document\n"
+    "- `.dont/AGENTS.md` -- canonical orientation document\n",
 ];
 
 const HELP_HOWTO_HARNESS_INTEGRATION: &str = concat!(
@@ -741,7 +740,10 @@ const HELP_HOWTO_RULE_CLAIMS: &str = concat!(
 );
 
 const HOWTO_TOPICS: &[(&str, &str)] = &[
-    ("harness-integration", "Integrate dont into a new agent harness"),
+    (
+        "harness-integration",
+        "Integrate dont into a new agent harness",
+    ),
     ("authoring-rules", "Author a project-specific Datalog rule"),
     ("store-recovery", "Recover a corrupted .dont/ store"),
     ("rule-claims", "Author a structured rule-describing claim"),
@@ -770,14 +772,21 @@ fn contains_hedge(reason: &str, extra: &[String]) -> bool {
 /// is spawned — this is a pure filesystem probe so it is fast and testable.
 fn linkml_is_on_path() -> bool {
     let path_var = std::env::var_os("PATH").unwrap_or_default();
-    let name = if cfg!(target_os = "windows") { "linkml.exe" } else { "linkml" };
+    let name = if cfg!(target_os = "windows") {
+        "linkml.exe"
+    } else {
+        "linkml"
+    };
     std::env::split_paths(&path_var).any(|dir| {
         let candidate = dir.join(name);
         candidate.is_file()
     })
 }
 
-fn canonical_source_id_for_local_file(schema_path: &Path, content: &str) -> std::io::Result<String> {
+fn canonical_source_id_for_local_file(
+    schema_path: &Path,
+    content: &str,
+) -> std::io::Result<String> {
     let realpath = schema_path.canonicalize()?;
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
@@ -806,7 +815,11 @@ fn handle_linkml_import(args: &[String], project: &Project) {
         }
     };
 
-    if std::env::var_os("PATH").as_deref().is_some_and(|p| p.is_empty()) && !linkml_is_on_path() {
+    if std::env::var_os("PATH")
+        .as_deref()
+        .is_some_and(|p| p.is_empty())
+        && !linkml_is_on_path()
+    {
         emit_error_and_exit(
             refusal(
                 "config-missing",
@@ -827,11 +840,14 @@ fn handle_linkml_import(args: &[String], project: &Project) {
         emit_error_and_exit(
             refusal(
                 "network-error",
-                &format!("cannot fetch schema from {raw_arg}: network imports are not yet supported — download the schema locally and retry"),
+                &format!(
+                    "cannot fetch schema from {raw_arg}: network imports are not yet supported — download the schema locally and retry"
+                ),
                 None,
                 vec![RemediationEntry {
                     command: format!("curl -O {raw_arg} && dont import linkml <downloaded-file>"),
-                    description: "Download the schema file locally, then retry the import".to_string(),
+                    description: "Download the schema file locally, then retry the import"
+                        .to_string(),
                 }],
             ),
             vec![],
@@ -1103,9 +1119,7 @@ fn run_per_entity<F: FnMut(&str) -> i32>(id: String, mut f: F) -> ! {
 /// line or inject fake status indicators.  We remove every byte < 0x20 and
 /// DEL (0x7F) so the raw bytes never reach stdout.
 fn strip_control_chars(s: &str) -> String {
-    s.chars()
-        .filter(|c| !c.is_ascii_control())
-        .collect()
+    s.chars().filter(|c| !c.is_ascii_control()).collect()
 }
 
 /// Maximum number of characters displayed for a single evidence entry line in
@@ -1191,7 +1205,9 @@ fn format_claims_list(data: &Value) -> String {
 fn format_terms_list(data: &Value) -> String {
     let items = match data.as_array() {
         Some(arr) => arr,
-        None => return "(no terms)\nTry: dont define proj:TermName --doc \"<definition>\"".to_string(),
+        None => {
+            return "(no terms)\nTry: dont define proj:TermName --doc \"<definition>\"".to_string();
+        }
     };
     if items.is_empty() {
         return "(no terms)\nTry: dont define proj:TermName --doc \"<definition>\"".to_string();
@@ -1501,8 +1517,7 @@ fn parse_list_kind(kind: &str) -> Option<ListKind> {
 /// Returns `true` when the value is recognisable.
 fn is_valid_as_of(raw: &str) -> bool {
     use chrono::{DateTime, NaiveDate};
-    DateTime::parse_from_rfc3339(raw).is_ok()
-        || NaiveDate::parse_from_str(raw, "%Y-%m-%d").is_ok()
+    DateTime::parse_from_rfc3339(raw).is_ok() || NaiveDate::parse_from_str(raw, "%Y-%m-%d").is_ok()
 }
 
 /// Collect all evidence entries from all events in event-tx order.
@@ -1941,7 +1956,9 @@ fn derived_assessments_for_claim(record: &ClaimRecord, store: &Store) -> Vec<Str
 
     for dep in &record.depends_on {
         let lookup = if dep.starts_with("term:") {
-            store.term_by_id(dep).map(|opt| opt.map(CurieResolution::Coined))
+            store
+                .term_by_id(dep)
+                .map(|opt| opt.map(CurieResolution::Coined))
         } else {
             store.resolve_curie_reference(dep)
         };
@@ -2065,7 +2082,10 @@ fn trace_claim(record: &ClaimRecord) -> Vec<BlockerPath> {
         visited.insert(dep.clone());
 
         let result = if dep.starts_with("term:") {
-            project.store.term_by_id(dep).map(|opt| opt.map(CurieResolution::Coined))
+            project
+                .store
+                .term_by_id(dep)
+                .map(|opt| opt.map(CurieResolution::Coined))
         } else {
             project.store.resolve_curie_reference(dep)
         };
@@ -2575,6 +2595,150 @@ fn emit_term_view(
     emit_json(&env);
 }
 
+fn transition_not_found_refusal(code: &str, id: &str) -> ErrorResult {
+    match code {
+        "claim-not-found" => refusal(
+            code,
+            &format!("no claim with id {id}"),
+            Some(id),
+            vec![RemediationEntry {
+                command: "dont list".to_string(),
+                description: "List all claims to find the correct id".to_string(),
+            }],
+        ),
+        "term-not-found" => refusal(
+            code,
+            &format!("no term with id {id}"),
+            Some(id),
+            vec![RemediationEntry {
+                command: "dont vocab".to_string(),
+                description: "List terms to find the correct id".to_string(),
+            }],
+        ),
+        _ => refusal(
+            code,
+            &format!("no entity with id {id}"),
+            Some(id),
+            vec![RemediationEntry {
+                command: "dont list".to_string(),
+                description: "List all entities to find the correct id".to_string(),
+            }],
+        ),
+    }
+}
+
+fn transition_invalid_refusal(id: &str, err: &TransitionError) -> ErrorResult {
+    refusal(
+        &err.code,
+        &err.message,
+        Some(id),
+        vec![RemediationEntry {
+            command: format!("dont show {id}"),
+            description: "Inspect the current entity status".to_string(),
+        }],
+    )
+}
+
+fn apply_claim_transition_impl(
+    project: &Project,
+    id: &str,
+    transition: fn(Status) -> Result<Status, TransitionError>,
+    event: StoreEvent,
+    missing_code: &str,
+    action: &str,
+    allow_evidence_append_on_verified: bool,
+) {
+    let record = match project.store.claim_by_id(id) {
+        Ok(Some(record)) => record,
+        Ok(None) => emit_error_and_exit(transition_not_found_refusal(missing_code, id), vec![], 1),
+        Err(err) => handle_store_error(err, Some(id)),
+    };
+    let current = record.status;
+    let result = match transition(current) {
+        Ok(new_status) => match project
+            .store
+            .append_status_change(id, current, new_status, event)
+        {
+            Ok(result) => result,
+            Err(err) => handle_store_error(err, Some(id)),
+        },
+        Err(_) if allow_evidence_append_on_verified && current == Status::Verified => {
+            match project.store.append_evidence_event(id, event) {
+                Ok(result) => result,
+                Err(err) => handle_store_error(err, Some(id)),
+            }
+        }
+        Err(err) => emit_error_and_exit(transition_invalid_refusal(id, &err), vec![], 1),
+    };
+    let updated = match project.store.claim_by_id(id) {
+        Ok(Some(record)) => record,
+        Ok(None) => handle_store_error(
+            StoreError::Malformed(format!("claim {id} vanished after {action}")),
+            Some(id),
+        ),
+        Err(err) => handle_store_error(err, Some(id)),
+    };
+    emit_claim_view(&updated, &result, &project.store);
+}
+
+fn apply_claim_transition(
+    project: &Project,
+    id: &str,
+    transition: fn(Status) -> Result<Status, TransitionError>,
+    event: StoreEvent,
+    missing_code: &str,
+    action: &str,
+) {
+    apply_claim_transition_impl(project, id, transition, event, missing_code, action, false);
+}
+
+fn apply_claim_transition_or_append_evidence(
+    project: &Project,
+    id: &str,
+    transition: fn(Status) -> Result<Status, TransitionError>,
+    event: StoreEvent,
+    missing_code: &str,
+    action: &str,
+) {
+    apply_claim_transition_impl(project, id, transition, event, missing_code, action, true);
+}
+
+fn apply_term_transition(
+    project: &Project,
+    id: &str,
+    transition: fn(Status) -> Result<Status, TransitionError>,
+    event: StoreEvent,
+    missing_code: &str,
+    action: &str,
+) {
+    let record = match project.store.term_by_id(id) {
+        Ok(Some(record)) => record,
+        Ok(None) => emit_error_and_exit(transition_not_found_refusal(missing_code, id), vec![], 1),
+        Err(err) => handle_store_error(err, Some(id)),
+    };
+    let current = record.status;
+    let new_status = match transition(current) {
+        Ok(status) => status,
+        Err(err) => emit_error_and_exit(transition_invalid_refusal(id, &err), vec![], 1),
+    };
+    let result = match project
+        .store
+        .append_term_status_change(id, current, new_status, event)
+    {
+        Ok(result) => result,
+        Err(err) => handle_store_error(err, Some(id)),
+    };
+    let updated = match project.store.term_by_id(id) {
+        Ok(Some(record)) => record,
+        Ok(None) => handle_store_error(
+            StoreError::Malformed(format!("term {id} vanished after {action}")),
+            Some(id),
+        ),
+        Err(err) => handle_store_error(err, Some(id)),
+    };
+    emit_term_view(&updated, &result, &project.store, vec![]);
+}
+
 // Vowel-letter heuristic only — "uniform" → "an uniform" (wrong). Acceptable because
 // call sites pass controlled strings from validated label input, not arbitrary nouns.
 fn best_article_for(noun: &str) -> &'static str {
@@ -2723,9 +2887,7 @@ fn label_contains_sentence_verb(label: &str) -> bool {
 /// that are not shell metacharacters or path-construction tokens.
 fn validate_claim_statement(statement: &str, command: &str) -> Option<ErrorResult> {
     // Characters that are unambiguously dangerous in shell/path contexts.
-    const SHELL_META: &[char] = &[
-        ';', '|', '`', '$', '\\', '<', '>', '\0',
-    ];
+    const SHELL_META: &[char] = &[';', '|', '`', '$', '\\', '<', '>', '\0'];
     // Path separator sequences: `/` alone is allowed in prose (e.g., "TCP/IP"),
     // but `..` adjacent to a path separator signals traversal. We ban the
     // backslash (already in SHELL_META) and bare NUL.
@@ -2741,8 +2903,9 @@ fn validate_claim_statement(statement: &str, command: &str) -> Option<ErrorResul
             None,
             vec![RemediationEntry {
                 command: format!("{command} \"<claim text>\""),
-                description: "Re-run with a statement that contains only printable prose characters"
-                    .to_string(),
+                description:
+                    "Re-run with a statement that contains only printable prose characters"
+                        .to_string(),
             }],
         ));
     }
@@ -2961,12 +3124,26 @@ fn main() {
     // `dismiss` is the spec-canonical fourth core verb (deprecated in v0.3 — use `flag`).
     // `lock`    is the spec-canonical lifecycle verb;  `forget` is the implementation name.
     let command = match command {
-        Command::Dismiss { id, evidence, file, lines, anchor, excerpt } => {
+        Command::Dismiss {
+            id,
+            evidence,
+            file,
+            lines,
+            anchor,
+            excerpt,
+        } => {
             eprintln!(
                 "warning: `dismiss` is deprecated and will be removed in a future version. \
                  Use `flag` instead."
             );
-            Command::Flag { id, evidence, file, lines, anchor, excerpt }
+            Command::Flag {
+                id,
+                evidence,
+                file,
+                lines,
+                anchor,
+                excerpt,
+            }
         }
         Command::Lock { id } => Command::Forget { id },
         other => other,
@@ -3065,7 +3242,9 @@ fn main() {
                     }
                 } else {
                     match project.store.resolve_curie_reference(dep) {
-                        Ok(Some(CurieResolution::Coined(term))) => resolved_depends_on.push(term.id),
+                        Ok(Some(CurieResolution::Coined(term))) => {
+                            resolved_depends_on.push(term.id)
+                        }
                         Ok(Some(CurieResolution::Imported(_))) => {
                             resolved_depends_on.push(dep.clone())
                         }
@@ -3125,7 +3304,10 @@ fn main() {
                 .chain(unresolved.iter())
                 .cloned()
                 .collect();
-            match project.store.append_claim(&statement, &all_depends_on, confidence) {
+            match project
+                .store
+                .append_claim(&statement, &all_depends_on, confidence)
+            {
                 Ok(result) => {
                     let payload = json!({
                         "id": result.id,
@@ -3263,132 +3445,16 @@ fn main() {
                     1,
                 );
             }
-            if let EntityId::Term(_) = EntityId::parse(&id) {
-                let record = match project.store.term_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "term-not-found",
-                            &format!("no term with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont vocab".to_string(),
-                                description: "List terms to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-
-                let current = record.status;
-                match model_trust(current) {
-                    Err(transition_err) => {
-                        emit_error_and_exit(
-                            refusal(
-                                &transition_err.code,
-                                &transition_err.message,
-                                Some(&id),
-                                vec![RemediationEntry {
-                                    command: format!("dont show {id}"),
-                                    description: "Inspect the current term status".to_string(),
-                                }],
-                            ),
-                            vec![],
-                            1,
-                        );
-                    }
-                    Ok(new_model_status) => {
-                        let event = StoreEvent {
-                            kind: StoreEventKind::Trusted,
-                            note: Some(reason),
-                            evidence: vec![],
-                        };
-                        let result = match project.store.append_term_status_change(
-                            &id,
-                            current,
-                            new_model_status,
-                            event,
-                        ) {
-                            Ok(r) => r,
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        let updated = match project.store.term_by_id(&id) {
-                            Ok(Some(r)) => r,
-                            Ok(None) => handle_store_error(
-                                StoreError::Malformed(format!("term {id} vanished after trust")),
-                                Some(&id),
-                            ),
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        emit_term_view(&updated, &result, &project.store, vec![]);
-                        return;
-                    }
-                }
-            }
-
-            let record = match project.store.claim_by_id(&id) {
-                Ok(Some(r)) => r,
-                Ok(None) => emit_error_and_exit(
-                    refusal(
-                        "claim-not-found",
-                        &format!("no claim with id {id}"),
-                        Some(&id),
-                        vec![RemediationEntry {
-                            command: "dont list".to_string(),
-                            description: "List all claims to find the correct id".to_string(),
-                        }],
-                    ),
-                    vec![],
-                    1,
-                ),
-                Err(err) => handle_store_error(err, Some(&id)),
+            let event = StoreEvent {
+                kind: StoreEventKind::Trusted,
+                note: Some(reason),
+                evidence: vec![],
             };
-
-            let current = record.status;
-            match model_trust(current) {
-                Err(transition_err) => {
-                    emit_error_and_exit(
-                        refusal(
-                            &transition_err.code,
-                            &transition_err.message,
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current claim status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    );
-                }
-                Ok(new_model_status) => {
-                    let event = StoreEvent {
-                        kind: StoreEventKind::Trusted,
-                        note: Some(reason),
-                        evidence: vec![],
-                    };
-                    let result = match project.store.append_status_change(
-                        &id,
-                        current,
-                        new_model_status,
-                        event,
-                    ) {
-                        Ok(r) => r,
-                        Err(err) => handle_store_error(err, Some(&id)),
-                    };
-                    let updated = match project.store.claim_by_id(&id) {
-                        Ok(Some(r)) => r,
-                        Ok(None) => handle_store_error(
-                            StoreError::Malformed(format!("claim {id} vanished after trust")),
-                            Some(&id),
-                        ),
-                        Err(err) => handle_store_error(err, Some(&id)),
-                    };
-                    emit_claim_view(&updated, &result, &project.store);
-                }
+            if let EntityId::Term(_) = EntityId::parse(&id) {
+                apply_term_transition(&project, &id, model_trust, event, "term-not-found", "trust");
+                return;
             }
+            apply_claim_transition(&project, &id, model_trust, event, "claim-not-found", "trust");
         }
 
         Command::Forget { id } => {
@@ -3487,48 +3553,18 @@ fn main() {
                     return emit_error_no_exit(err_result, vec![], 1);
                 }
 
-                let result = match model_lock(current) {
-                    Ok(new_model_status) => match project.store.append_status_change(
-                        id,
-                        current,
-                        new_model_status,
-                        StoreEvent {
-                            kind: StoreEventKind::Locked,
-                            note: None,
-                            evidence: vec![],
-                        },
-                    ) {
-                        Ok(r) => r,
-                        Err(err) => return handle_store_error_code(err, Some(id)),
+                apply_claim_transition(
+                    &project,
+                    id,
+                    model_lock,
+                    StoreEvent {
+                        kind: StoreEventKind::Locked,
+                        note: None,
+                        evidence: vec![],
                     },
-                    Err(err) => {
-                        return emit_error_no_exit(
-                            refusal(
-                                &err.code,
-                                &err.message,
-                                Some(id),
-                                vec![RemediationEntry {
-                                    command: format!("dont show {id}"),
-                                    description: "Inspect the current claim status".to_string(),
-                                }],
-                            ),
-                            vec![],
-                            1,
-                        );
-                    }
-                };
-
-                let updated = match project.store.claim_by_id(id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => {
-                        return handle_store_error_code(
-                            StoreError::Malformed(format!("claim {id} vanished after lock")),
-                            Some(id),
-                        );
-                    }
-                    Err(err) => return handle_store_error_code(err, Some(id)),
-                };
-                emit_claim_view(&updated, &result, &project.store);
+                    "claim-not-found",
+                    "lock",
+                );
                 0
             });
         }
@@ -3536,124 +3572,22 @@ fn main() {
         Command::Reopen { id } => {
             let project = open_project_or_exit();
 
+            let event = StoreEvent {
+                kind: StoreEventKind::Reopened,
+                note: None,
+                evidence: vec![],
+            };
             if let EntityId::Term(_) = EntityId::parse(&id) {
-                let record = match project.store.term_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "entity-not-found",
-                            &format!("no entity with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all entities to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-                let current = record.status;
-                match model_reopen(current) {
-                    Err(transition_err) => emit_error_and_exit(
-                        refusal(
-                            &transition_err.code,
-                            &transition_err.message,
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current entity status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Ok(new_model_status) => {
-                        let event = StoreEvent {
-                            kind: StoreEventKind::Reopened,
-                            note: None,
-                            evidence: vec![],
-                        };
-                        let result = match project.store.append_term_status_change(
-                            &id,
-                            current,
-                            new_model_status,
-                            event,
-                        ) {
-                            Ok(r) => r,
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        let updated = match project.store.term_by_id(&id) {
-                            Ok(Some(r)) => r,
-                            Ok(None) => handle_store_error(
-                                StoreError::Malformed(format!("term {id} vanished after reopen")),
-                                Some(&id),
-                            ),
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        emit_term_view(&updated, &result, &project.store, vec![]);
-                    }
-                }
+                apply_term_transition(
+                    &project,
+                    &id,
+                    model_reopen,
+                    event,
+                    "entity-not-found",
+                    "reopen",
+                );
             } else {
-                let record = match project.store.claim_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "entity-not-found",
-                            &format!("no entity with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all entities to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-                let current = record.status;
-                match model_reopen(current) {
-                    Err(transition_err) => emit_error_and_exit(
-                        refusal(
-                            &transition_err.code,
-                            &transition_err.message,
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current entity status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Ok(new_model_status) => {
-                        let event = StoreEvent {
-                            kind: StoreEventKind::Reopened,
-                            note: None,
-                            evidence: vec![],
-                        };
-                        let result = match project.store.append_status_change(
-                            &id,
-                            current,
-                            new_model_status,
-                            event,
-                        ) {
-                            Ok(r) => r,
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        let updated = match project.store.claim_by_id(&id) {
-                            Ok(Some(r)) => r,
-                            Ok(None) => handle_store_error(
-                                StoreError::Malformed(format!("claim {id} vanished after reopen")),
-                                Some(&id),
-                            ),
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        emit_claim_view(&updated, &result, &project.store);
-                    }
-                }
+                apply_claim_transition(&project, &id, model_reopen, event, "entity-not-found", "reopen");
             }
         }
 
@@ -3694,124 +3628,22 @@ fn main() {
                 );
             }
 
+            let event = StoreEvent {
+                kind: StoreEventKind::Ignored,
+                note: Some(reason),
+                evidence: vec![],
+            };
             if let EntityId::Term(_) = EntityId::parse(&id) {
-                let record = match project.store.term_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "entity-not-found",
-                            &format!("no entity with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all entities to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-                let current = record.status;
-                match model_ignore(current) {
-                    Err(transition_err) => emit_error_and_exit(
-                        refusal(
-                            &transition_err.code,
-                            &transition_err.message,
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current entity status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Ok(new_model_status) => {
-                        let event = StoreEvent {
-                            kind: StoreEventKind::Ignored,
-                            note: Some(reason),
-                            evidence: vec![],
-                        };
-                        let result = match project.store.append_term_status_change(
-                            &id,
-                            current,
-                            new_model_status,
-                            event,
-                        ) {
-                            Ok(r) => r,
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        let updated = match project.store.term_by_id(&id) {
-                            Ok(Some(r)) => r,
-                            Ok(None) => handle_store_error(
-                                StoreError::Malformed(format!("term {id} vanished after ignore")),
-                                Some(&id),
-                            ),
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        emit_term_view(&updated, &result, &project.store, vec![]);
-                    }
-                }
+                apply_term_transition(
+                    &project,
+                    &id,
+                    model_ignore,
+                    event,
+                    "entity-not-found",
+                    "ignore",
+                );
             } else {
-                let record = match project.store.claim_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "entity-not-found",
-                            &format!("no entity with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all entities to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-                let current = record.status;
-                match model_ignore(current) {
-                    Err(transition_err) => emit_error_and_exit(
-                        refusal(
-                            &transition_err.code,
-                            &transition_err.message,
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current entity status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Ok(new_model_status) => {
-                        let event = StoreEvent {
-                            kind: StoreEventKind::Ignored,
-                            note: Some(reason),
-                            evidence: vec![],
-                        };
-                        let result = match project.store.append_status_change(
-                            &id,
-                            current,
-                            new_model_status,
-                            event,
-                        ) {
-                            Ok(r) => r,
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        let updated = match project.store.claim_by_id(&id) {
-                            Ok(Some(r)) => r,
-                            Ok(None) => handle_store_error(
-                                StoreError::Malformed(format!("claim {id} vanished after ignore")),
-                                Some(&id),
-                            ),
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        emit_claim_view(&updated, &result, &project.store);
-                    }
-                }
+                apply_claim_transition(&project, &id, model_ignore, event, "entity-not-found", "ignore");
             }
         }
 
@@ -3884,89 +3716,31 @@ fn main() {
             // Terms don't have depends_on fields so no dependency gate is needed here.
             // If terms gain dependencies in the future, add dependency_gate_unmet_clauses.
             if let EntityId::Term(_) = EntityId::parse(&id) {
-                let record = match project.store.term_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "term-not-found",
-                            &format!("no term with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont vocab".to_string(),
-                                description: "List terms to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-
-                let current = record.status;
-                let event = StoreEvent {
-                    kind: StoreEventKind::Flagged,
-                    note: None,
-                    evidence: all_evidence.clone(),
-                };
-
-                let result = match model_flag(current) {
-                    Ok(new_model_status) => match project.store.append_term_status_change(
-                        &id,
-                        current,
-                        new_model_status,
-                        event,
-                    ) {
-                        Ok(r) => r,
-                        Err(err) => handle_store_error(err, Some(&id)),
+                apply_term_transition(
+                    &project,
+                    &id,
+                    model_flag,
+                    StoreEvent {
+                        kind: StoreEventKind::Flagged,
+                        note: None,
+                        evidence: all_evidence.clone(),
                     },
-                    Err(transition_err) => {
-                        emit_error_and_exit(
-                            refusal(
-                                &transition_err.code,
-                                &transition_err.message,
-                                Some(&id),
-                                vec![RemediationEntry {
-                                    command: format!("dont show {id}"),
-                                    description: "Inspect the current term status".to_string(),
-                                }],
-                            ),
-                            vec![],
-                            1,
-                        );
-                    }
-                };
-
-                let updated = match project.store.term_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => handle_store_error(
-                        StoreError::Malformed(format!("term {id} vanished after flag")),
-                        Some(&id),
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-                emit_term_view(&updated, &result, &project.store, vec![]);
+                    "term-not-found",
+                    "flag",
+                );
                 return;
             }
 
             let record = match project.store.claim_by_id(&id) {
                 Ok(Some(r)) => r,
                 Ok(None) => emit_error_and_exit(
-                    refusal(
-                        "claim-not-found",
-                        &format!("no claim with id {id}"),
-                        Some(&id),
-                        vec![RemediationEntry {
-                            command: "dont list".to_string(),
-                            description: "List all claims to find the correct id".to_string(),
-                        }],
-                    ),
+                    transition_not_found_refusal("claim-not-found", &id),
                     vec![],
                     1,
                 ),
                 Err(err) => handle_store_error(err, Some(&id)),
             };
 
-            let current = record.status;
             let dependency_unmet = dependency_gate_unmet_clauses(&record, &project.store);
             if !dependency_unmet.is_empty() {
                 let rule_name = dependency_gate_rule_name(&dependency_unmet);
@@ -3985,180 +3759,40 @@ fn main() {
                 .expect("dependency gate refusal must include remediation");
                 emit_error_and_exit(err_result, vec![], 1);
             }
-            let event = StoreEvent {
-                kind: StoreEventKind::Flagged,
-                note: None,
-                evidence: all_evidence,
-            };
 
-            let result = match model_flag(current) {
-                Ok(new_model_status) => {
-                    match project.store.append_status_change(
-                        &id,
-                        current,
-                        new_model_status,
-                        event,
-                    ) {
-                        Ok(r) => r,
-                        Err(err) => handle_store_error(err, Some(&id)),
-                    }
-                }
-                Err(_) if current == Status::Verified => {
-                    // already-verified flag appends evidence without status change
-                    match project.store.append_evidence_event(&id, event) {
-                        Ok(r) => r,
-                        Err(err) => handle_store_error(err, Some(&id)),
-                    }
-                }
-                Err(transition_err) => {
-                    emit_error_and_exit(
-                        refusal(
-                            &transition_err.code,
-                            &transition_err.message,
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current claim status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    );
-                }
-            };
-
-            let updated = match project.store.claim_by_id(&id) {
-                Ok(Some(r)) => r,
-                Ok(None) => handle_store_error(
-                    StoreError::Malformed(format!("claim {id} vanished after flag")),
-                    Some(&id),
-                ),
-                Err(err) => handle_store_error(err, Some(&id)),
-            };
-            emit_claim_view(&updated, &result, &project.store);
+            apply_claim_transition_or_append_evidence(
+                &project,
+                &id,
+                model_flag,
+                StoreEvent {
+                    kind: StoreEventKind::Flagged,
+                    note: None,
+                    evidence: all_evidence,
+                },
+                "claim-not-found",
+                "flag",
+            );
         }
 
         Command::Undoubt { id } => {
             let project = open_project_or_exit();
 
+            let event = StoreEvent {
+                kind: StoreEventKind::Undoubted,
+                note: None,
+                evidence: vec![],
+            };
             if let EntityId::Term(_) = EntityId::parse(&id) {
-                let record = match project.store.term_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "entity-not-found",
-                            &format!("no entity with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all entities to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-                let current = record.status;
-                match model_undoubt(current) {
-                    Err(transition_err) => emit_error_and_exit(
-                        refusal(
-                            &transition_err.code,
-                            &transition_err.message,
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current entity status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Ok(new_model_status) => {
-                        let event = StoreEvent {
-                            kind: StoreEventKind::Undoubted,
-                            note: None,
-                            evidence: vec![],
-                        };
-                        let result = match project.store.append_term_status_change(
-                            &id,
-                            current,
-                            new_model_status,
-                            event,
-                        ) {
-                            Ok(r) => r,
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        let updated = match project.store.term_by_id(&id) {
-                            Ok(Some(r)) => r,
-                            Ok(None) => handle_store_error(
-                                StoreError::Malformed(format!("term {id} vanished after undoubt")),
-                                Some(&id),
-                            ),
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        emit_term_view(&updated, &result, &project.store, vec![]);
-                    }
-                }
+                apply_term_transition(
+                    &project,
+                    &id,
+                    model_undoubt,
+                    event,
+                    "entity-not-found",
+                    "undoubt",
+                );
             } else {
-                let record = match project.store.claim_by_id(&id) {
-                    Ok(Some(r)) => r,
-                    Ok(None) => emit_error_and_exit(
-                        refusal(
-                            "entity-not-found",
-                            &format!("no entity with id {id}"),
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: "dont list".to_string(),
-                                description: "List all entities to find the correct id".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Err(err) => handle_store_error(err, Some(&id)),
-                };
-                let current = record.status;
-                match model_undoubt(current) {
-                    Err(transition_err) => emit_error_and_exit(
-                        refusal(
-                            &transition_err.code,
-                            &transition_err.message,
-                            Some(&id),
-                            vec![RemediationEntry {
-                                command: format!("dont show {id}"),
-                                description: "Inspect the current entity status".to_string(),
-                            }],
-                        ),
-                        vec![],
-                        1,
-                    ),
-                    Ok(new_model_status) => {
-                        let event = StoreEvent {
-                            kind: StoreEventKind::Undoubted,
-                            note: None,
-                            evidence: vec![],
-                        };
-                        let result = match project.store.append_status_change(
-                            &id,
-                            current,
-                            new_model_status,
-                            event,
-                        ) {
-                            Ok(r) => r,
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        let updated = match project.store.claim_by_id(&id) {
-                            Ok(Some(r)) => r,
-                            Ok(None) => handle_store_error(
-                                StoreError::Malformed(format!("claim {id} vanished after undoubt")),
-                                Some(&id),
-                            ),
-                            Err(err) => handle_store_error(err, Some(&id)),
-                        };
-                        emit_claim_view(&updated, &result, &project.store);
-                    }
-                }
+                apply_claim_transition(&project, &id, model_undoubt, event, "entity-not-found", "undoubt");
             }
         }
 
@@ -4557,7 +4191,13 @@ fn main() {
             }
         }
 
-        Command::List { status, kind, all, derived_assessment, as_of } => {
+        Command::List {
+            status,
+            kind,
+            all,
+            derived_assessment,
+            as_of,
+        } => {
             // Validate --as-of if supplied; emit structured error before opening the store.
             if let Some(ref raw) = as_of {
                 if !is_valid_as_of(raw) {
@@ -4998,8 +4638,8 @@ fn main() {
                             &msg,
                             None,
                             vec![RemediationEntry {
-                                command:
-                                    "dont ground \"<statement>\" --evidence <http://...>".to_string(),
+                                command: "dont ground \"<statement>\" --evidence <http://...>"
+                                    .to_string(),
                                 description:
                                     "Use a valid http:// or https:// URI as the evidence reference"
                                         .to_string(),
@@ -5038,30 +4678,18 @@ fn main() {
             };
             let claim_id = conclude_result.id.clone();
 
-            let flag_event = StoreEvent {
-                kind: StoreEventKind::Flagged,
-                note: None,
-                evidence: all_evidence,
-            };
-            let flag_result = match project.store.append_status_change(
+            apply_claim_transition(
+                &project,
                 &claim_id,
-                Status::Unverified,
-                Status::Verified,
-                flag_event,
-            ) {
-                Ok(r) => r,
-                Err(err) => handle_store_error(err, Some(&claim_id)),
-            };
-
-            let updated = match project.store.claim_by_id(&claim_id) {
-                Ok(Some(r)) => r,
-                Ok(None) => handle_store_error(
-                    StoreError::Malformed(format!("claim {claim_id} vanished after ground")),
-                    Some(&claim_id),
-                ),
-                Err(err) => handle_store_error(err, Some(&claim_id)),
-            };
-            emit_claim_view(&updated, &flag_result, &project.store);
+                model_flag,
+                StoreEvent {
+                    kind: StoreEventKind::Flagged,
+                    note: None,
+                    evidence: all_evidence,
+                },
+                "claim-not-found",
+                "ground",
+            );
         }
 
         Command::Atom { action } => {
@@ -5360,11 +4988,15 @@ fn main() {
                 emit_error_and_exit(
                     refusal(
                         "not-implemented",
-                        &format!("import adapter '{adapter}' is not yet implemented; only 'linkml' is currently supported"),
+                        &format!(
+                            "import adapter '{adapter}' is not yet implemented; only 'linkml' is currently supported"
+                        ),
                         None,
                         vec![RemediationEntry {
                             command: "dont import linkml <schema.yaml>".to_string(),
-                            description: "Use the linkml adapter, the only currently supported adapter".to_string(),
+                            description:
+                                "Use the linkml adapter, the only currently supported adapter"
+                                    .to_string(),
                         }],
                     ),
                     vec![],
@@ -5413,7 +5045,12 @@ fn main() {
                         rules.extend(custom);
                     }
 
-                    emit_json(&Envelope::success(EnvelopeKind::RuleList, rules, vec![], vec![]));
+                    emit_json(&Envelope::success(
+                        EnvelopeKind::RuleList,
+                        rules,
+                        vec![],
+                        vec![],
+                    ));
                 }
 
                 RulesAction::Show { name } => {
@@ -5424,7 +5061,12 @@ fn main() {
                             source: "shipped",
                             datalog: None,
                         };
-                        emit_json(&Envelope::success(EnvelopeKind::Rule, detail, vec![], vec![]));
+                        emit_json(&Envelope::success(
+                            EnvelopeKind::Rule,
+                            detail,
+                            vec![],
+                            vec![],
+                        ));
                     } else {
                         let path = rules_dir.join(format!("{name}.dl"));
                         match std::fs::read_to_string(&path) {
@@ -5435,7 +5077,12 @@ fn main() {
                                     source: "custom",
                                     datalog: Some(src),
                                 };
-                                emit_json(&Envelope::success(EnvelopeKind::Rule, detail, vec![], vec![]));
+                                emit_json(&Envelope::success(
+                                    EnvelopeKind::Rule,
+                                    detail,
+                                    vec![],
+                                    vec![],
+                                ));
                             }
                             Err(_) => {
                                 emit_error_and_exit(
@@ -5641,7 +5288,12 @@ fn main() {
                             })
                             .collect(),
                     };
-                    emit_json(&Envelope::success(EnvelopeKind::RuleResult, result, vec![], vec![]));
+                    emit_json(&Envelope::success(
+                        EnvelopeKind::RuleResult,
+                        result,
+                        vec![],
+                        vec![],
+                    ));
                 }
             }
         }
@@ -5650,8 +5302,11 @@ fn main() {
             let project = open_project_or_exit();
             let rules_dir = project.dont_dir.join("rules");
             let config = project.load_config();
-            let engine =
-                dont::rules::RuleEngine::new(rules_dir, config.rules, project.mode() == Some(ProjectMode::Strict));
+            let engine = dont::rules::RuleEngine::new(
+                rules_dir,
+                config.rules,
+                project.mode() == Some(ProjectMode::Strict),
+            );
 
             if let Some(prose) = dont::rules::explain(&rule) {
                 let severity = severity_label(engine.severity(&rule));
@@ -5664,7 +5319,12 @@ fn main() {
                 if human_mode() {
                     println!("{}", prose.trim());
                 } else {
-                    emit_json(&Envelope::success(EnvelopeKind::DontExplain, payload, vec![], vec![]));
+                    emit_json(&Envelope::success(
+                        EnvelopeKind::DontExplain,
+                        payload,
+                        vec![],
+                        vec![],
+                    ));
                 }
             } else {
                 emit_error_and_exit(
@@ -5689,7 +5349,12 @@ fn main() {
         }
 
         // Help: agent-addressed help, tutorial, and how-to guides (dont-nolt).
-        Command::Help { command: cmd_name, tutorial, topics, howto } => {
+        Command::Help {
+            command: cmd_name,
+            tutorial,
+            topics,
+            howto,
+        } => {
             if tutorial {
                 let text: String = HELP_TUTORIAL.iter().map(|s| s.to_string()).collect();
                 print!("{text}");
@@ -5703,7 +5368,9 @@ fn main() {
                 match howto_content(&topic) {
                     Some(guide) => print!("{guide}"),
                     None => {
-                        eprintln!("dont: no how-to guide for topic '{topic}'; run `dont help --topics`");
+                        eprintln!(
+                            "dont: no how-to guide for topic '{topic}'; run `dont help --topics`"
+                        );
                         process::exit(1);
                     }
                 }
@@ -5722,10 +5389,7 @@ fn main() {
                 println!("Commands:");
                 for sub in app.get_subcommands_mut() {
                     let name = sub.get_name().to_string();
-                    let about = sub
-                        .get_about()
-                        .map(|s| s.to_string())
-                        .unwrap_or_default();
+                    let about = sub.get_about().map(|s| s.to_string()).unwrap_or_default();
                     println!("  {name:<20} {about}");
                 }
                 println!();
