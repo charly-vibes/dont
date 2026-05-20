@@ -81,7 +81,7 @@ The system SHALL accept entity IDs from stdin when the ID argument is `-`, readi
 - **THEN** the exit code follows the `dont-errors` contract with highest-severity-wins precedence: `4` > `3` > `2` > `1` > `0`
 
 ### Requirement: Stdin-accepting verbs
-The system SHALL support stdin piping for the following verbs: `show`, `why`, `trust` (with `--reason`), `dismiss` (with `--evidence`), `ignore` (with `--reason`), `lock`, `reopen`, `verify-evidence`. The system SHALL NOT support stdin piping for `conclude` or `define` (which take domain content, not just IDs), nor for `list` or `vocab` (which are sources, not sinks). Verbs not yet specified by a capability spec (`show`, `why`, `list`, `vocab`) are listed here for completeness and will be defined in future capabilities.
+The system SHALL support stdin piping for the following verbs: `show`, `why`, `trust` (with `--reason`), `flag` (with `--evidence`), `ignore` (with `--reason`), `lock`, `reopen`, `verify-evidence`. `dismiss` is a deprecated alias for `flag` that also accepts stdin. The system SHALL NOT support stdin piping for `conclude` or `define` (which take domain content, not just IDs), nor for `list` or `vocab` (which are sources, not sinks). Verbs not yet specified by a capability spec (`show`, `why`, `list`, `vocab`) are listed here for completeness and will be defined in future capabilities.
 
 #### Scenario: show accepts stdin IDs
 - **WHEN** `dont show -` is invoked with entity IDs on stdin

@@ -4,11 +4,11 @@
 TBD - created by archiving change add-core-dont-specs. Update Purpose after archive.
 ## Requirements
 ### Requirement: Four primary epistemic verbs
-The system SHALL define `conclude`, `define`, `trust`, and `dismiss` as the primary CLI verbs for driving claims and terms through the epistemic workflow.
+The system SHALL define `conclude`, `define`, `trust`, and `flag` as the primary CLI verbs for driving claims and terms through the epistemic workflow. `dismiss` is a deprecated alias for `flag` retained for backward compatibility; new documentation and help text SHALL use `flag`.
 
 #### Scenario: core CLI surface is limited to four primary verbs
 - **WHEN** the specification describes the core CLI
-- **THEN** it presents `conclude`, `define`, `trust`, and `dismiss` as the primary epistemic verbs
+- **THEN** it presents `conclude`, `define`, `trust`, and `flag` as the primary epistemic verbs
 
 ### Requirement: CLI verbs are interpreted in phrase form
 The system SHALL define core CLI verb semantics in the phrase context `dont <verb>` rather than by the standalone English verb alone, and SHALL require command help and documentation to explain verbs in that phrase form.
@@ -19,7 +19,7 @@ The system SHALL define core CLI verb semantics in the phrase context `dont <ver
 
 #### Scenario: phrase form is required in command help
 - **WHEN** the core CLI documents a primary verb
-- **THEN** the documentation explains the meaning of the full phrase such as `dont dismiss` or `dont conclude`
+- **THEN** the documentation explains the meaning of the full phrase such as `dont flag` or `dont conclude`
 
 ### Requirement: Conclude introduces claims
 The system SHALL let `conclude` introduce a claim with statement content and may allow structured metadata such as atoms, references, confidence, dependencies, session identity, and author identity.
@@ -81,36 +81,40 @@ The system SHALL let `trust` move a non-terminal claim or term into the `doubted
 - **WHEN** an actor invokes `trust` on a locked or ignored entity
 - **THEN** the command is refused
 
-### Requirement: Dismiss verifies through evidence
-The system SHALL let `dismiss` serve as the core CLI path into `verified` status for a claim or term using one or more evidence references, subject to deterministic local refusal conditions.
+### Requirement: Flag verifies through evidence
+The system SHALL let `flag` serve as the core CLI path into `verified` status for a claim or term using one or more evidence references, subject to deterministic local refusal conditions. `dismiss` is a deprecated alias for `flag` that emits a deprecation warning and behaves identically; all new documentation SHALL use `flag`.
 
-#### Scenario: dismiss verifies an eligible claim or term with evidence
-- **WHEN** an actor invokes `dismiss` on an eligible claim or term with one or more evidence references
+#### Scenario: flag verifies an eligible claim or term with evidence
+- **WHEN** an actor invokes `flag` on an eligible claim or term with one or more evidence references
 - **THEN** the command is allowed to transition the target toward `verified` according to the lifecycle rules
 
-#### Scenario: dismiss may append evidence to an already verified entity
-- **WHEN** an actor invokes `dismiss` on an already `verified` claim or term with additional evidence references
+#### Scenario: flag may append evidence to an already verified entity
+- **WHEN** an actor invokes `flag` on an already `verified` claim or term with additional evidence references
 - **THEN** the command may append evidence to that entity's history without creating a new identity or requiring a status change
 
-#### Scenario: dismiss refuses when evidence is absent
-- **WHEN** an actor invokes `dismiss` without any evidence references
+#### Scenario: flag refuses when evidence is absent
+- **WHEN** an actor invokes `flag` without any evidence references
 - **THEN** the command is refused
 
-#### Scenario: dismiss refuses terminal entities
-- **WHEN** an actor invokes `dismiss` on a locked or ignored entity
+#### Scenario: flag refuses terminal entities
+- **WHEN** an actor invokes `flag` on a locked or ignored entity
 - **THEN** the command is refused
 
-#### Scenario: dismiss refuses malformed evidence references
-- **WHEN** an actor invokes `dismiss` with evidence references that are malformed URIs or unresolved CURIE prefixes
+#### Scenario: flag refuses malformed evidence references
+- **WHEN** an actor invokes `flag` with evidence references that are malformed URIs or unresolved CURIE prefixes
 - **THEN** the command is refused
 
-#### Scenario: dismiss refuses when referenced terms remain unresolved
-- **WHEN** an actor invokes `dismiss` for a claim or term whose required referenced terms do not resolve
+#### Scenario: flag refuses when referenced terms remain unresolved
+- **WHEN** an actor invokes `flag` for a claim or term whose required referenced terms do not resolve
 - **THEN** the command is refused
 
-#### Scenario: dismiss may require atom completion before claim verification
+#### Scenario: flag may require atom completion before claim verification
 - **WHEN** a claim has declared atoms and at least one atom remains unverified or doubted
-- **THEN** whole-claim dismissal may be refused until the atom-level verification requirements are satisfied
+- **THEN** whole-claim verification may be refused until the atom-level verification requirements are satisfied
+
+#### Scenario: dismiss deprecated alias emits warning
+- **WHEN** an actor invokes `dismiss` instead of `flag`
+- **THEN** the command succeeds with identical behavior to `flag` but emits a deprecation warning to stderr
 
 ### Requirement: Define label shape validators
 The system SHALL apply five deterministic, network-free validators to `--label` when it is supplied, in listed order, before any rule evaluation. The validators are individually disableable globally via the `[define.shape]` project configuration block and are NOT overridable per invocation. The first failure SHALL refuse the command and skip the remainder. Each refusal SHALL carry an error envelope with non-empty `remediation[]` pointing at the specific fix. The validators SHALL also fire at warn-level on the leading-phrase extraction of `--doc` when `--label` is absent, except for `term-compound-undeclared` which does not fire on doc extractions.
