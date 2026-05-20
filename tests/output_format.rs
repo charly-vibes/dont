@@ -297,6 +297,52 @@ fn clicolor_force_enables_ansi() {
     );
 }
 
+#[test]
+fn no_color_flag_disables_ansi_even_when_force_is_set() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    conclude_json(&dir, "forced colour can be disabled");
+
+    let out = dont()
+        .args(["list", "--no-color"])
+        .env("DONT_DIR", dir.path())
+        .env("CLICOLOR_FORCE", "1")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        !text.contains('\x1b'),
+        "--no-color must suppress ANSI even when CLICOLOR_FORCE=1, got: {text:?}"
+    );
+}
+
+#[test]
+fn color_flag_enables_ansi_even_when_no_color_env_is_set() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    conclude_json(&dir, "flag overrides no_color env");
+
+    let out = dont()
+        .args(["list", "--color"])
+        .env("DONT_DIR", dir.path())
+        .env("NO_COLOR", "1")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        text.contains('\x1b'),
+        "--color must force ANSI even when NO_COLOR=1, got: {text:?}"
+    );
+}
+
 // --- evidence rendering (dont-08l) ---
 
 #[test]

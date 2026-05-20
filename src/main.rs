@@ -29,6 +29,7 @@ use dont::store::{
 thread_local! {
     static HUMAN_MODE: Cell<bool> = const { Cell::new(false) };
     static PLAIN_MODE: Cell<bool> = const { Cell::new(false) };
+    static FORCE_COLOR_MODE: Cell<bool> = const { Cell::new(false) };
 }
 
 fn human_mode() -> bool {
@@ -39,6 +40,9 @@ fn color_enabled() -> bool {
     use std::io::IsTerminal;
     if PLAIN_MODE.with(|m| m.get()) {
         return false;
+    }
+    if FORCE_COLOR_MODE.with(|m| m.get()) {
+        return true;
     }
     if std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty()) {
         return false;
@@ -74,7 +78,23 @@ fn colorize_status(status: &str) -> String {
   dont flag claim:abc123 -e https://example.com/sky
   dont lock claim:abc123             # preserve a verified claim
   dont list --status unverified      # see all unverified claims
-  dont prime                         # session-start orientation")]
+  dont prime                         # session-start orientation
+
+Command groups:
+  Claim lifecycle:
+    conclude, trust, undoubt, ignore, reopen, forget, lock
+  Evidence and review:
+    flag, dismiss, ground, show, why, trace, verify-evidence
+  Vocabulary and import:
+    define, vocab, import
+  Lists and project health:
+    list, prime, doctor
+  Structured workflows:
+    atom (define, dismiss)
+    hypothesis (add, assess)
+    rules (list, show, add, test)
+  Agent guidance:
+    help, explain, completions")]
 struct Cli {
     /// Print version information. Combine with --json for machine-readable output.
     #[arg(long, global = true)]
@@ -89,8 +109,16 @@ struct Cli {
     human: bool,
 
     /// Output human-readable text without ANSI colours (for logging to files).
-    #[arg(long, global = true)]
+    #[arg(long, global = true, conflicts_with = "color")]
     plain: bool,
+
+    /// Force ANSI colour output even when stdout is not a TTY or NO_COLOR is set.
+    #[arg(long, global = true, conflicts_with_all = ["plain", "no_color"])]
+    color: bool,
+
+    /// Disable ANSI colour output for this invocation.
+    #[arg(long = "no-color", global = true, conflicts_with_all = ["plain", "color"])]
+    no_color: bool,
 
     /// Author identifier for this invocation. Overrides $DONT_AUTHOR.
     #[arg(long, short = 'a', global = true)]
@@ -163,12 +191,12 @@ enum Command {
         reason: Option<String>,
     },
 
-    /// Verify a claim with evidence. Read as 'dont flag' = 'do not flag it as a concern'. Alias: dismiss.
+    /// Verify a claim or term with evidence. Read as 'dont flag' = 'do not flag it as a concern'. Alias: dismiss.
     #[command(after_help = "Examples:
   dont flag claim:abc123 -e https://example.com/evidence
-  dont flag claim:abc123 --file src/lib.rs --lines 10-18 --excerpt \"fn foo() {\"")]
+  dont flag term:WB:P001 --file docs/spec.md --anchor terminology")]
     Flag {
-        /// Claim identifier.
+        /// Claim or term identifier.
         id: String,
 
         /// Evidence URI or reference.
@@ -246,12 +274,18 @@ enum Command {
     },
 
     /// Restore an ignored claim or term to unverified status.
+    #[command(after_help = "Examples:
+  dont reopen claim:abc123
+  dont reopen term:WB:P001")]
     Reopen {
         /// Entity identifier (claim:... or term:...).
         id: String,
     },
 
     /// Move a claim or term to ignored state.
+    #[command(after_help = "Examples:
+  dont ignore claim:abc123 --reason \"Superseded by newer evidence\"
+  dont ignore term:WB:P001 --reason \"Merged into canonical vocabulary\"")]
     Ignore {
         /// Entity identifier (claim:... or term:...).
         id: String,
@@ -262,6 +296,9 @@ enum Command {
     },
 
     /// Show a claim or term.
+    #[command(after_help = "Examples:
+  dont show claim:abc123
+  dont show WB:P001 --history")]
     Show {
         /// Claim or term identifier (claim:ID, term:ID, or CURIE like WB:P001).
         id: String,
@@ -272,12 +309,18 @@ enum Command {
     },
 
     /// Explain why a claim or term has its current status.
+    #[command(after_help = "Examples:
+  dont why claim:abc123
+  dont why term:WB:P001")]
     Why {
         /// Claim or term identifier (claim:ID, term:ID, or CURIE like WB:P001).
         id: String,
     },
 
     /// Check liveness of attached evidence references without changing status.
+    #[command(after_help = "Examples:
+  dont verify-evidence claim:abc123
+  dont verify-evidence term:WB:P001 --timeout-seconds 5")]
     VerifyEvidence {
         /// Entity identifier (claim:... or term:...).
         id: String,
@@ -288,9 +331,14 @@ enum Command {
     },
 
     /// Return session-start orientation and project state summary.
+    #[command(after_help = "Examples:
+  dont prime")]
     Prime,
 
     /// Report project diagnostics and optionally repair managed docs.
+    #[command(after_help = "Examples:
+  dont doctor
+  dont doctor --fix --strict")]
     Doctor {
         /// Treat warnings as a non-zero exit.
         #[arg(long)]
@@ -302,6 +350,10 @@ enum Command {
     },
 
     /// List entities.
+    #[command(after_help = "Examples:
+  dont list
+  dont list --status unverified
+  dont list --kind terms --as-of 2026-05-01")]
     List {
         /// Filter entities by status.
         #[arg(long)]
@@ -339,18 +391,27 @@ enum Command {
     },
 
     /// Explain the blocker-path for a claim or term.
+    #[command(after_help = "Examples:
+  dont trace claim:abc123
+  dont trace term:WB:P001")]
     Trace {
         /// Entity identifier (claim:... or term:...).
         id: String,
     },
 
     /// Generate shell completion scripts.
+    #[command(after_help = "Examples:
+  dont completions bash
+  dont completions fish --json")]
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, powershell, elvish).
         shell: Shell,
     },
 
     /// Atomically ground a claim with its supporting evidence.
+    #[command(after_help = "Examples:
+  dont ground \"the sky is blue\" -e https://example.com/source
+  dont ground \"water boils at 100C\" --file docs/spec.md --lines 10-12")]
     Ground {
         /// Claim statement text.
         statement: String,
@@ -377,18 +438,27 @@ enum Command {
     },
 
     /// Manage independently checkable atoms for a claim.
+    #[command(after_help = "Examples:
+  dont atom define claim:abc123 --text \"Check the primary source\"
+  dont atom dismiss claim:abc123 0 -e https://example.com/evidence")]
     Atom {
         #[command(subcommand)]
         action: AtomAction,
     },
 
     /// Manage competing hypotheses for a claim.
+    #[command(after_help = "Examples:
+  dont hypothesis add claim:abc123 --text \"Sensor drift explains the anomaly\"
+  dont hypothesis assess claim:abc123 0 --supporting \"Calibration log matches\"")]
     Hypothesis {
         #[command(subcommand)]
         action: HypothesisAction,
     },
 
     /// Import terms from an external ontology adapter.
+    #[command(after_help = "Examples:
+  dont import obo chebi.obo
+  dont import linkml schema.yaml --json")]
     Import {
         /// Adapter name (obo, ols, wikidata, openalex, bioregistry, jsonld, ttl, linkml).
         adapter: String,
@@ -399,18 +469,28 @@ enum Command {
     },
 
     /// Manage and inspect project rules.
+    #[command(after_help = "Examples:
+  dont rules list
+  dont rules show ungrounded")]
     Rules {
         #[command(subcommand)]
         action: RulesAction,
     },
 
     /// Show the prose explanation for a rule: what it checks, why it matters, and how to satisfy it.
+    #[command(after_help = "Examples:
+  dont explain ungrounded
+  dont explain lockable --json")]
     Explain {
         /// Rule name (e.g. ungrounded, lockable, correlated-error).
         rule: String,
     },
 
     /// Show agent-addressed help: command reference, first-session tutorial, and how-to guides.
+    #[command(after_help = "Examples:
+  dont help
+  dont help --tutorial
+  dont help --howto rule-claims")]
     Help {
         /// Command name to show help for (same output as <cmd> --help).
         command: Option<String>,
@@ -2843,8 +2923,11 @@ fn main() {
     if !cli.json {
         HUMAN_MODE.with(|m| m.set(true));
     }
-    if cli.plain && !cli.json {
+    if (cli.plain || cli.no_color) && !cli.json {
         PLAIN_MODE.with(|m| m.set(true));
+    }
+    if cli.color && !cli.json {
+        FORCE_COLOR_MODE.with(|m| m.set(true));
     }
 
     // --version [--json]

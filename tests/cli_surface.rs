@@ -185,6 +185,44 @@ fn help_cmd_writes_to_stdout_with_usage_and_flags() {
     );
 }
 
+#[test]
+fn help_flag_mentions_dismiss_alias_and_term_support() {
+    let out = dont()
+        .args(["help", "flag"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        text.contains("Alias: dismiss"),
+        "help flag must mention dismiss alias, got: {text}"
+    );
+    assert!(
+        text.contains("Claim or term identifier") || text.contains("claim or term"),
+        "help flag must document the same entity support as dismiss, got: {text}"
+    );
+}
+
+#[test]
+fn help_lock_mentions_forget_alias() {
+    let out = dont()
+        .args(["help", "lock"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        text.contains("forget") && text.to_lowercase().contains("alias"),
+        "help lock must mention forget alias, got: {text}"
+    );
+}
+
 /// Spec scenario: "bare help lists available commands"
 /// WHEN `dont help` is invoked with no arguments
 /// THEN the output lists all available subcommands with brief descriptions
@@ -204,5 +242,70 @@ fn help_lists_all_core_subcommands() {
             text.contains(cmd),
             "bare help must list '{cmd}' subcommand, got: {text}"
         );
+    }
+}
+
+#[test]
+fn command_help_includes_examples_for_cli_surface_commands() {
+    for cmd in [
+        "init",
+        "conclude",
+        "define",
+        "ground",
+        "flag",
+        "trust",
+        "undoubt",
+        "ignore",
+        "reopen",
+        "forget",
+        "show",
+        "why",
+        "list",
+        "trace",
+        "prime",
+        "atom",
+        "hypothesis",
+        "rules",
+        "explain",
+        "import",
+        "completions",
+    ] {
+        let out = dont()
+            .args([cmd, "--help"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let text = String::from_utf8(out).unwrap();
+        assert!(
+            text.contains("Examples:"),
+            "help for '{cmd}' must include an Examples section, got: {text}"
+        );
+    }
+}
+
+#[test]
+fn top_level_help_groups_related_commands_and_surfaces_nested_actions() {
+    let out = dont()
+        .arg("--help")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap();
+    for heading in [
+        "Command groups:",
+        "Claim lifecycle:",
+        "Evidence and review:",
+        "Vocabulary and import:",
+        "Structured workflows:",
+    ] {
+        assert!(text.contains(heading), "top-level help must include '{heading}', got: {text}");
+    }
+    for nested in ["atom (define, dismiss)", "hypothesis (add, assess)", "rules (list, show, add, test)"] {
+        assert!(text.contains(nested), "top-level help must surface nested actions '{nested}', got: {text}");
     }
 }

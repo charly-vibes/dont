@@ -68,7 +68,7 @@ fn completions_elvish_produces_nonempty_output() {
 }
 
 #[test]
-fn completions_bash_includes_forget_not_lock() {
+fn completions_bash_includes_both_canonical_commands_and_aliases() {
     let output = dont()
         .args(["completions", "bash"])
         .assert()
@@ -78,10 +78,12 @@ fn completions_bash_includes_forget_not_lock() {
         .clone();
 
     let script = String::from_utf8_lossy(&output);
-    assert!(
-        script.contains("forget"),
-        "bash completions should include 'forget' command"
-    );
+    for name in ["flag", "dismiss", "forget", "lock"] {
+        assert!(
+            script.contains(name),
+            "bash completions should include '{name}' command"
+        );
+    }
 }
 
 #[test]
