@@ -57,9 +57,9 @@ dont hypothesis add claim-abc --text "OS buffer not flushed on SIGTERM"
 # 4. Find evidence — file + line span
 dont flag claim-abc --file src/store.rs --lines 47-62
 
-# 5. Assess hypotheses as evidence comes in
-dont hypothesis assess claim-abc hypothesis-001 --refuting src/pool.rs --lines 88-103
-dont hypothesis assess claim-abc hypothesis-002 --supporting src/shutdown.rs --lines 12-18
+# 5. Assess hypotheses as evidence comes in (IDX is 0-based integer)
+dont hypothesis assess claim-abc 0 --refuting src/pool.rs:88-103
+dont hypothesis assess claim-abc 1 --supporting src/shutdown.rs:12-18
 
 # 6. Check status
 dont show claim-abc
@@ -89,9 +89,9 @@ dont conclude "..."                     # register an unverified claim
 dont ground "..." --file F --lines N-M # register and verify in one step
 dont flag <id> --file F --lines N-M    # attach evidence to existing claim
 dont hypothesis add <id> --text "..."  # add a competing explanation
-dont hypothesis assess <id> <hyp> --refuting F --lines N-M
+dont hypothesis assess <id> <idx> --refuting <uri>  # idx is 0-based integer
 dont show <id>                         # check current status
-dont trust <id>                        # mark as doubted (blocks prime)
+dont trust <id> --reason "..."         # mark as doubted (blocks prime)
 dont ignore <id> --reason "..."        # set aside a claim (scope change, no longer relevant)
 dont lock <id>                         # freeze a mature verified claim
 dont list                              # all claims and their statuses
