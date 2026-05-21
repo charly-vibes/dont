@@ -2,7 +2,7 @@ mod common;
 
 use common::dont;
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
+    HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -43,7 +43,13 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
 
 fn trust(dir: &TempDir, id: &str) {
     dont()
-        .args(["trust", id, "--reason", "specific grounds for doubt", "--json"])
+        .args([
+            "trust",
+            id,
+            "--reason",
+            "specific grounds for doubt",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success();
@@ -125,7 +131,13 @@ fn undoubt_verified_claim_is_refused() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "verified claim cannot be undoubted");
     dont()
-        .args(["flag", &id, "--evidence", "https://example.test/proof", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.test/proof",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success();
@@ -148,7 +160,13 @@ fn undoubt_ignored_claim_is_refused() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "ignored claim cannot be undoubted");
     dont()
-        .args(["ignore", &id, "--reason", "out of scope for this release", "--json"])
+        .args([
+            "ignore",
+            &id,
+            "--reason",
+            "out of scope for this release",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success();
@@ -186,7 +204,10 @@ fn undoubt_entity_not_found_returns_error_exit_1() {
 fn undoubt_locked_claim_is_refused() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
-    let id = conclude_claim(&dir, "claim that will be locked and then undoubt is attempted");
+    let id = conclude_claim(
+        &dir,
+        "claim that will be locked and then undoubt is attempted",
+    );
 
     // Seed the claim to meet locking prerequisites: 2+ evidence, 3+ assessed hypotheses
     let store = Store::open_dont_dir(dir.path().join(".dont")).unwrap();
@@ -226,7 +247,9 @@ fn undoubt_locked_claim_is_refused() {
             },
         })
         .collect();
-    store.set_claim_hypotheses_for_test(&id, &hypotheses).unwrap();
+    store
+        .set_claim_hypotheses_for_test(&id, &hypotheses)
+        .unwrap();
     drop(store);
 
     // Lock the claim via CLI

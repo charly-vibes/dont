@@ -7,19 +7,31 @@ use tempfile::TempDir;
 
 fn assert_envelope_conformance(v: &Value, expect_ok: bool) {
     assert!(v.get("ok").is_some(), "missing ok");
-    assert!(v.get("envelope_version").is_some(), "missing envelope_version");
+    assert!(
+        v.get("envelope_version").is_some(),
+        "missing envelope_version"
+    );
     assert_eq!(v["envelope_version"], "0.2", "envelope_version must be 0.2");
     assert!(v.get("cli_version").is_some(), "missing cli_version");
     assert!(v.get("envelope_kind").is_some(), "missing envelope_kind");
     assert!(v.get("data").is_some(), "missing data");
     assert!(v["warnings"].is_array(), "warnings must be array");
     assert!(v["meta"].is_object(), "meta must be object");
-    assert!(v["meta"]["duration_ms"].is_number(), "meta.duration_ms must be number");
-    assert!(v["meta"]["request_id"].is_null(), "meta.request_id must be null for tracer");
+    assert!(
+        v["meta"]["duration_ms"].is_number(),
+        "meta.duration_ms must be number"
+    );
+    assert!(
+        v["meta"]["request_id"].is_null(),
+        "meta.request_id must be null for tracer"
+    );
 
     if expect_ok {
         assert_eq!(v["ok"], true);
-        assert!(v["hints"].is_array(), "success envelope must have hints array");
+        assert!(
+            v["hints"].is_array(),
+            "success envelope must have hints array"
+        );
     } else {
         assert_eq!(v["ok"], false);
         assert!(
@@ -27,10 +39,19 @@ fn assert_envelope_conformance(v: &Value, expect_ok: bool) {
             "error envelope must not carry hints"
         );
         let remediation = v["data"]["remediation"].as_array().unwrap();
-        assert!(!remediation.is_empty(), "remediation must be non-empty on error");
+        assert!(
+            !remediation.is_empty(),
+            "remediation must be non-empty on error"
+        );
         for entry in remediation {
-            assert!(entry["command"].is_string(), "remediation entry must have command string");
-            assert!(entry["description"].is_string(), "remediation entry must have description string");
+            assert!(
+                entry["command"].is_string(),
+                "remediation entry must have command string"
+            );
+            assert!(
+                entry["description"].is_string(),
+                "remediation entry must have description string"
+            );
         }
     }
 }
@@ -43,7 +64,13 @@ fn workflow_conclude_trust_show() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "bacteria cause cholera");
     dont()
-        .args(["trust", &id, "--reason", "Germ theory needs independent replication", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "Germ theory needs independent replication",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -67,7 +94,13 @@ fn workflow_conclude_dismiss_show() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "the speed of light is constant");
     dont()
-        .args(["flag", &id, "--evidence", "https://nist.gov/codata", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://nist.gov/codata",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -83,7 +116,11 @@ fn workflow_conclude_dismiss_show() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["data"]["status"], "verified");
     let evidence = v["data"]["evidence"].as_array().unwrap();
-    assert!(evidence.iter().any(|e| e.as_str() == Some("https://nist.gov/codata")));
+    assert!(
+        evidence
+            .iter()
+            .any(|e| e.as_str() == Some("https://nist.gov/codata"))
+    );
 }
 
 #[test]
@@ -93,17 +130,35 @@ fn workflow_full_transition_cycle() {
     // unverified → verified → doubted → verified
     let id = conclude_claim(&dir, "plate tectonics drives continental drift");
     dont()
-        .args(["flag", &id, "--evidence", "https://usgs.gov/tectonics", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://usgs.gov/tectonics",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
     dont()
-        .args(["trust", &id, "--reason", "Recent dataset contradicts the velocity estimates", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "Recent dataset contradicts the velocity estimates",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
     let out = dont()
-        .args(["flag", &id, "--evidence", "https://usgs.gov/corrected", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://usgs.gov/corrected",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -115,8 +170,14 @@ fn workflow_full_transition_cycle() {
     let evidence = v["data"]["evidence"].as_array().unwrap();
     assert_eq!(evidence.len(), 2, "both evidence URIs should accumulate");
     let uris: Vec<&str> = evidence.iter().filter_map(|e| e.as_str()).collect();
-    assert!(uris.contains(&"https://usgs.gov/tectonics"), "first evidence URI must be present");
-    assert!(uris.contains(&"https://usgs.gov/corrected"), "second evidence URI must be present");
+    assert!(
+        uris.contains(&"https://usgs.gov/tectonics"),
+        "first evidence URI must be present"
+    );
+    assert!(
+        uris.contains(&"https://usgs.gov/corrected"),
+        "second evidence URI must be present"
+    );
 }
 
 // --- Envelope conformance ---
@@ -152,7 +213,13 @@ fn envelope_conformance_success_commands() {
 
     // trust
     let out = dont()
-        .args(["trust", &id, "--reason", "Requires peer review verification", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "Requires peer review verification",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -165,7 +232,13 @@ fn envelope_conformance_success_commands() {
 
     // dismiss
     let out = dont()
-        .args(["flag", &id, "--evidence", "https://example.test/proof", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.test/proof",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -187,7 +260,10 @@ fn envelope_conformance_success_commands() {
         .clone();
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_envelope_conformance(&v, true);
-    assert!(v["meta"]["tx"].is_null(), "show must have null tx (read-only)");
+    assert!(
+        v["meta"]["tx"].is_null(),
+        "show must have null tx (read-only)"
+    );
 
     // list (read-only)
     let out = dont()
@@ -200,7 +276,10 @@ fn envelope_conformance_success_commands() {
         .clone();
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_envelope_conformance(&v, true);
-    assert!(v["meta"]["tx"].is_null(), "list must have null tx (read-only)");
+    assert!(
+        v["meta"]["tx"].is_null(),
+        "list must have null tx (read-only)"
+    );
 }
 
 #[test]
@@ -278,8 +357,14 @@ fn workflow_refusal_loop_dismiss_no_evidence_then_with_evidence() {
     let remediation = v["data"]["remediation"].as_array().unwrap();
     assert!(!remediation.is_empty(), "error must have remediation");
     for entry in remediation {
-        assert!(entry["command"].is_string(), "remediation entry must have command");
-        assert!(entry["description"].is_string(), "remediation entry must have description");
+        assert!(
+            entry["command"].is_string(),
+            "remediation entry must have command"
+        );
+        assert!(
+            entry["description"].is_string(),
+            "remediation entry must have description"
+        );
     }
 
     // claim is still unverified after the refusal
@@ -292,11 +377,20 @@ fn workflow_refusal_loop_dismiss_no_evidence_then_with_evidence() {
         .stdout
         .clone();
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["data"]["status"], "unverified", "status unchanged after refusal");
+    assert_eq!(
+        v["data"]["status"], "unverified",
+        "status unchanged after refusal"
+    );
 
     // dismiss with evidence → verified
     dont()
-        .args(["flag", &id, "--evidence", "https://cdc.gov/vaccines", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://cdc.gov/vaccines",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -323,7 +417,13 @@ fn persistence_across_process_boundaries() {
 
     // Trust in one process
     dont()
-        .args(["trust", &id, "--reason", "Needs verification in a fresh process too", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "Needs verification in a fresh process too",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -338,8 +438,10 @@ fn persistence_across_process_boundaries() {
         .stdout
         .clone();
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["data"]["status"], "doubted",
-        "status must survive process exit and re-open");
+    assert_eq!(
+        v["data"]["status"], "doubted",
+        "status must survive process exit and re-open"
+    );
 }
 
 // --- Performance ---

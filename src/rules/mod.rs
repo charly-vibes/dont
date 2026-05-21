@@ -376,7 +376,10 @@ mod engine {
         let store = make_store(&dir);
         let engine = make_engine(&dir, RulesConfig::default(), false);
         let result = engine.evaluate_shipped(&store, "rule-claim-structure");
-        assert!(result.is_some(), "rule-claim-structure should be a shipped rule");
+        assert!(
+            result.is_some(),
+            "rule-claim-structure should be a shipped rule"
+        );
         assert!(result.unwrap().unwrap().is_empty());
     }
 
@@ -491,7 +494,9 @@ mod engine {
         let engine = make_engine(&dir, RulesConfig::default(), false);
 
         // Insert a claim with no hypotheses or evidence — lockable would flag it.
-        store.append_claim("a claim with nothing", &[], None).unwrap();
+        store
+            .append_claim("a claim with nothing", &[], None)
+            .unwrap();
 
         // evaluate_shipped must succeed (Ok) — lockable is advisory, not a hard engine failure.
         let result = engine.evaluate_shipped(&store, "lockable");

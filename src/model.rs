@@ -93,7 +93,9 @@ pub fn reopen(from: Status) -> Result<Status, TransitionError> {
         Status::Unverified | Status::Verified | Status::Doubted | Status::Locked => {
             Err(TransitionError {
                 code: "invalid-transition".to_string(),
-                message: format!("cannot reopen a {from:?} entity — only ignored entities can be reopened"),
+                message: format!(
+                    "cannot reopen a {from:?} entity — only ignored entities can be reopened"
+                ),
                 from_status: from,
                 entity_id: None,
             })

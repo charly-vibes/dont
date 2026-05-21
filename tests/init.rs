@@ -121,11 +121,13 @@ fn init_strict_mode_is_visible_in_prime() {
     assert_eq!(v["data"]["mode"], "strict");
     assert_eq!(v["data"]["status_counts"]["unverified"], 0);
     assert_eq!(v["data"]["blocking"].as_array().unwrap().len(), 0);
-    assert!(v["hints"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .all(|hint| hint["command"] != "dont help --tutorial"));
+    assert!(
+        v["hints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|hint| hint["command"] != "dont help --tutorial")
+    );
 }
 
 #[test]
@@ -202,7 +204,10 @@ fn init_does_not_duplicate_dont_gitignore_entry() {
         .success();
 
     let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
-    assert_eq!(gitignore.lines().filter(|line| *line == ".dont/").count(), 1);
+    assert_eq!(
+        gitignore.lines().filter(|line| *line == ".dont/").count(),
+        1
+    );
 }
 
 #[test]
@@ -402,12 +407,17 @@ fn internal_project_errors_do_not_suggest_dont_doctor() {
 
     let v: Value = serde_json::from_slice(&output).unwrap();
     let remediation = v["data"]["remediation"].as_array().unwrap();
-    assert!(remediation.iter().all(|entry| entry["command"] != "dont doctor"));
+    assert!(
+        remediation
+            .iter()
+            .all(|entry| entry["command"] != "dont doctor")
+    );
 }
 
 #[test]
 fn project_source_has_no_expect_calls() {
-    let source = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/project.rs")).unwrap();
+    let source =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/project.rs")).unwrap();
     assert!(
         !source.contains(".expect("),
         "project.rs should avoid expect() calls"
@@ -432,7 +442,10 @@ fn init_io_failures_name_target_path_in_structured_error() {
 
     let v: Value = serde_json::from_slice(&output).unwrap();
     let message = v["data"]["message"].as_str().unwrap();
-    assert!(message.contains(blocked.to_string_lossy().as_ref()), "message should name failing path: {message}");
+    assert!(
+        message.contains(blocked.to_string_lossy().as_ref()),
+        "message should name failing path: {message}"
+    );
     assert!(
         message.contains("create") || message.contains("write"),
         "message should name the failed operation: {message}"
@@ -480,7 +493,10 @@ fn init_reports_late_gitignore_write_failures_with_path_context() {
         message.contains(gitignore.to_string_lossy().as_ref()),
         "message should name failing gitignore path: {message}"
     );
-    assert!(message.contains("write"), "message should name write operation: {message}");
+    assert!(
+        message.contains("write"),
+        "message should name write operation: {message}"
+    );
 }
 
 #[test]
@@ -519,7 +535,9 @@ fn prime_blocking_includes_doubted_terms() {
     let v: Value = serde_json::from_slice(&output).unwrap();
     let blocking = v["data"]["blocking"].as_array().unwrap();
     assert!(
-        blocking.iter().any(|b| b["id"] == term_id && b["status"] == "doubted"),
+        blocking
+            .iter()
+            .any(|b| b["id"] == term_id && b["status"] == "doubted"),
         "prime blocking[] should include doubted term {term_id}, got: {:?}",
         blocking
     );
@@ -544,8 +562,7 @@ fn init_store_files_are_not_world_readable() {
 
     let check_file = |rel: &str| {
         let path = dir.path().join(rel);
-        let meta = fs::metadata(&path)
-            .unwrap_or_else(|err| panic!("cannot stat {rel}: {err}"));
+        let meta = fs::metadata(&path).unwrap_or_else(|err| panic!("cannot stat {rel}: {err}"));
         let mode = meta.permissions().mode();
         // Mask out the file-type bits, leaving only the permission bits.
         let perm_bits = mode & 0o777;
@@ -557,8 +574,7 @@ fn init_store_files_are_not_world_readable() {
 
     let check_dir = |rel: &str| {
         let path = dir.path().join(rel);
-        let meta = fs::metadata(&path)
-            .unwrap_or_else(|err| panic!("cannot stat {rel}: {err}"));
+        let meta = fs::metadata(&path).unwrap_or_else(|err| panic!("cannot stat {rel}: {err}"));
         let mode = meta.permissions().mode();
         let perm_bits = mode & 0o777;
         assert!(

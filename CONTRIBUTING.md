@@ -45,7 +45,7 @@ just ci
 ```bash
 just build        # cargo build
 just test         # cargo test
-just lint         # clippy + prek + typos + vale
+just lint         # rustfmt check + clippy + prek + typos + vale
 just ci           # full check suite (run before every commit)
 just docs-build   # build the mdBook site locally
 just status       # wai status
@@ -56,7 +56,7 @@ just ready        # bd ready — unblocked issues
 ## Code Style
 
 - Follow standard Rust conventions enforced by `cargo clippy --all-targets --all-features -- -D warnings`.
-- Run `just lint` before committing — it is included in `just ci`.
+- Run `just lint` before committing — it includes `cargo fmt --all --check` and is included in `just ci`.
 - No `#[allow(...)]` attributes without a comment explaining why.
 - Tests live alongside the code they test (inline `#[cfg(test)]` modules) or in `tests/` for integration tests.
 - Each public function and struct should have a doc comment.
@@ -110,6 +110,6 @@ project's rules directory. The rule query MUST return columns `[entity_id, detai
 
 - Prefer `just` recipes over raw `cargo` or shell commands.
 - Keep reasoning in `wai` artifacts when making design decisions.
-- Use `prek` hooks for basic hygiene checks (runs automatically via `just lint`).
+- Use `prek` hooks for basic hygiene checks; pre-commit includes `cargo fmt --all --check` as a blocker.
 - Update specs and project context together with code changes.
 - Spec-level changes go through the `openspec` proposal workflow.

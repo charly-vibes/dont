@@ -44,7 +44,9 @@ fn docs_workflow_triggers_on_pull_request() {
 #[test]
 fn ci_workflow_references_test_execution() {
     assert!(
-        CI_WORKFLOW.contains("cargo test") || CI_WORKFLOW.contains("just test") || CI_WORKFLOW.contains("just ci"),
+        CI_WORKFLOW.contains("cargo test")
+            || CI_WORKFLOW.contains("just test")
+            || CI_WORKFLOW.contains("just ci"),
         "The CI workflow must invoke tests (via `cargo test`, `just test`, or `just ci` \
          which itself must call tests).\nWorkflow content does not contain any of these."
     );
@@ -82,8 +84,8 @@ fn release_workflow_exists_with_required_steps() {
         )
     });
 
-    let content = fs::read_to_string(release_entry.path())
-        .expect("failed to read release workflow file");
+    let content =
+        fs::read_to_string(release_entry.path()).expect("failed to read release workflow file");
 
     // 2. Must trigger on pushed version tags.
     assert!(

@@ -103,7 +103,9 @@ fn dont_project_agents_md_includes_rule_claim_template() {
     let agents = fs::read_to_string(&agents_path)
         .unwrap_or_else(|e| panic!("could not read .dont/AGENTS.md: {e}"));
     assert!(
-        agents.contains("Rule Claim") || agents.contains("rule claim") || agents.contains("rule-claim"),
+        agents.contains("Rule Claim")
+            || agents.contains("rule claim")
+            || agents.contains("rule-claim"),
         ".dont/AGENTS.md should include a rule claim authoring section: {agents}"
     );
     assert!(
@@ -130,8 +132,8 @@ fn dont_project_agents_md_includes_rule_claim_template() {
 /// verifies the canonical template strings from the spec pass the rule.
 #[test]
 fn canonical_template_claim_passes_rule_claim_structure() {
-    use dont::rules::rule_claim_structure;
     use dont::config::RuleClaimStructureConfig;
+    use dont::rules::rule_claim_structure;
     use dont::store::Store;
     use tempfile::TempDir;
 

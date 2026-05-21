@@ -216,11 +216,10 @@ impl Config {
         match &self.project.mode {
             None => {
                 return Err(ConfigValidationError {
-                    message:
-                        "Missing required field `project.mode` in .dont/config.toml. \
+                    message: "Missing required field `project.mode` in .dont/config.toml. \
                          Add `mode = \"permissive\"` or `mode = \"strict\"` under the \
                          [project] section. Example: mode = \"permissive\""
-                            .to_string(),
+                        .to_string(),
                 });
             }
             Some(mode) => {
@@ -268,10 +267,9 @@ impl Config {
             && t == 0
         {
             return Err(ConfigValidationError {
-                message:
-                    "config field `verify_evidence.default_timeout_s` must be >= 1; \
+                message: "config field `verify_evidence.default_timeout_s` must be >= 1; \
                      got 0 — a zero-second timeout makes all evidence checks fail immediately"
-                        .to_string(),
+                    .to_string(),
             });
         }
 
@@ -280,10 +278,9 @@ impl Config {
             && c == 0
         {
             return Err(ConfigValidationError {
-                message:
-                    "config field `verify_evidence.concurrency` must be >= 1; \
+                message: "config field `verify_evidence.concurrency` must be >= 1; \
                      got 0 — a concurrency of zero would stall all evidence verification"
-                        .to_string(),
+                    .to_string(),
             });
         }
 
@@ -292,10 +289,9 @@ impl Config {
             && b == 0
         {
             return Err(ConfigValidationError {
-                message:
-                    "config field `verify_evidence.burst_per_host` must be >= 1; \
+                message: "config field `verify_evidence.burst_per_host` must be >= 1; \
                      got 0 — a burst size of zero makes rate limiting block all requests"
-                        .to_string(),
+                    .to_string(),
             });
         }
 

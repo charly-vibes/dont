@@ -13,7 +13,9 @@ pub fn check(store: &Store) -> Result<Vec<RuleMatch>, StoreError> {
     for claim in claims {
         for dep in &claim.depends_on {
             let resolved = if dep.starts_with("term:") {
-                store.term_by_id(dep)?.map(crate::store::CurieResolution::Coined)
+                store
+                    .term_by_id(dep)?
+                    .map(crate::store::CurieResolution::Coined)
             } else {
                 store.resolve_curie_reference(dep)?
             };
@@ -45,7 +47,11 @@ mod unresolved_terms_tests {
         let store = make_store(&dir);
         let term = store.append_term("ns:concept", "", None).unwrap();
         store
-            .append_claim("a claim", &["ns:concept".to_string(), term.id.clone()], None)
+            .append_claim(
+                "a claim",
+                &["ns:concept".to_string(), term.id.clone()],
+                None,
+            )
             .unwrap();
         assert!(check(&store).unwrap().is_empty());
     }

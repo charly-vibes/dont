@@ -86,7 +86,11 @@ fn ignored_claim_with_doubted_dep_has_empty_derived_assessments() {
     init_dir(&dir);
 
     let term_id = define_term(&dir, "WB:IGNORED001");
-    let claim_id = conclude_with_deps(&dir, "claim depending on doubted term but will be ignored", &["WB:IGNORED001"]);
+    let claim_id = conclude_with_deps(
+        &dir,
+        "claim depending on doubted term but will be ignored",
+        &["WB:IGNORED001"],
+    );
 
     // Put the term in doubted state — this would normally cause stale on the claim
     trust_entity(&dir, &term_id);
@@ -162,22 +166,30 @@ fn reopen_verified_stale_claim_is_refused() {
     init_dir(&dir);
 
     let term_id = define_term(&dir, "WB:STALE001");
-    let claim_id = conclude_with_deps(
-        &dir,
-        "verified claim that becomes stale",
-        &["WB:STALE001"],
-    );
+    let claim_id = conclude_with_deps(&dir, "verified claim that becomes stale", &["WB:STALE001"]);
 
     // First flag the term to verified so stale-cascade does not block the claim flag
     dont()
-        .args(["flag", &term_id, "--evidence", "https://example.test/term-ev1", "--json"])
+        .args([
+            "flag",
+            &term_id,
+            "--evidence",
+            "https://example.test/term-ev1",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
 
     // Flag the claim to verified (dependency is verified, so stale-cascade is satisfied)
     dont()
-        .args(["flag", &claim_id, "--evidence", "https://example.test/ev1", "--json"])
+        .args([
+            "flag",
+            &claim_id,
+            "--evidence",
+            "https://example.test/ev1",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -198,7 +210,10 @@ fn reopen_verified_stale_claim_is_refused() {
         derived.iter().any(|d| d.as_str() == Some("stale")),
         "claim should be stale, got: {derived:?}"
     );
-    assert_eq!(v2["data"]["status"], "verified", "persisted status must remain verified");
+    assert_eq!(
+        v2["data"]["status"], "verified",
+        "persisted status must remain verified"
+    );
 
     // Now try to reopen — must be refused because status is verified, not ignored
     let output = dont()

@@ -65,7 +65,11 @@ mod stale_cascade_tests {
                 claim_id,
                 Status::Unverified,
                 Status::Verified,
-                StoreEvent { kind: StoreEventKind::Trusted, note: None, evidence: vec![] },
+                StoreEvent {
+                    kind: StoreEventKind::Trusted,
+                    note: None,
+                    evidence: vec![],
+                },
             )
             .unwrap();
     }
@@ -128,7 +132,10 @@ mod stale_cascade_tests {
         verify_claim(&store, &claim.id);
         add_evidence(&store, &claim.id); // evidence but no hypothesis assessment
         assert!(
-            !check(&store).unwrap().iter().any(|m| m.entity_id == claim.id),
+            !check(&store)
+                .unwrap()
+                .iter()
+                .any(|m| m.entity_id == claim.id),
             "stale-cascade must be silent with no hypothesis assessments"
         );
     }
@@ -142,7 +149,10 @@ mod stale_cascade_tests {
         assess_hypothesis(&store, &claim.id);
         add_evidence(&store, &claim.id);
         assert!(
-            !check(&store).unwrap().iter().any(|m| m.entity_id == claim.id),
+            !check(&store)
+                .unwrap()
+                .iter()
+                .any(|m| m.entity_id == claim.id),
             "stale-cascade must only fire for verified claims"
         );
     }
@@ -161,11 +171,18 @@ mod stale_cascade_tests {
                 &claim.id,
                 Status::Verified,
                 Status::Locked,
-                StoreEvent { kind: StoreEventKind::Locked, note: None, evidence: vec![] },
+                StoreEvent {
+                    kind: StoreEventKind::Locked,
+                    note: None,
+                    evidence: vec![],
+                },
             )
             .unwrap();
         assert!(
-            !check(&store).unwrap().iter().any(|m| m.entity_id == claim.id),
+            !check(&store)
+                .unwrap()
+                .iter()
+                .any(|m| m.entity_id == claim.id),
             "locked claim should be exempt from stale-cascade"
         );
     }
@@ -184,11 +201,18 @@ mod stale_cascade_tests {
                 &claim.id,
                 Status::Unverified,
                 Status::Ignored,
-                StoreEvent { kind: StoreEventKind::Ignored, note: None, evidence: vec![] },
+                StoreEvent {
+                    kind: StoreEventKind::Ignored,
+                    note: None,
+                    evidence: vec![],
+                },
             )
             .unwrap();
         assert!(
-            !check(&store).unwrap().iter().any(|m| m.entity_id == claim.id),
+            !check(&store)
+                .unwrap()
+                .iter()
+                .any(|m| m.entity_id == claim.id),
             "ignored claim should be exempt from stale-cascade"
         );
     }

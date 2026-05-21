@@ -2,7 +2,7 @@ mod common;
 
 use common::{conclude_claim, dont, init_dir};
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
+    HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -130,7 +130,13 @@ fn trust_claim_not_found_returns_error_exit_1() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let out = dont()
-        .args(["trust", "claim:01JNONEXISTENT", "--reason", "test", "--json"])
+        .args([
+            "trust",
+            "claim:01JNONEXISTENT",
+            "--reason",
+            "test",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -169,7 +175,13 @@ fn trust_hedge_check_is_case_insensitive() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "another hedged claim");
     let out = dont()
-        .args(["trust", &id, "--reason", "MAYBE this contradicts X", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "MAYBE this contradicts X",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -185,7 +197,11 @@ fn trust_with_non_hedge_reason_succeeds() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "claim with solid reason");
-    let out = trust(&dir, &id, "Peer review found a methodological flaw in the cited study");
+    let out = trust(
+        &dir,
+        &id,
+        "Peer review found a methodological flaw in the cited study",
+    );
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["status"], "doubted");
@@ -234,7 +250,9 @@ fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
             },
         })
         .collect();
-    store.set_claim_hypotheses_for_test(claim_id, &hypotheses).unwrap();
+    store
+        .set_claim_hypotheses_for_test(claim_id, &hypotheses)
+        .unwrap();
 }
 
 fn lock_claim(dir: &TempDir, id: &str) {
@@ -272,9 +290,14 @@ fn trust_locked_claim_is_refused() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "invalid-transition");
-    assert!(!v["data"]["message"].as_str().unwrap_or("").is_empty()
-        || !v["data"]["remediation"].as_array().unwrap_or(&vec![]).is_empty(),
-        "response should contain transition context: {v}");
+    assert!(
+        !v["data"]["message"].as_str().unwrap_or("").is_empty()
+            || !v["data"]["remediation"]
+                .as_array()
+                .unwrap_or(&vec![])
+                .is_empty(),
+        "response should contain transition context: {v}"
+    );
 }
 
 #[test]
@@ -290,7 +313,13 @@ fn trust_ignored_claim_is_refused() {
         .success();
 
     let out = dont()
-        .args(["trust", &id, "--reason", "But actually it matters", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "But actually it matters",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)

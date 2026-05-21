@@ -45,7 +45,10 @@ fn conclude_claim_has_prefixed_ulid_id() {
     let out = conclude_in(&dir, "entropy always increases");
     let v: Value = serde_json::from_slice(&out).unwrap();
     let id = v["data"]["id"].as_str().unwrap();
-    assert!(id.starts_with("claim:"), "id should have claim: prefix, got {id}");
+    assert!(
+        id.starts_with("claim:"),
+        "id should have claim: prefix, got {id}"
+    );
 }
 
 #[test]
@@ -55,7 +58,10 @@ fn conclude_claim_view_has_required_arrays() {
     let out = conclude_in(&dir, "test claim");
     let v: Value = serde_json::from_slice(&out).unwrap();
     let data = &v["data"];
-    assert!(data["derived_assessments"].is_array(), "derived_assessments");
+    assert!(
+        data["derived_assessments"].is_array(),
+        "derived_assessments"
+    );
     assert!(data["atoms"].is_array(), "atoms");
     assert!(data["hypotheses"].is_array(), "hypotheses");
     assert!(data["evidence"].is_array(), "evidence");
@@ -79,7 +85,10 @@ fn conclude_envelope_has_tx_set_for_mutation() {
     init_dir(&dir);
     let out = conclude_in(&dir, "mutations carry a tx");
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert!(v["meta"]["tx"].is_number(), "mutation must have non-null tx");
+    assert!(
+        v["meta"]["tx"].is_number(),
+        "mutation must have non-null tx"
+    );
 }
 
 #[test]
@@ -141,10 +150,19 @@ fn conclude_outside_project_exits_3_with_config_missing() {
     // At least one remediation entry must have a command referencing "init".
     // Each item is an object with "command" and "description" fields.
     let mentions_init = remediation.iter().any(|item| {
-        item["command"].as_str().map(|s| s.contains("init")).unwrap_or(false)
-            || item["description"].as_str().map(|s| s.contains("init")).unwrap_or(false)
+        item["command"]
+            .as_str()
+            .map(|s| s.contains("init"))
+            .unwrap_or(false)
+            || item["description"]
+                .as_str()
+                .map(|s| s.contains("init"))
+                .unwrap_or(false)
     });
-    assert!(mentions_init, "remediation must reference 'init', got: {remediation:?}");
+    assert!(
+        mentions_init,
+        "remediation must reference 'init', got: {remediation:?}"
+    );
 }
 
 // --- Parallel execution ---
@@ -162,7 +180,11 @@ fn conclude_produces_unique_tx_ids_under_parallel_subprocess_load() {
         let children: Vec<_> = (0..8u32)
             .map(|i| {
                 std::process::Command::new(&bin)
-                    .args(["conclude", &format!("parallel claim {attempt}-{i}"), "--json"])
+                    .args([
+                        "conclude",
+                        &format!("parallel claim {attempt}-{i}"),
+                        "--json",
+                    ])
                     .env("DONT_DIR", &dont_dir)
                     .stdout(std::process::Stdio::piped())
                     .stderr(std::process::Stdio::piped())

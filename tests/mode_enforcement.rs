@@ -9,10 +9,7 @@ fn switch_mode(dir: &TempDir, from: &str, to: &str) {
     let config_path = dir.path().join("config.toml");
     let original = std::fs::read_to_string(&config_path)
         .expect("config.toml must exist before switching mode");
-    let updated = original.replace(
-        &format!("mode = \"{from}\""),
-        &format!("mode = \"{to}\""),
-    );
+    let updated = original.replace(&format!("mode = \"{from}\""), &format!("mode = \"{to}\""));
     let mut f = std::fs::OpenOptions::new()
         .write(true)
         .truncate(true)
@@ -63,7 +60,13 @@ fn conclude_with_resolved_depends_on_succeeds_in_permissive_mode() {
     let term_id = defined_v["data"]["id"].as_str().unwrap().to_string();
 
     let output = dont()
-        .args(["conclude", "The system uses WB:P001", "--depends-on", "WB:P001", "--json"])
+        .args([
+            "conclude",
+            "The system uses WB:P001",
+            "--depends-on",
+            "WB:P001",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -85,7 +88,13 @@ fn conclude_with_unresolved_depends_on_succeeds_in_permissive_mode() {
     init_permissive(&dir);
 
     let output = dont()
-        .args(["conclude", "The system uses WB:P001", "--depends-on", "WB:P001", "--json"])
+        .args([
+            "conclude",
+            "The system uses WB:P001",
+            "--depends-on",
+            "WB:P001",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -98,8 +107,11 @@ fn conclude_with_unresolved_depends_on_succeeds_in_permissive_mode() {
     assert_eq!(v["data"]["status"], "unverified");
     let warnings = v["warnings"].as_array().unwrap();
     assert!(
-        warnings.iter().any(|w| w["rule_name"] == "unresolved-term-ref"),
-        "expected unresolved-term-ref warning, got: {:?}", warnings
+        warnings
+            .iter()
+            .any(|w| w["rule_name"] == "unresolved-term-ref"),
+        "expected unresolved-term-ref warning, got: {:?}",
+        warnings
     );
 }
 
@@ -109,7 +121,13 @@ fn conclude_with_unresolved_depends_on_is_refused_in_strict_mode() {
     init_strict(&dir);
 
     let output = dont()
-        .args(["conclude", "The system uses WB:P001", "--depends-on", "WB:P001", "--json"])
+        .args([
+            "conclude",
+            "The system uses WB:P001",
+            "--depends-on",
+            "WB:P001",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -129,7 +147,13 @@ fn conclude_with_resolved_depends_on_succeeds_in_strict_mode() {
     define_term(&dir, "WB:P001");
 
     let output = dont()
-        .args(["conclude", "The system uses WB:P001", "--depends-on", "WB:P001", "--json"])
+        .args([
+            "conclude",
+            "The system uses WB:P001",
+            "--depends-on",
+            "WB:P001",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -168,9 +192,12 @@ fn conclude_multiple_depends_on_one_unresolved_is_refused_in_strict_mode() {
 
     let output = dont()
         .args([
-            "conclude", "Uses both terms",
-            "--depends-on", "WB:P001",
-            "--depends-on", "WB:P002",
+            "conclude",
+            "Uses both terms",
+            "--depends-on",
+            "WB:P001",
+            "--depends-on",
+            "WB:P002",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -202,7 +229,13 @@ fn conclude_with_existing_term_id_depends_on_emits_no_unresolved_warning() {
     let term_id = defined_v["data"]["id"].as_str().unwrap().to_string();
 
     let output = dont()
-        .args(["conclude", "Uses an existing term id", "--depends-on", &term_id, "--json"])
+        .args([
+            "conclude",
+            "Uses an existing term id",
+            "--depends-on",
+            &term_id,
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -224,7 +257,13 @@ fn ungrounded_rule_reports_warn_severity_in_permissive_mode() {
 
     // Create a claim with an unresolved CURIE dep (succeeds in permissive)
     dont()
-        .args(["conclude", "A claim with unresolved dep", "--depends-on", "NS:UNRESOLVED", "--json"])
+        .args([
+            "conclude",
+            "A claim with unresolved dep",
+            "--depends-on",
+            "NS:UNRESOLVED",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -240,10 +279,14 @@ fn ungrounded_rule_reports_warn_severity_in_permissive_mode() {
 
     let v: Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["data"]["severity"], "warn",
-        "ungrounded rule should report warn severity in permissive mode");
-    assert!(!v["data"]["matches"].as_array().unwrap().is_empty(),
-        "should have at least one match for the unresolved CURIE dep");
+    assert_eq!(
+        v["data"]["severity"], "warn",
+        "ungrounded rule should report warn severity in permissive mode"
+    );
+    assert!(
+        !v["data"]["matches"].as_array().unwrap().is_empty(),
+        "should have at least one match for the unresolved CURIE dep"
+    );
 }
 
 #[test]
@@ -257,7 +300,13 @@ fn ungrounded_rule_reports_strict_severity_in_strict_mode() {
     let perm_dir = TempDir::new().unwrap();
     init_permissive(&perm_dir);
     dont()
-        .args(["conclude", "A claim with unresolved dep", "--depends-on", "NS:UNRESOLVED", "--json"])
+        .args([
+            "conclude",
+            "A claim with unresolved dep",
+            "--depends-on",
+            "NS:UNRESOLVED",
+            "--json",
+        ])
         .env("DONT_DIR", perm_dir.path())
         .assert()
         .success();
@@ -276,10 +325,14 @@ fn ungrounded_rule_reports_strict_severity_in_strict_mode() {
 
     let v: Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["data"]["severity"], "strict",
-        "ungrounded rule should report strict severity after mode switch to strict");
-    assert!(!v["data"]["matches"].as_array().unwrap().is_empty(),
-        "should still show the unresolved CURIE dep as a match");
+    assert_eq!(
+        v["data"]["severity"], "strict",
+        "ungrounded rule should report strict severity after mode switch to strict"
+    );
+    assert!(
+        !v["data"]["matches"].as_array().unwrap().is_empty(),
+        "should still show the unresolved CURIE dep as a match"
+    );
 }
 
 #[test]
@@ -287,7 +340,13 @@ fn mode_switch_from_strict_to_permissive_changes_ungrounded_severity() {
     let dir = TempDir::new().unwrap();
     init_permissive(&dir);
     dont()
-        .args(["conclude", "A claim with unresolved dep", "--depends-on", "NS:UNRESOLVED", "--json"])
+        .args([
+            "conclude",
+            "A claim with unresolved dep",
+            "--depends-on",
+            "NS:UNRESOLVED",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -317,8 +376,10 @@ fn mode_switch_from_strict_to_permissive_changes_ungrounded_severity() {
         .stdout
         .clone();
     let v_strict: Value = serde_json::from_slice(&output_strict).unwrap();
-    assert_eq!(v_strict["data"]["severity"], "strict",
-        "severity should change to strict immediately after config.toml mode switch");
+    assert_eq!(
+        v_strict["data"]["severity"], "strict",
+        "severity should change to strict immediately after config.toml mode switch"
+    );
 }
 
 #[test]
@@ -332,7 +393,13 @@ fn ungrounded_rule_severity_reads_persisted_mode_not_default() {
 
     // Create claim (now permissive, will succeed)
     dont()
-        .args(["conclude", "A claim with unresolved dep", "--depends-on", "NS:UNRESOLVED", "--json"])
+        .args([
+            "conclude",
+            "A claim with unresolved dep",
+            "--depends-on",
+            "NS:UNRESOLVED",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -348,9 +415,13 @@ fn ungrounded_rule_severity_reads_persisted_mode_not_default() {
 
     let v: Value = serde_json::from_slice(&output).unwrap();
     // Must be "warn", not "strict" — proves engine reads persisted config, not init-time default
-    assert_eq!(v["data"]["severity"], "warn",
-        "engine must read persisted mode from config.toml, not a hardcoded default");
+    assert_eq!(
+        v["data"]["severity"], "warn",
+        "engine must read persisted mode from config.toml, not a hardcoded default"
+    );
     // Claim must still be queryable after the config mutation
-    assert!(!v["data"]["matches"].as_array().unwrap().is_empty(),
-        "claim with unresolved dep must survive the mode switch intact");
+    assert!(
+        !v["data"]["matches"].as_array().unwrap().is_empty(),
+        "claim with unresolved dep must survive the mode switch intact"
+    );
 }

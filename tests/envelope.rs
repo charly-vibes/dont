@@ -57,8 +57,10 @@ fn error_envelope_has_ok_false_and_no_hints() {
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["envelope_kind"], "error");
-    assert!(v["hints"].is_null() || !v.as_object().unwrap().contains_key("hints"),
-        "error envelopes must not carry hints");
+    assert!(
+        v["hints"].is_null() || !v.as_object().unwrap().contains_key("hints"),
+        "error envelopes must not carry hints"
+    );
 }
 
 #[test]
@@ -85,7 +87,10 @@ fn error_envelope_data_contains_error_result_fields() {
     assert_eq!(data["rule_name"], "lockable");
     let remediation = data["remediation"].as_array().unwrap();
     assert_eq!(remediation.len(), 1);
-    assert_eq!(remediation[0]["command"], "dont dismiss claim:xxx --reason reason");
+    assert_eq!(
+        remediation[0]["command"],
+        "dont dismiss claim:xxx --reason reason"
+    );
     assert_eq!(remediation[0]["description"], "Dismiss the blocking claim");
     assert_eq!(data["unmet_clauses"][0]["clause"], "no open locks");
 }
@@ -203,8 +208,7 @@ fn envelope_kind_renamed_variants_keep_dash() {
 #[test]
 fn envelope_rejects_unknown_kind_on_deserialize() {
     let json = r#"{"ok":true,"envelope_version":"0.2","cli_version":"0.1.0","envelope_kind":"not_a_real_kind","data":null,"warnings":[],"meta":{"duration_ms":0,"tx":null,"request_id":null}}"#;
-    let result: Result<dont::envelope::Envelope<serde_json::Value>, _> =
-        serde_json::from_str(json);
+    let result: Result<dont::envelope::Envelope<serde_json::Value>, _> = serde_json::from_str(json);
     assert!(
         result.is_err(),
         "expected unknown envelope_kind to be rejected; envelope_kind must be a typed enum, not String"
@@ -242,14 +246,20 @@ fn readonly_envelope_has_null_tx() {
 fn assert_error_envelope(v: &Value) {
     assert_eq!(v["ok"], false, "ok must be false on error");
     assert_eq!(v["envelope_kind"], "error", "envelope_kind must be 'error'");
-    assert_eq!(v["envelope_version"], "0.2", "envelope_version must be '0.2'");
+    assert_eq!(
+        v["envelope_version"], "0.2",
+        "envelope_version must be '0.2'"
+    );
 
     let data = &v["data"];
     let code = data["code"].as_str().unwrap_or("");
     assert!(!code.is_empty(), "data.code must be a non-empty string");
 
     let message = data["message"].as_str().unwrap_or("");
-    assert!(!message.is_empty(), "data.message must be a non-empty string");
+    assert!(
+        !message.is_empty(),
+        "data.message must be a non-empty string"
+    );
 
     let remediation = data["remediation"]
         .as_array()
@@ -260,11 +270,17 @@ fn assert_error_envelope(v: &Value) {
     );
     for (i, entry) in remediation.iter().enumerate() {
         assert!(
-            entry["command"].as_str().map(|s| !s.is_empty()).unwrap_or(false),
+            entry["command"]
+                .as_str()
+                .map(|s| !s.is_empty())
+                .unwrap_or(false),
             "remediation[{i}].command must be a non-empty string"
         );
         assert!(
-            entry["description"].as_str().map(|s| !s.is_empty()).unwrap_or(false),
+            entry["description"]
+                .as_str()
+                .map(|s| !s.is_empty())
+                .unwrap_or(false),
             "remediation[{i}].description must be a non-empty string"
         );
     }
@@ -379,7 +395,13 @@ fn cli_error_invalid_transition_is_well_formed_envelope() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "claim to double-doubt");
     dont()
-        .args(["trust", &id, "--reason", "First doubt — methodology gap", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "First doubt — methodology gap",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

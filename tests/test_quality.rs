@@ -94,14 +94,11 @@ fn no_cfg_test_trait_impl_blocks() {
 /// mockall, mockito, wiremock, double, faux, or mockers.
 #[test]
 fn no_mock_framework_in_dev_dependencies() {
-    let cargo_toml_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
-    let content = std::fs::read_to_string(&cargo_toml_path)
-        .expect("Cargo.toml must be readable");
+    let cargo_toml_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+    let content = std::fs::read_to_string(&cargo_toml_path).expect("Cargo.toml must be readable");
 
     let mock_crates = [
-        "mockall", "mockito", "wiremock", "double", "faux", "mockers",
-        "mock_it", "unimock",
+        "mockall", "mockito", "wiremock", "double", "faux", "mockers", "mock_it", "unimock",
     ];
 
     let violations: Vec<&str> = mock_crates

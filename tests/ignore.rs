@@ -2,7 +2,7 @@ mod common;
 
 use common::{conclude_claim, dont, init_dir};
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
+    HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -27,7 +27,13 @@ fn ignore_unverified_claim_produces_ignored_status() {
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     let output = dont()
-        .args(["ignore", &id, "--reason", "out of scope for this project", "--json"])
+        .args([
+            "ignore",
+            &id,
+            "--reason",
+            "out of scope for this project",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -114,13 +120,25 @@ fn ignore_verified_claim_produces_ignored_status() {
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
-        .args(["flag", &id, "--evidence", "https://example.com/evidence", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.com/evidence",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
 
     let output = dont()
-        .args(["ignore", &id, "--reason", "superseded by a better claim", "--json"])
+        .args([
+            "ignore",
+            &id,
+            "--reason",
+            "superseded by a better claim",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -140,7 +158,13 @@ fn ignore_doubted_claim_produces_ignored_status() {
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
-        .args(["trust", &id, "--reason", "contradicted by observation", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "contradicted by observation",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -185,7 +209,13 @@ fn ignore_entity_not_found_returns_structured_error() {
     init_dir(&dir);
 
     let output = dont()
-        .args(["ignore", "claim:NOTEXIST", "--reason", "out of scope", "--json"])
+        .args([
+            "ignore",
+            "claim:NOTEXIST",
+            "--reason",
+            "out of scope",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -231,7 +261,13 @@ fn prime_status_counts_includes_ignored() {
         .success();
 
     dont()
-        .args(["ignore", &term_id, "--reason", "deprecated concept", "--json"])
+        .args([
+            "ignore",
+            &term_id,
+            "--reason",
+            "deprecated concept",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -294,7 +330,9 @@ fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
             },
         })
         .collect();
-    store.set_claim_hypotheses_for_test(claim_id, &hypotheses).unwrap();
+    store
+        .set_claim_hypotheses_for_test(claim_id, &hypotheses)
+        .unwrap();
 }
 
 fn lock_claim(dir: &TempDir, id: &str) {

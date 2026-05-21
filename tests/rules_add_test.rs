@@ -36,11 +36,7 @@ fn rules_add_returns_empty_envelope_on_success() {
     init_dir(&dir);
 
     let rule_file = dir.path().join("new-rule.dl");
-    std::fs::write(
-        &rule_file,
-        r#"?[entity_id, detail] <- [["e", "d"]]"#,
-    )
-    .unwrap();
+    std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
 
     let out = dont()
         .args(["rules", "add", rule_file.to_str().unwrap(), "--json"])
@@ -62,11 +58,7 @@ fn rules_add_success_hints_include_severity_guidance() {
     init_dir(&dir);
 
     let rule_file = dir.path().join("my-custom-rule.dl");
-    std::fs::write(
-        &rule_file,
-        r#"?[entity_id, detail] <- [["e", "d"]]"#,
-    )
-    .unwrap();
+    std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
 
     let out = dont()
         .args(["rules", "add", rule_file.to_str().unwrap(), "--json"])
@@ -79,12 +71,11 @@ fn rules_add_success_hints_include_severity_guidance() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     let hints = v["hints"].as_array().expect("hints array must be present");
-    let hint_commands: Vec<&str> = hints
-        .iter()
-        .filter_map(|h| h["command"].as_str())
-        .collect();
+    let hint_commands: Vec<&str> = hints.iter().filter_map(|h| h["command"].as_str()).collect();
     // At least one hint must mention severity / config to guide the operator.
-    let has_severity_hint = hint_commands.iter().any(|c| c.contains("warn") || c.contains("strict") || c.contains("severity"));
+    let has_severity_hint = hint_commands
+        .iter()
+        .any(|c| c.contains("warn") || c.contains("strict") || c.contains("severity"));
     assert!(
         has_severity_hint,
         "rules add should hint the operator about severity configuration; got: {:?}",
@@ -98,11 +89,7 @@ fn rules_add_makes_rule_appear_in_rules_list() {
     init_dir(&dir);
 
     let rule_file = dir.path().join("added-rule.dl");
-    std::fs::write(
-        &rule_file,
-        r#"?[entity_id, detail] <- [["e", "d"]]"#,
-    )
-    .unwrap();
+    std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
 
     dont()
         .args(["rules", "add", rule_file.to_str().unwrap(), "--json"])
@@ -122,7 +109,10 @@ fn rules_add_makes_rule_appear_in_rules_list() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     let rules = v["data"].as_array().unwrap();
     let names: Vec<&str> = rules.iter().filter_map(|r| r["name"].as_str()).collect();
-    assert!(names.contains(&"added-rule"), "added rule should appear in list");
+    assert!(
+        names.contains(&"added-rule"),
+        "added rule should appear in list"
+    );
 }
 
 #[test]
@@ -237,7 +227,13 @@ fn rules_add_duplicate_name_with_force_succeeds() {
     std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e2", "d2"]]"#).unwrap();
 
     dont()
-        .args(["rules", "add", rule_file.to_str().unwrap(), "--force", "--json"])
+        .args([
+            "rules",
+            "add",
+            rule_file.to_str().unwrap(),
+            "--force",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -245,7 +241,10 @@ fn rules_add_duplicate_name_with_force_succeeds() {
     // Verify the updated content is present.
     let dest = dir.path().join("rules").join("my-rule.dl");
     let content = std::fs::read_to_string(&dest).unwrap();
-    assert!(content.contains("e2"), "rule file should contain updated content");
+    assert!(
+        content.contains("e2"),
+        "rule file should contain updated content"
+    );
 }
 
 // --- rules test ---
@@ -269,7 +268,10 @@ fn rules_test_shipped_rule_returns_rule_result_envelope() {
     assert_eq!(v["envelope_kind"], "rule_result");
     assert_eq!(v["data"]["rule_name"], "ungrounded");
     assert!(
-        matches!(v["data"]["severity"].as_str(), Some("warn") | Some("strict")),
+        matches!(
+            v["data"]["severity"].as_str(),
+            Some("warn") | Some("strict")
+        ),
         "severity must be present"
     );
     assert!(v["data"]["matches"].is_array());
@@ -345,8 +347,14 @@ fn rules_test_does_not_modify_store_state() {
 
     let v1: Value = serde_json::from_slice(&out1).unwrap();
     let v2: Value = serde_json::from_slice(&out2).unwrap();
-    let claims1 = v1["data"]["claims"].as_array().or_else(|| v1["data"].as_array()).unwrap();
-    let claims2 = v2["data"]["claims"].as_array().or_else(|| v2["data"].as_array()).unwrap();
+    let claims1 = v1["data"]["claims"]
+        .as_array()
+        .or_else(|| v1["data"].as_array())
+        .unwrap();
+    let claims2 = v2["data"]["claims"]
+        .as_array()
+        .or_else(|| v2["data"].as_array())
+        .unwrap();
     assert_eq!(
         claims1.len(),
         claims2.len(),

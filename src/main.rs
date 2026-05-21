@@ -3454,7 +3454,14 @@ fn main() {
                 apply_term_transition(&project, &id, model_trust, event, "term-not-found", "trust");
                 return;
             }
-            apply_claim_transition(&project, &id, model_trust, event, "claim-not-found", "trust");
+            apply_claim_transition(
+                &project,
+                &id,
+                model_trust,
+                event,
+                "claim-not-found",
+                "trust",
+            );
         }
 
         Command::Forget { id } => {
@@ -3587,7 +3594,14 @@ fn main() {
                     "reopen",
                 );
             } else {
-                apply_claim_transition(&project, &id, model_reopen, event, "entity-not-found", "reopen");
+                apply_claim_transition(
+                    &project,
+                    &id,
+                    model_reopen,
+                    event,
+                    "entity-not-found",
+                    "reopen",
+                );
             }
         }
 
@@ -3643,7 +3657,14 @@ fn main() {
                     "ignore",
                 );
             } else {
-                apply_claim_transition(&project, &id, model_ignore, event, "entity-not-found", "ignore");
+                apply_claim_transition(
+                    &project,
+                    &id,
+                    model_ignore,
+                    event,
+                    "entity-not-found",
+                    "ignore",
+                );
             }
         }
 
@@ -3792,7 +3813,14 @@ fn main() {
                     "undoubt",
                 );
             } else {
-                apply_claim_transition(&project, &id, model_undoubt, event, "entity-not-found", "undoubt");
+                apply_claim_transition(
+                    &project,
+                    &id,
+                    model_undoubt,
+                    event,
+                    "entity-not-found",
+                    "undoubt",
+                );
             }
         }
 

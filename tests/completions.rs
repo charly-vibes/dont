@@ -100,7 +100,10 @@ fn completions_bash_json_returns_envelope_with_script() {
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["shell"], "bash");
     let script = v["data"]["script"].as_str().unwrap();
-    assert!(script.contains("conclude"), "script should include conclude");
+    assert!(
+        script.contains("conclude"),
+        "script should include conclude"
+    );
 }
 
 #[test]
@@ -118,7 +121,10 @@ fn completions_json_envelope_is_parseable_for_all_shells() {
         assert_eq!(v["ok"], true, "shell {shell} should return ok envelope");
         assert_eq!(v["data"]["shell"], *shell);
         assert!(
-            v["data"]["script"].as_str().map(|s| !s.is_empty()).unwrap_or(false),
+            v["data"]["script"]
+                .as_str()
+                .map(|s| !s.is_empty())
+                .unwrap_or(false),
             "shell {shell} script should be non-empty"
         );
     }

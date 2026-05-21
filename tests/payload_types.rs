@@ -54,7 +54,10 @@ fn claim_view_includes_confidence_field() {
         "ClaimView must include 'confidence' field (spec: dont-payload-types ClaimView)"
     );
     // When no confidence was supplied at conclude time the value must be null
-    assert!(data["confidence"].is_null(), "confidence must be null when not provided");
+    assert!(
+        data["confidence"].is_null(),
+        "confidence must be null when not provided"
+    );
 }
 
 #[test]
@@ -153,12 +156,14 @@ fn prime_assessment_counts_uses_hyphenated_keys() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     let ac = &v["data"]["assessment_counts"];
-    assert!(
-        ac.is_object(),
-        "assessment_counts must be an object"
-    );
+    assert!(ac.is_object(), "assessment_counts must be an object");
     let obj = ac.as_object().unwrap();
-    for key in &["stale", "compromised-support", "dangling-dependency", "unresolved-term"] {
+    for key in &[
+        "stale",
+        "compromised-support",
+        "dangling-dependency",
+        "unresolved-term",
+    ] {
         assert!(
             obj.contains_key(*key),
             "assessment_counts must contain key '{}' (spec: dont-payload-types PrimeView)",
@@ -166,7 +171,11 @@ fn prime_assessment_counts_uses_hyphenated_keys() {
         );
     }
     // Underscore variants must NOT appear
-    for bad_key in &["compromised_support", "dangling_dependency", "unresolved_term"] {
+    for bad_key in &[
+        "compromised_support",
+        "dangling_dependency",
+        "unresolved_term",
+    ] {
         assert!(
             !obj.contains_key(*bad_key),
             "assessment_counts must not use underscore key '{}'; use hyphens instead",
@@ -231,7 +240,13 @@ fn claim_view_required_array_fields_always_present() {
     let data = &v["data"];
     let obj = data.as_object().unwrap();
 
-    for field in &["derived_assessments", "atoms", "hypotheses", "evidence", "depends_on"] {
+    for field in &[
+        "derived_assessments",
+        "atoms",
+        "hypotheses",
+        "evidence",
+        "depends_on",
+    ] {
         assert!(
             obj.contains_key(*field),
             "ClaimView must include '{}' array field (spec: dont-payload-types ClaimView — all array fields always present)",
@@ -384,7 +399,10 @@ fn why_view_structure() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["envelope_kind"], "why", "why command must return envelope_kind 'why'");
+    assert_eq!(
+        v["envelope_kind"], "why",
+        "why command must return envelope_kind 'why'"
+    );
     let data = &v["data"];
     let obj = data.as_object().unwrap();
 
@@ -602,9 +620,18 @@ fn doctor_report_structure() {
 
     // Each check must have name, status, detail
     for check in data["checks"].as_array().unwrap() {
-        assert!(check["name"].is_string(), "Each check must have string 'name'");
-        assert!(check["status"].is_string(), "Each check must have string 'status'");
-        assert!(check["detail"].is_string(), "Each check must have string 'detail'");
+        assert!(
+            check["name"].is_string(),
+            "Each check must have string 'name'"
+        );
+        assert!(
+            check["status"].is_string(),
+            "Each check must have string 'status'"
+        );
+        assert!(
+            check["detail"].is_string(),
+            "Each check must have string 'detail'"
+        );
         let status = check["status"].as_str().unwrap();
         assert!(
             ["pass", "warn", "fail"].contains(&status),
@@ -620,7 +647,13 @@ fn doctor_report_structure() {
         .iter()
         .filter_map(|c| c["name"].as_str())
         .collect();
-    for required in &["substrate", "rules_compile", "seed_snapshot", "pending_spawns", "remediation_invariant"] {
+    for required in &[
+        "substrate",
+        "rules_compile",
+        "seed_snapshot",
+        "pending_spawns",
+        "remediation_invariant",
+    ] {
         assert!(
             check_names.contains(required),
             "DoctorReport checks must include '{}' (spec: dont-payload-types DoctorReport)",
@@ -661,13 +694,18 @@ fn doctor_warns_when_linkml_not_on_path() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let checks = v["data"]["checks"].as_array().expect("checks must be array");
+    let checks = v["data"]["checks"]
+        .as_array()
+        .expect("checks must be array");
 
     let linkml_check = checks.iter().find(|c| c["name"] == "linkml_available");
     assert!(
         linkml_check.is_some(),
         "doctor must include a 'linkml_available' check; got checks: {:?}",
-        checks.iter().map(|c| c["name"].as_str().unwrap_or("?")).collect::<Vec<_>>()
+        checks
+            .iter()
+            .map(|c| c["name"].as_str().unwrap_or("?"))
+            .collect::<Vec<_>>()
     );
     let linkml_check = linkml_check.unwrap();
     assert_eq!(
@@ -675,7 +713,10 @@ fn doctor_warns_when_linkml_not_on_path() {
         "linkml_available check must be 'warn' when linkml is absent from PATH"
     );
     assert!(
-        linkml_check["detail"].as_str().unwrap_or("").contains("linkml"),
+        linkml_check["detail"]
+            .as_str()
+            .unwrap_or("")
+            .contains("linkml"),
         "linkml_available detail must mention 'linkml'"
     );
 }
@@ -695,7 +736,13 @@ fn conclude_with_confidence_stores_value_in_claim_view() {
     init_dir(&dir);
 
     let out = dont()
-        .args(["conclude", "confidence must be stored", "--confidence", "0.8", "--json"])
+        .args([
+            "conclude",
+            "confidence must be stored",
+            "--confidence",
+            "0.8",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()

@@ -33,8 +33,12 @@ fn concurrent_conclude_does_not_corrupt_store() {
         .spawn()
         .expect("failed to spawn process B");
 
-    let out_a = child_a.wait_with_output().expect("failed to wait for process A");
-    let out_b = child_b.wait_with_output().expect("failed to wait for process B");
+    let out_a = child_a
+        .wait_with_output()
+        .expect("failed to wait for process A");
+    let out_b = child_b
+        .wait_with_output()
+        .expect("failed to wait for process B");
 
     // Each process must either succeed (exit 0) or fail with a clean JSON
     // error envelope (exit non-zero but valid JSON on stdout).  A panic
@@ -100,9 +104,7 @@ fn concurrent_conclude_does_not_corrupt_store() {
 
     // Every claim in the list must have a well-formed id and statement.
     for claim in claims {
-        let id = claim["id"]
-            .as_str()
-            .expect("claim missing id field");
+        let id = claim["id"].as_str().expect("claim missing id field");
         assert!(
             id.starts_with("claim:"),
             "claim id does not have 'claim:' prefix: {id}"

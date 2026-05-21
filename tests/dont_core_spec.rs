@@ -12,7 +12,7 @@
 mod common;
 
 use common::{dont, init_dir};
-use dont::store::{Store, StoreEvent, StoreEventKind, Status};
+use dont::store::{Status, Store, StoreEvent, StoreEventKind};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -22,10 +22,7 @@ use tempfile::TempDir;
 /// the tool is framed as an epistemic forcing-function, not a generic task tracker.
 #[test]
 fn cli_about_text_contains_epistemic() {
-    let out = dont()
-        .args(["--help"])
-        .output()
-        .expect("dont --help runs");
+    let out = dont().args(["--help"]).output().expect("dont --help runs");
     let text = String::from_utf8_lossy(&out.stdout).to_lowercase();
     assert!(
         text.contains("epistemic"),
@@ -37,10 +34,7 @@ fn cli_about_text_contains_epistemic() {
 /// the tool is framed around requiring grounding before verification.
 #[test]
 fn cli_about_text_references_grounding() {
-    let out = dont()
-        .args(["--help"])
-        .output()
-        .expect("dont --help runs");
+    let out = dont().args(["--help"]).output().expect("dont --help runs");
     let text = String::from_utf8_lossy(&out.stdout).to_lowercase();
     assert!(
         text.contains("ground"),
@@ -186,7 +180,10 @@ fn dont_operates_without_wai_or_beads_config() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], true, "claim must be stored without companion tools");
+    assert_eq!(
+        v["ok"], true,
+        "claim must be stored without companion tools"
+    );
 }
 
 // ── REQ-4: Append-only event history ─────────────────────────────────────────
@@ -264,9 +261,7 @@ fn retraction_event_is_recorded_alongside_original_assertion() {
         )
         .expect("status change appends");
 
-    let datoms = store
-        .datoms_for_entity(&claim.id)
-        .expect("datoms readable");
+    let datoms = store.datoms_for_entity(&claim.id).expect("datoms readable");
 
     // The original assert=true for 'unverified' at claim.tx must still exist
     let original_assert = datoms.iter().any(|d| {
@@ -413,10 +408,7 @@ fn standalone_operation_without_companion_tool_directories() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(
-        v["ok"], true,
-        "standalone dont conclude must succeed: {v}"
-    );
+    assert_eq!(v["ok"], true, "standalone dont conclude must succeed: {v}");
 }
 
 /// Append-only invariant: tx values must be monotonically increasing across
@@ -432,8 +424,18 @@ fn tx_values_are_strictly_monotonic_across_operations() {
         .append_term("ex:T001", "first term", None)
         .expect("t1");
 
-    assert!(c1.tx < c2.tx, "tx must increase: c1.tx={} c2.tx={}", c1.tx, c2.tx);
-    assert!(c2.tx < t1.tx, "tx must increase: c2.tx={} t1.tx={}", c2.tx, t1.tx);
+    assert!(
+        c1.tx < c2.tx,
+        "tx must increase: c1.tx={} c2.tx={}",
+        c1.tx,
+        c2.tx
+    );
+    assert!(
+        c2.tx < t1.tx,
+        "tx must increase: c2.tx={} t1.tx={}",
+        c2.tx,
+        t1.tx
+    );
 }
 
 /// Explicit epistemic status invariant: every entity returned from the store
@@ -443,7 +445,9 @@ fn every_entity_has_explicit_epistemic_status() {
     let root = TempDir::new().unwrap();
     let store = Store::open_project(root.path()).expect("store opens");
 
-    store.append_claim("claim must have status", &[], None).expect("c1");
+    store
+        .append_claim("claim must have status", &[], None)
+        .expect("c1");
     store
         .append_term("ex:T001", "term must have status", None)
         .expect("t1");

@@ -29,7 +29,10 @@ fn store_error_curie_conflict_is_matchable_without_downcast() {
     match err {
         StoreError::CurieConflict { curie, existing_id } => {
             assert_eq!(curie, "ex:foo");
-            assert!(existing_id.starts_with("term:"), "existing_id = {existing_id}");
+            assert!(
+                existing_id.starts_with("term:"),
+                "existing_id = {existing_id}"
+            );
         }
         other => panic!("expected CurieConflict, got {other:?}"),
     }

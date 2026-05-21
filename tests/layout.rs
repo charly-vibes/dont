@@ -96,6 +96,9 @@ mod layout {
         let has_init = remediation
             .iter()
             .any(|r| r["command"].as_str().unwrap_or("").contains("dont init"));
-        assert!(has_init, "remediation should suggest 'dont init': {remediation:?}");
+        assert!(
+            has_init,
+            "remediation should suggest 'dont init': {remediation:?}"
+        );
     }
 }

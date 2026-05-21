@@ -194,7 +194,10 @@ fn why_claim_entity_contains_canonical_claim_fields() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     let entity = &v["data"]["entity"];
 
-    assert_eq!(entity["id"], id, "entity.id must match the requested claim id");
+    assert_eq!(
+        entity["id"], id,
+        "entity.id must match the requested claim id"
+    );
     assert_eq!(
         entity["entity_kind"], "claim",
         "entity.entity_kind must be 'claim', got: {:?}",
@@ -326,7 +329,10 @@ fn why_term_entity_contains_canonical_term_fields() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     let entity = &v["data"]["entity"];
 
-    assert_eq!(entity["id"], id, "entity.id must match the requested term id");
+    assert_eq!(
+        entity["id"], id,
+        "entity.id must match the requested term id"
+    );
     assert_eq!(
         entity["entity_kind"], "term",
         "entity.entity_kind must be 'term', got: {:?}",
@@ -430,9 +436,9 @@ fn why_claim_with_unmet_lockable_rule_has_non_empty_remediation() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let remediation = v["data"]["remediation"].as_array().expect(
-        "data.remediation must be an array",
-    );
+    let remediation = v["data"]["remediation"]
+        .as_array()
+        .expect("data.remediation must be an array");
 
     assert!(
         !remediation.is_empty(),
@@ -490,9 +496,9 @@ fn why_claim_with_all_rules_met_has_empty_remediation() {
     // meaningful when lockable is met. Skip the remediation assertion if
     // lockable is not met (that case is covered by the sibling test above).
     if lockable_met {
-        let remediation = v["data"]["remediation"].as_array().expect(
-            "data.remediation must be an array",
-        );
+        let remediation = v["data"]["remediation"]
+            .as_array()
+            .expect("data.remediation must be an array");
         assert!(
             remediation.is_empty(),
             "remediation[] must be empty when all rules pass, got: {:?}",

@@ -55,13 +55,21 @@ classes:
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], false, "import must fail when linkml CLI is missing");
+    assert_eq!(
+        v["ok"], false,
+        "import must fail when linkml CLI is missing"
+    );
     assert_eq!(v["data"]["code"], "config-missing");
     let message = v["data"]["message"].as_str().unwrap_or("");
-    assert!(message.contains("linkml"), "message must mention linkml: {message}");
+    assert!(
+        message.contains("linkml"),
+        "message must mention linkml: {message}"
+    );
     let remediation = v["data"]["remediation"].as_array().unwrap();
     assert!(
-        remediation.iter().any(|r| r["description"].as_str().unwrap_or("").contains("install")),
+        remediation
+            .iter()
+            .any(|r| r["description"].as_str().unwrap_or("").contains("install")),
         "remediation must include install guidance: {remediation:?}"
     );
 }
@@ -332,7 +340,10 @@ classes:
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], true, "enum schema must import successfully (with warning)");
+    assert_eq!(
+        v["ok"], true,
+        "enum schema must import successfully (with warning)"
+    );
 
     let warnings = v["warnings"].as_array().unwrap();
     let has_enum_warning = warnings.iter().any(|w| {
@@ -385,7 +396,10 @@ classes:
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], true, "pattern-constrained schema must import successfully (with warning)");
+    assert_eq!(
+        v["ok"], true,
+        "pattern-constrained schema must import successfully (with warning)"
+    );
 
     let warnings = v["warnings"].as_array().unwrap();
     let has_pattern_warning = warnings.iter().any(|w| {
@@ -654,8 +668,14 @@ classes:
         "import payload must include canonical_source_id: {first:?}"
     );
     assert_eq!(first_id, second_id, "canonical_source_id must be stable");
-    assert_eq!(first["data"]["stored"], 1, "first import should store one term");
-    assert_eq!(second["data"]["stored"], 0, "second import must be idempotent");
+    assert_eq!(
+        first["data"]["stored"], 1,
+        "first import should store one term"
+    );
+    assert_eq!(
+        second["data"]["stored"], 0,
+        "second import must be idempotent"
+    );
 }
 
 /// Importing the same bytes via a path alias must deduplicate by content
@@ -702,9 +722,11 @@ classes:
     let alias: Value = serde_json::from_slice(&alias_out).unwrap();
 
     assert_eq!(
-        first["data"]["canonical_source_id"],
-        alias["data"]["canonical_source_id"],
+        first["data"]["canonical_source_id"], alias["data"]["canonical_source_id"],
         "path aliases must normalize to the same canonical_source_id"
     );
-    assert_eq!(alias["data"]["stored"], 0, "alias import must be deduplicated");
+    assert_eq!(
+        alias["data"]["stored"], 0,
+        "alias import must be deduplicated"
+    );
 }

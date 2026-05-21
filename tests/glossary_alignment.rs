@@ -25,7 +25,13 @@ fn dismiss_is_a_top_level_verb_that_verifies_a_claim() {
     let id = conclude_claim(&dir, "all bachelors are unmarried");
 
     let out = dont()
-        .args(["dismiss", &id, "--evidence", "https://example.com/ref", "--json"])
+        .args([
+            "dismiss",
+            &id,
+            "--evidence",
+            "https://example.com/ref",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -66,7 +72,7 @@ fn dismiss_appears_in_top_level_help() {
 #[test]
 fn lock_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
     use dont::store::{
-        HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
+        HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
     };
 
     let dir = TempDir::new().unwrap();
@@ -114,7 +120,9 @@ fn lock_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
             },
         })
         .collect();
-    store.set_claim_hypotheses_for_test(&id, &hypotheses).unwrap();
+    store
+        .set_claim_hypotheses_for_test(&id, &hypotheses)
+        .unwrap();
 
     let out = dont()
         .args(["lock", &id, "--json"])
@@ -276,7 +284,9 @@ fn error_payload_contains_non_empty_remediation() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], false);
-    let remediation = v["data"]["remediation"].as_array().expect("remediation must be an array");
+    let remediation = v["data"]["remediation"]
+        .as_array()
+        .expect("remediation must be an array");
     assert!(
         !remediation.is_empty(),
         "error payload must contain at least one remediation entry per glossary spec"

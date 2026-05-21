@@ -1,8 +1,10 @@
 use std::collections::BTreeSet;
 
-use crate::store::{ClaimRecord, CurieResolution, EventRecord, HypothesisRecord, Status, Store, StoreError};
+use crate::store::{
+    ClaimRecord, CurieResolution, EventRecord, HypothesisRecord, Status, Store, StoreError,
+};
 
-use super::{source_key, RuleMatch};
+use super::{RuleMatch, source_key};
 
 pub const EXPLANATION: &str = include_str!("lockable.md");
 
@@ -84,9 +86,7 @@ fn unmet_reasons(claim: &ClaimRecord, store: &Store) -> Result<Vec<String>, Stor
 fn assessed_count(hypotheses: &[HypothesisRecord]) -> usize {
     hypotheses
         .iter()
-        .filter(|h| {
-            !h.assessment.supporting.is_empty() || !h.assessment.refuting.is_empty()
-        })
+        .filter(|h| !h.assessment.supporting.is_empty() || !h.assessment.refuting.is_empty())
         .count()
 }
 
@@ -115,12 +115,7 @@ mod lockable_tests {
         for text in ["H1", "H2", "H3"] {
             let (_, idx) = store.add_hypothesis(claim_id, text).unwrap();
             store
-                .assess_hypothesis(
-                    claim_id,
-                    idx,
-                    &["https://example.com".to_string()],
-                    &[],
-                )
+                .assess_hypothesis(claim_id, idx, &["https://example.com".to_string()], &[])
                 .unwrap();
         }
     }
@@ -163,8 +158,9 @@ mod lockable_tests {
         verify_claim(&store, &result.id);
         let matches = check(&store).unwrap();
         assert!(
-            matches.iter().any(|m| m.entity_id == result.id
-                && m.detail.contains("assessed hypotheses")),
+            matches
+                .iter()
+                .any(|m| m.entity_id == result.id && m.detail.contains("assessed hypotheses")),
             "expected lockable to fire for insufficient hypotheses"
         );
     }
@@ -180,8 +176,9 @@ mod lockable_tests {
         add_evidence(&store, &result.id, &["https://source-a.example.com/page"]);
         let matches = check(&store).unwrap();
         assert!(
-            matches.iter().any(|m| m.entity_id == result.id
-                && m.detail.contains("independent evidence")),
+            matches
+                .iter()
+                .any(|m| m.entity_id == result.id && m.detail.contains("independent evidence")),
             "expected lockable to fire for insufficient evidence sources"
         );
     }
@@ -198,12 +195,16 @@ mod lockable_tests {
         add_evidence(
             &store,
             &result.id,
-            &["https://source-a.example.com", "https://source-b.example.com"],
+            &[
+                "https://source-a.example.com",
+                "https://source-b.example.com",
+            ],
         );
         let matches = check(&store).unwrap();
         assert!(
-            matches.iter().any(|m| m.entity_id == result.id
-                && m.detail.contains("is unresolved")),
+            matches
+                .iter()
+                .any(|m| m.entity_id == result.id && m.detail.contains("is unresolved")),
             "expected lockable to fire for unresolved dependency"
         );
     }
@@ -217,13 +218,17 @@ mod lockable_tests {
         add_evidence(
             &store,
             &result.id,
-            &["https://source-a.example.com", "https://source-b.example.com"],
+            &[
+                "https://source-a.example.com",
+                "https://source-b.example.com",
+            ],
         );
         // Intentionally NOT verifying — claim stays Unverified
         let matches = check(&store).unwrap();
         assert!(
-            matches.iter().any(|m| m.entity_id == result.id
-                && m.detail.to_lowercase().contains("verified")),
+            matches
+                .iter()
+                .any(|m| m.entity_id == result.id && m.detail.to_lowercase().contains("verified")),
             "lockable must fire when claim is not in verified status; got: {:?}",
             matches.iter().find(|m| m.entity_id == result.id)
         );
@@ -239,14 +244,21 @@ mod lockable_tests {
         add_evidence(
             &store,
             &result.id,
-            &["https://source-a.example.com", "https://source-b.example.com"],
+            &[
+                "https://source-a.example.com",
+                "https://source-b.example.com",
+            ],
         );
         store
             .append_status_change(
                 &result.id,
                 Status::Unverified,
                 Status::Verified,
-                StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
+                StoreEvent {
+                    kind: StoreEventKind::Flagged,
+                    note: None,
+                    evidence: vec![],
+                },
             )
             .unwrap();
         let matches = check(&store).unwrap();
@@ -255,5 +267,4 @@ mod lockable_tests {
             "expected lockable to be silent when all conditions met"
         );
     }
-
 }

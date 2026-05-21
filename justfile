@@ -40,6 +40,7 @@ bd-status:
   bd status
 
 lint:
+  cargo fmt --all --check
   cargo clippy --all-targets --all-features -- -D warnings
   prek run --all-files
   typos

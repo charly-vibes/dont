@@ -73,21 +73,30 @@ fn flag_verified_is_refused() {
     // The model function must return a typed refusal.
     let err = flag(Status::Verified).unwrap_err();
     assert_eq!(err.code, "invalid-transition");
-    assert_eq!(err.message, "cannot flag a Verified entity as a status transition");
+    assert_eq!(
+        err.message,
+        "cannot flag a Verified entity as a status transition"
+    );
 }
 
 #[test]
 fn undoubt_unverified_is_refused() {
     let err = undoubt(Status::Unverified).unwrap_err();
     assert_eq!(err.code, "invalid-transition");
-    assert_eq!(err.message, "cannot undoubt a Unverified entity — only doubted entities can be undoubted");
+    assert_eq!(
+        err.message,
+        "cannot undoubt a Unverified entity — only doubted entities can be undoubted"
+    );
 }
 
 #[test]
 fn undoubt_verified_is_refused() {
     let err = undoubt(Status::Verified).unwrap_err();
     assert_eq!(err.code, "invalid-transition");
-    assert_eq!(err.message, "cannot undoubt a Verified entity — only doubted entities can be undoubted");
+    assert_eq!(
+        err.message,
+        "cannot undoubt a Verified entity — only doubted entities can be undoubted"
+    );
 }
 
 #[test]

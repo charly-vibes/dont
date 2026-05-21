@@ -19,7 +19,14 @@ fn hypothesis_add_appends_to_claim() {
     let id = conclude_claim(&dir, "Hypotheses support lockable claims");
 
     let output = dont()
-        .args(["hypothesis", "add", &id, "--text", "First alternative explanation", "--json"])
+        .args([
+            "hypothesis",
+            "add",
+            &id,
+            "--text",
+            "First alternative explanation",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -34,7 +41,13 @@ fn hypothesis_add_appends_to_claim() {
     assert_eq!(hypotheses.len(), 1);
     assert_eq!(hypotheses[0]["idx"], 0);
     assert_eq!(hypotheses[0]["text"], "First alternative explanation");
-    assert_eq!(hypotheses[0]["assessment"]["supporting"].as_array().unwrap().len(), 0);
+    assert_eq!(
+        hypotheses[0]["assessment"]["supporting"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
 }
 
 #[test]
@@ -67,7 +80,14 @@ fn hypothesis_add_on_unknown_claim_returns_not_found() {
     init_dir(&dir);
 
     let output = dont()
-        .args(["hypothesis", "add", "claim:NOTEXIST", "--text", "H1", "--json"])
+        .args([
+            "hypothesis",
+            "add",
+            "claim:NOTEXIST",
+            "--text",
+            "H1",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -94,8 +114,12 @@ fn hypothesis_assess_adds_supporting_evidence() {
 
     let output = dont()
         .args([
-            "hypothesis", "assess", &id, "0",
-            "--supporting", "https://evidence-a.example/source",
+            "hypothesis",
+            "assess",
+            &id,
+            "0",
+            "--supporting",
+            "https://evidence-a.example/source",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -111,7 +135,11 @@ fn hypothesis_assess_adds_supporting_evidence() {
     let h = &v["data"]["hypotheses"][0];
     assert_eq!(h["idx"], 0);
     let supporting = h["assessment"]["supporting"].as_array().unwrap();
-    assert!(supporting.iter().any(|s| s == "https://evidence-a.example/source"));
+    assert!(
+        supporting
+            .iter()
+            .any(|s| s == "https://evidence-a.example/source")
+    );
 }
 
 #[test]
@@ -128,8 +156,12 @@ fn hypothesis_assess_adds_refuting_evidence() {
 
     let output = dont()
         .args([
-            "hypothesis", "assess", &id, "0",
-            "--refuting", "https://counter-evidence.example/source",
+            "hypothesis",
+            "assess",
+            &id,
+            "0",
+            "--refuting",
+            "https://counter-evidence.example/source",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -143,7 +175,11 @@ fn hypothesis_assess_adds_refuting_evidence() {
     assert_eq!(v["ok"], true);
     let h = &v["data"]["hypotheses"][0];
     let refuting = h["assessment"]["refuting"].as_array().unwrap();
-    assert!(refuting.iter().any(|s| s == "https://counter-evidence.example/source"));
+    assert!(
+        refuting
+            .iter()
+            .any(|s| s == "https://counter-evidence.example/source")
+    );
 }
 
 #[test]
@@ -153,15 +189,26 @@ fn hypothesis_assess_out_of_range_returns_error() {
     let id = conclude_claim(&dir, "Claim with one hypothesis");
 
     dont()
-        .args(["hypothesis", "add", &id, "--text", "Only hypothesis", "--json"])
+        .args([
+            "hypothesis",
+            "add",
+            &id,
+            "--text",
+            "Only hypothesis",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
 
     let output = dont()
         .args([
-            "hypothesis", "assess", &id, "5",
-            "--supporting", "https://evidence.example/source",
+            "hypothesis",
+            "assess",
+            &id,
+            "5",
+            "--supporting",
+            "https://evidence.example/source",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -204,10 +251,20 @@ fn hypothesis_add_with_empty_text_is_refused() {
 fn hypothesis_assess_without_supporting_or_refuting_returns_no_assessment() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
-    let id = conclude_claim(&dir, "Claim whose hypothesis requires at least one assessment item");
+    let id = conclude_claim(
+        &dir,
+        "Claim whose hypothesis requires at least one assessment item",
+    );
 
     dont()
-        .args(["hypothesis", "add", &id, "--text", "An alternative explanation", "--json"])
+        .args([
+            "hypothesis",
+            "add",
+            &id,
+            "--text",
+            "An alternative explanation",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -250,8 +307,12 @@ fn lock_reachable_via_cli_hypothesis_commands() {
     for idx in ["0", "1", "2"] {
         dont()
             .args([
-                "hypothesis", "assess", &id, idx,
-                "--supporting", "https://evidence.example/support",
+                "hypothesis",
+                "assess",
+                &id,
+                idx,
+                "--supporting",
+                "https://evidence.example/support",
                 "--json",
             ])
             .env("DONT_DIR", dir.path())

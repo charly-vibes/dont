@@ -100,7 +100,10 @@ fn trace_unverified_standalone_claim_returns_empty_blockers() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     let blockers = v["data"]["blockers"].as_array().unwrap();
-    assert!(blockers.is_empty(), "standalone unverified claim has no dep blockers");
+    assert!(
+        blockers.is_empty(),
+        "standalone unverified claim has no dep blockers"
+    );
 }
 
 #[test]
@@ -183,8 +186,15 @@ fn trace_multiple_independent_blockers_reported_separately() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     let blockers = v["data"]["blockers"].as_array().unwrap();
-    assert_eq!(blockers.len(), 2, "two independent blockers reported separately");
-    let kinds: Vec<&str> = blockers.iter().map(|p| p["kind"].as_str().unwrap()).collect();
+    assert_eq!(
+        blockers.len(),
+        2,
+        "two independent blockers reported separately"
+    );
+    let kinds: Vec<&str> = blockers
+        .iter()
+        .map(|p| p["kind"].as_str().unwrap())
+        .collect();
     assert!(kinds.contains(&"stale"));
     assert!(kinds.contains(&"unresolved-term"));
 }
@@ -267,11 +277,7 @@ fn trace_duplicate_dependency_is_reported_once() {
     init_dir(&dir);
     let term_id = define_term(&dir, "EX:DUP");
     trust(&dir, &term_id, "duplicate dep test");
-    let claim_id = conclude_with_deps(
-        &dir,
-        "depends on same term twice",
-        &["EX:DUP", "EX:DUP"],
-    );
+    let claim_id = conclude_with_deps(&dir, "depends on same term twice", &["EX:DUP", "EX:DUP"]);
 
     let out = dont()
         .args(["trace", &claim_id, "--json"])
@@ -284,7 +290,11 @@ fn trace_duplicate_dependency_is_reported_once() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     let blockers = v["data"]["blockers"].as_array().unwrap();
-    assert_eq!(blockers.len(), 1, "duplicate dep should be reported exactly once");
+    assert_eq!(
+        blockers.len(),
+        1,
+        "duplicate dep should be reported exactly once"
+    );
 }
 
 #[test]
@@ -342,12 +352,18 @@ fn trace_mutual_cycle_between_two_claims_terminates_with_bounded_output() {
     let store = Store::open_dont_dir(dir.path()).unwrap();
 
     // Create claim A with no deps first so we have its ID.
-    let a = store.append_claim("claim A — part of mutual cycle", &[], None).unwrap();
+    let a = store
+        .append_claim("claim A — part of mutual cycle", &[], None)
+        .unwrap();
     let a_id = a.id.clone();
 
     // Create claim B whose depends_on already references A.
     let b = store
-        .append_claim("claim B — part of mutual cycle", std::slice::from_ref(&a_id), None)
+        .append_claim(
+            "claim B — part of mutual cycle",
+            std::slice::from_ref(&a_id),
+            None,
+        )
         .unwrap();
     let b_id = b.id.clone();
 
@@ -376,7 +392,10 @@ fn trace_mutual_cycle_between_two_claims_terminates_with_bounded_output() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], true, "trace must succeed for a claim in a mutual cycle");
+    assert_eq!(
+        v["ok"], true,
+        "trace must succeed for a claim in a mutual cycle"
+    );
     assert_eq!(v["envelope_kind"], "trace");
     let blockers = v["data"]["blockers"].as_array().unwrap();
     // A2 depends on B; B's claim ID is not a term CURIE, so trace reports it
@@ -392,7 +411,8 @@ fn trace_mutual_cycle_between_two_claims_terminates_with_bounded_output() {
         "claim-ID dep in depends_on is classified as unresolved-term"
     );
     assert_eq!(
-        blockers[0]["start_entity"], a2_id.as_str(),
+        blockers[0]["start_entity"],
+        a2_id.as_str(),
         "blocker start_entity must be the traced claim"
     );
 

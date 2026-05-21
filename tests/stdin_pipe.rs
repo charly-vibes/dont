@@ -2,7 +2,7 @@ mod common;
 
 use common::{conclude_claim, dont, init_dir};
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
+    HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -17,7 +17,9 @@ fn seed_lockable_claim(dir: &TempDir, claim_id: &str) {
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: None,
-                evidence: vec![serde_json::Value::String("https://src-a.example".to_string())],
+                evidence: vec![serde_json::Value::String(
+                    "https://src-a.example".to_string(),
+                )],
             },
         )
         .unwrap();
@@ -27,7 +29,9 @@ fn seed_lockable_claim(dir: &TempDir, claim_id: &str) {
             StoreEvent {
                 kind: StoreEventKind::Flagged,
                 note: None,
-                evidence: vec![serde_json::Value::String("https://src-b.example".to_string())],
+                evidence: vec![serde_json::Value::String(
+                    "https://src-b.example".to_string(),
+                )],
             },
         )
         .unwrap();
@@ -41,7 +45,9 @@ fn seed_lockable_claim(dir: &TempDir, claim_id: &str) {
             },
         })
         .collect();
-    store.set_claim_hypotheses_for_test(claim_id, &hypotheses).unwrap();
+    store
+        .set_claim_hypotheses_for_test(claim_id, &hypotheses)
+        .unwrap();
 }
 
 // --- show stdin ---
@@ -61,7 +67,10 @@ fn show_stdin_processes_two_ids_as_ndjson() {
         .output()
         .unwrap();
 
-    assert!(raw.status.success(), "exit code should be 0 for all-valid IDs");
+    assert!(
+        raw.status.success(),
+        "exit code should be 0 for all-valid IDs"
+    );
     let stdout = String::from_utf8(raw.stdout).unwrap();
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines.len(), 2, "should emit one JSON line per entity");
@@ -134,7 +143,11 @@ fn show_stdin_invalid_id_emits_error_envelope_and_continues() {
 
     let stdout = String::from_utf8(raw.stdout).unwrap();
     let lines: Vec<&str> = stdout.lines().collect();
-    assert_eq!(lines.len(), 2, "should emit one envelope per input line (error + success)");
+    assert_eq!(
+        lines.len(),
+        2,
+        "should emit one envelope per input line (error + success)"
+    );
     let v1: Value = serde_json::from_str(lines[0]).unwrap();
     let v2: Value = serde_json::from_str(lines[1]).unwrap();
     assert_eq!(v1["ok"], false, "first line should be error envelope");
@@ -221,8 +234,8 @@ fn show_stdin_batch_five_items_all_processed() {
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines.len(), 5, "must emit one envelope per item");
     for (i, line) in lines.iter().enumerate() {
-        let v: Value = serde_json::from_str(line)
-            .unwrap_or_else(|_| panic!("line {i} must be valid JSON"));
+        let v: Value =
+            serde_json::from_str(line).unwrap_or_else(|_| panic!("line {i} must be valid JSON"));
         assert_eq!(v["ok"], true, "line {i} must be ok=true");
     }
 }
@@ -253,7 +266,11 @@ fn show_stdin_batch_partial_failure_continues_processing() {
 
     let stdout = String::from_utf8(raw.stdout).unwrap();
     let lines: Vec<&str> = stdout.lines().collect();
-    assert_eq!(lines.len(), 5, "must emit one envelope per input line including errors");
+    assert_eq!(
+        lines.len(),
+        5,
+        "must emit one envelope per input line including errors"
+    );
 
     // parse all lines
     let vs: Vec<Value> = lines
@@ -265,7 +282,10 @@ fn show_stdin_batch_partial_failure_continues_processing() {
     assert_eq!(vs[0]["ok"], true, "line 0 must succeed");
     assert_eq!(vs[1]["ok"], true, "line 1 must succeed");
     assert_eq!(vs[2]["ok"], false, "line 2 (malformed id) must be error");
-    assert_eq!(vs[3]["ok"], true, "line 3 must succeed (processing continues after error)");
+    assert_eq!(
+        vs[3]["ok"], true,
+        "line 3 must succeed (processing continues after error)"
+    );
     assert_eq!(vs[4]["ok"], true, "line 4 must succeed");
 }
 
@@ -288,8 +308,8 @@ fn show_stdin_batch_all_invalid_exits_nonzero() {
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines.len(), 3);
     for (i, line) in lines.iter().enumerate() {
-        let v: Value = serde_json::from_str(line)
-            .unwrap_or_else(|_| panic!("line {i} must be valid JSON"));
+        let v: Value =
+            serde_json::from_str(line).unwrap_or_else(|_| panic!("line {i} must be valid JSON"));
         assert_eq!(v["ok"], false, "line {i} must be ok=false");
     }
 }

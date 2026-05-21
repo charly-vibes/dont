@@ -77,7 +77,13 @@ fn show_reflects_current_status_after_trust() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "claim to be trusted");
     dont()
-        .args(["trust", &id, "--reason", "Source has conflicts of interest", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "Source has conflicts of interest",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -186,7 +192,10 @@ fn show_unknown_curie_returns_term_not_found_exit_1() {
     // The error message must echo the curie back to the caller (UX requirement),
     // but we do not assert on the exact phrasing around it.
     let msg = v["data"]["message"].as_str().unwrap_or("");
-    assert!(msg.contains("WB:ZZZZ"), "error message must echo the curie: {msg}");
+    assert!(
+        msg.contains("WB:ZZZZ"),
+        "error message must echo the curie: {msg}"
+    );
 }
 
 // --- show --history ---
@@ -229,8 +238,13 @@ fn show_history_includes_events() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    let events = v["data"]["events"].as_array().expect("events must be an array when --history is set");
-    assert!(!events.is_empty(), "events array must be non-empty after conclude");
+    let events = v["data"]["events"]
+        .as_array()
+        .expect("events must be an array when --history is set");
+    assert!(
+        !events.is_empty(),
+        "events array must be non-empty after conclude"
+    );
 }
 
 // --- list ---
@@ -336,17 +350,35 @@ fn list_status_filter_returns_only_matching_claims() {
     let ignored = conclude_claim(&dir, "will be ignored");
 
     dont()
-        .args(["trust", &doubted, "--reason", "Conflicts with source evidence", "--json"])
+        .args([
+            "trust",
+            &doubted,
+            "--reason",
+            "Conflicts with source evidence",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
     dont()
-        .args(["flag", &verified, "--evidence", "https://example.test/proof", "--json"])
+        .args([
+            "flag",
+            &verified,
+            "--evidence",
+            "https://example.test/proof",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
     dont()
-        .args(["ignore", &ignored, "--reason", "Out of scope for this project", "--json"])
+        .args([
+            "ignore",
+            &ignored,
+            "--reason",
+            "Out of scope for this project",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -462,9 +494,13 @@ fn list_default_claims_emits_hint_when_terms_exist() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["envelope_kind"], "claims");
-    assert!(v["hints"].as_array().unwrap().iter().any(|hint| {
-        hint["command"] == "dont list --kind terms"
-    }));
+    assert!(
+        v["hints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|hint| { hint["command"] == "dont list --kind terms" })
+    );
 }
 
 #[test]
@@ -474,7 +510,13 @@ fn list_kind_terms_supports_status_filter() {
     let unverified = define_term(&dir, "WB:P001", "a process by which X becomes Y");
     let ignored = define_term(&dir, "WB:P002", "a process by which Y becomes Z");
     dont()
-        .args(["ignore", &ignored, "--reason", "Out of scope for this project", "--json"])
+        .args([
+            "ignore",
+            &ignored,
+            "--reason",
+            "Out of scope for this project",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -519,8 +561,14 @@ fn list_all_flag_returns_both_claims_and_terms() {
     let terms = v["data"]["terms"].as_array().unwrap();
     let claim_ids: Vec<&str> = claims.iter().filter_map(|c| c["id"].as_str()).collect();
     let term_ids: Vec<&str> = terms.iter().filter_map(|t| t["id"].as_str()).collect();
-    assert!(claim_ids.contains(&claim_id.as_str()), "claim missing from --all output");
-    assert!(term_ids.contains(&term_id.as_str()), "term missing from --all output");
+    assert!(
+        claim_ids.contains(&claim_id.as_str()),
+        "claim missing from --all output"
+    );
+    assert!(
+        term_ids.contains(&term_id.as_str()),
+        "term missing from --all output"
+    );
 }
 
 #[test]
@@ -553,7 +601,13 @@ fn list_derived_assessment_filter_returns_only_stale_claims() {
     let term_id = define_term(&dir, "WB:P100", "a term that stays unverified");
 
     let out = dont()
-        .args(["conclude", "stale claim", "--depends-on", "WB:P100", "--json"])
+        .args([
+            "conclude",
+            "stale claim",
+            "--depends-on",
+            "WB:P100",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -610,7 +664,8 @@ fn list_as_of_flag_is_accepted_not_unexpected_argument() {
     assert_eq!(v["ok"], false, "as-of should return error envelope");
     assert_eq!(
         v["data"]["code"], "not-yet-implemented",
-        "should report not-yet-implemented, got: {:?}", v["data"]["code"]
+        "should report not-yet-implemented, got: {:?}",
+        v["data"]["code"]
     );
 }
 
@@ -653,7 +708,8 @@ fn vocab_as_of_flag_is_accepted_not_unexpected_argument() {
     assert_eq!(v["ok"], false);
     assert_eq!(
         v["data"]["code"], "not-yet-implemented",
-        "vocab --as-of should return not-yet-implemented, got: {:?}", v["data"]["code"]
+        "vocab --as-of should return not-yet-implemented, got: {:?}",
+        v["data"]["code"]
     );
 }
 

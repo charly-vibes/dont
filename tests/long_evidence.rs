@@ -83,7 +83,10 @@ fn very_long_evidence_uri_round_trips_in_json() {
         long_uri.len(),
         "JSON output must contain the full URI without truncation"
     );
-    assert_eq!(stored_uri, long_uri, "JSON evidence must round-trip exactly");
+    assert_eq!(
+        stored_uri, long_uri,
+        "JSON evidence must round-trip exactly"
+    );
 }
 
 /// A very long `--excerpt` value (10 k+ chars) passed to `flag --file --excerpt`
@@ -95,7 +98,7 @@ fn very_long_evidence_uri_round_trips_in_json() {
 /// isolation.  The CLI surface test is in `very_long_excerpt_accepted_by_flag`.
 #[test]
 fn very_long_excerpt_round_trips_via_store() {
-    use dont::store::{Store, StoreEvent, StoreEventKind, Status};
+    use dont::store::{Status, Store, StoreEvent, StoreEventKind};
 
     let dir = TempDir::new().unwrap();
     dont()
@@ -105,7 +108,9 @@ fn very_long_excerpt_round_trips_via_store() {
         .success();
 
     let store = Store::open_dont_dir(dir.path().join(".dont")).unwrap();
-    let claim_result = store.append_claim("long excerpt round-trip", &[], None).unwrap();
+    let claim_result = store
+        .append_claim("long excerpt round-trip", &[], None)
+        .unwrap();
     let claim_id = claim_result.id.clone();
 
     // Build a 10 k+ character excerpt (use a fixed-length string to avoid
@@ -143,7 +148,10 @@ fn very_long_excerpt_round_trips_via_store() {
         long_excerpt.len(),
         "Store must preserve the full excerpt length"
     );
-    assert_eq!(stored_excerpt, long_excerpt, "Store must round-trip excerpt exactly");
+    assert_eq!(
+        stored_excerpt, long_excerpt,
+        "Store must round-trip excerpt exactly"
+    );
 }
 
 // ── No panics ──────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ mod common;
 
 use common::{conclude_claim, dont, init_dir};
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
+    HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -69,7 +69,9 @@ fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
             },
         })
         .collect();
-    store.set_claim_hypotheses_for_test(claim_id, &hypotheses).unwrap();
+    store
+        .set_claim_hypotheses_for_test(claim_id, &hypotheses)
+        .unwrap();
 }
 
 #[test]
@@ -168,11 +170,13 @@ fn lock_claim_with_too_few_hypotheses_is_refused_by_lockable_gate() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "rule-not-met");
     assert_eq!(v["data"]["rule_name"], "lockable");
-    assert!(v["data"]["unmet_clauses"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|c| c["clause"].as_str().unwrap().contains("hypotheses")));
+    assert!(
+        v["data"]["unmet_clauses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["clause"].as_str().unwrap().contains("hypotheses"))
+    );
 }
 
 #[test]
@@ -196,11 +200,13 @@ fn lock_claim_with_too_little_evidence_is_refused_by_lockable_gate() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "rule-not-met");
     assert_eq!(v["data"]["rule_name"], "lockable");
-    assert!(v["data"]["unmet_clauses"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|c| c["clause"].as_str().unwrap().contains("evidence")));
+    assert!(
+        v["data"]["unmet_clauses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["clause"].as_str().unwrap().contains("evidence"))
+    );
 }
 
 #[test]
@@ -247,11 +253,13 @@ fn lock_claim_with_unverified_term_dependency_is_refused_by_lockable_gate() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "rule-not-met");
     assert_eq!(v["data"]["rule_name"], "lockable");
-    assert!(v["data"]["unmet_clauses"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|c| c["clause"].as_str().unwrap().contains("stale")));
+    assert!(
+        v["data"]["unmet_clauses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["clause"].as_str().unwrap().contains("stale"))
+    );
 }
 
 #[test]

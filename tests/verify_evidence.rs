@@ -185,7 +185,10 @@ fn verify_evidence_file_uri_traversal_is_malformed_not_read() {
         .clone();
     let v: Value = serde_json::from_slice(&out).unwrap();
 
-    assert_eq!(v["ok"], true, "verify-evidence should succeed structurally: {v}");
+    assert_eq!(
+        v["ok"], true,
+        "verify-evidence should succeed structurally: {v}"
+    );
     let results = v["data"]["results"].as_array().unwrap();
     let result = results
         .iter()

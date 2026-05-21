@@ -68,8 +68,12 @@ mod permissions_tests {
         restore.set_mode(0o700);
         fs::set_permissions(dir.path(), restore).unwrap();
 
-        let v: Value = serde_json::from_slice(&stdout)
-            .unwrap_or_else(|_| panic!("output must be valid JSON, got: {:?}", String::from_utf8_lossy(&stdout)));
+        let v: Value = serde_json::from_slice(&stdout).unwrap_or_else(|_| {
+            panic!(
+                "output must be valid JSON, got: {:?}",
+                String::from_utf8_lossy(&stdout)
+            )
+        });
 
         assert_eq!(
             v["ok"], false,
@@ -122,8 +126,12 @@ mod permissions_tests {
         restore.set_mode(0o600);
         fs::set_permissions(&db_path, restore).unwrap();
 
-        let v: Value = serde_json::from_slice(&stdout)
-            .unwrap_or_else(|_| panic!("output must be valid JSON, got: {:?}", String::from_utf8_lossy(&stdout)));
+        let v: Value = serde_json::from_slice(&stdout).unwrap_or_else(|_| {
+            panic!(
+                "output must be valid JSON, got: {:?}",
+                String::from_utf8_lossy(&stdout)
+            )
+        });
 
         assert_eq!(
             v["ok"], false,
@@ -170,8 +178,12 @@ mod permissions_tests {
         restore.set_mode(0o700);
         fs::set_permissions(dir.path(), restore).unwrap();
 
-        let v: Value = serde_json::from_slice(&stdout)
-            .unwrap_or_else(|_| panic!("output must be valid JSON, got: {:?}", String::from_utf8_lossy(&stdout)));
+        let v: Value = serde_json::from_slice(&stdout).unwrap_or_else(|_| {
+            panic!(
+                "output must be valid JSON, got: {:?}",
+                String::from_utf8_lossy(&stdout)
+            )
+        });
 
         assert_eq!(v["ok"], false, "envelope must have ok:false");
         assert!(

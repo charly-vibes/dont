@@ -190,10 +190,22 @@ pub enum StoreError {
     ///
     /// `path` names the file that triggered the error.
     /// `detail` is the underlying message from the storage engine or OS.
-    CorruptStore { path: PathBuf, detail: String },
-    SchemaMismatch { found: i64, expected: i64 },
-    CurieConflict { curie: String, existing_id: String },
-    AmbiguousPrefix { prefix: String, candidates: Vec<String> },
+    CorruptStore {
+        path: PathBuf,
+        detail: String,
+    },
+    SchemaMismatch {
+        found: i64,
+        expected: i64,
+    },
+    CurieConflict {
+        curie: String,
+        existing_id: String,
+    },
+    AmbiguousPrefix {
+        prefix: String,
+        candidates: Vec<String>,
+    },
     Malformed(String),
 }
 
@@ -265,9 +277,8 @@ impl Store {
         // Catch the panic and convert it to a structured CorruptStore error so
         // callers get an actionable message that names the file.
         let db_path_clone = path.clone();
-        let db_open_result = std::panic::catch_unwind(|| {
-            DbInstance::new("sqlite", &db_path_clone, "")
-        });
+        let db_open_result =
+            std::panic::catch_unwind(|| DbInstance::new("sqlite", &db_path_clone, ""));
         let db = match db_open_result {
             Ok(Ok(instance)) => instance,
             Ok(Err(err)) => {
@@ -517,9 +528,9 @@ impl Store {
                 .ok_or_else(|| StoreError::Malformed(format!("claim {claim_id} not found")))?;
             let tx = store.next_tx()?;
             let mut hypotheses = record.hypotheses;
-            let h = hypotheses
-                .get_mut(idx)
-                .ok_or_else(|| StoreError::Malformed(format!("hypothesis index {idx} out of range")))?;
+            let h = hypotheses.get_mut(idx).ok_or_else(|| {
+                StoreError::Malformed(format!("hypothesis index {idx} out of range"))
+            })?;
             h.assessment.supporting.extend_from_slice(supporting);
             h.assessment.refuting.extend_from_slice(refuting);
             let value = serde_json::to_value(&hypotheses).map_err(StoreError::from_err)?;
@@ -604,7 +615,10 @@ impl Store {
             ];
             if !depends_on.is_empty() {
                 let arr = Value::Array(
-                    depends_on.iter().map(|c| Value::String(c.clone())).collect(),
+                    depends_on
+                        .iter()
+                        .map(|c| Value::String(c.clone()))
+                        .collect(),
                 );
                 datoms.push(Datom::assert(&claim_id, "depends_on", arr, tx));
             }
@@ -680,7 +694,12 @@ impl Store {
                 Datom::assert(&event_id, "created_at", Value::String(now.clone()), tx),
             ];
             if let Some(lbl) = label {
-                datoms.push(Datom::assert(&term_id, "label", Value::String(lbl.to_string()), tx));
+                datoms.push(Datom::assert(
+                    &term_id,
+                    "label",
+                    Value::String(lbl.to_string()),
+                    tx,
+                ));
             }
             store.put_datoms(&datoms)?;
             Ok(AppendResult {
@@ -849,8 +868,18 @@ impl Store {
                     Value::String(to_status.as_str().to_string()),
                     tx,
                 ),
-                Datom::assert(&event_id, "entity_type", Value::String("event".to_string()), tx),
-                Datom::assert(&event_id, "entity_id", Value::String(term_id.to_string()), tx),
+                Datom::assert(
+                    &event_id,
+                    "entity_type",
+                    Value::String("event".to_string()),
+                    tx,
+                ),
+                Datom::assert(
+                    &event_id,
+                    "entity_id",
+                    Value::String(term_id.to_string()),
+                    tx,
+                ),
                 Datom::assert(
                     &event_id,
                     "kind",
@@ -944,7 +973,10 @@ impl Store {
                 *datoms[entity, "entity_type", "claim", _, true],
                 *datoms[entity, attribute, value, tx, assert_bit]"#,
         )?;
-        let claim_datoms: Vec<Datom> = claim_rows.into_iter().map(row_to_datom).collect::<Result<_, _>>()?;
+        let claim_datoms: Vec<Datom> = claim_rows
+            .into_iter()
+            .map(row_to_datom)
+            .collect::<Result<_, _>>()?;
 
         // 2. All event datoms for all claim-owned events in one query
         let event_rows = self.query_rows(
@@ -953,10 +985,14 @@ impl Store {
                 *datoms[ev_entity, "claim_id", _claim, _, true],
                 *datoms[ev_entity, attribute, value, tx, assert_bit]"#,
         )?;
-        let event_datoms: Vec<Datom> = event_rows.into_iter().map(row_to_datom).collect::<Result<_, _>>()?;
+        let event_datoms: Vec<Datom> = event_rows
+            .into_iter()
+            .map(row_to_datom)
+            .collect::<Result<_, _>>()?;
 
         // Group event datoms by event entity
-        let mut events_by_ev: std::collections::HashMap<String, Vec<&Datom>> = std::collections::HashMap::new();
+        let mut events_by_ev: std::collections::HashMap<String, Vec<&Datom>> =
+            std::collections::HashMap::new();
         for d in &event_datoms {
             events_by_ev.entry(d.entity.clone()).or_default().push(d);
         }
@@ -981,7 +1017,10 @@ impl Store {
         let mut claim_datoms_by_id: std::collections::HashMap<String, Vec<&Datom>> =
             std::collections::HashMap::new();
         for d in &claim_datoms {
-            claim_datoms_by_id.entry(d.entity.clone()).or_default().push(d);
+            claim_datoms_by_id
+                .entry(d.entity.clone())
+                .or_default()
+                .push(d);
         }
 
         // Build ClaimRecord for each entity
@@ -1040,7 +1079,17 @@ impl Store {
                 .filter(|d| d.attribute == "confidence" && d.assert_bit)
                 .max_by_key(|d| d.tx)
                 .and_then(|d| d.value.as_f64());
-            records.push(ClaimRecord { id, statement, status, depends_on, atoms, hypotheses, created_at, events, confidence });
+            records.push(ClaimRecord {
+                id,
+                statement,
+                status,
+                depends_on,
+                atoms,
+                hypotheses,
+                created_at,
+                events,
+                confidence,
+            });
         }
         Ok(records)
     }
@@ -1054,7 +1103,10 @@ impl Store {
                 *datoms[entity, "entity_type", "term", _, true],
                 *datoms[entity, attribute, value, tx, assert_bit]"#,
         )?;
-        let term_datoms: Vec<Datom> = term_rows.into_iter().map(row_to_datom).collect::<Result<_, _>>()?;
+        let term_datoms: Vec<Datom> = term_rows
+            .into_iter()
+            .map(row_to_datom)
+            .collect::<Result<_, _>>()?;
 
         // 2. All event datoms for all term-owned events (linked via entity_id)
         let event_rows = self.query_rows(
@@ -1063,10 +1115,14 @@ impl Store {
                 *datoms[ev_entity, "entity_id", _term, _, true],
                 *datoms[ev_entity, attribute, value, tx, assert_bit]"#,
         )?;
-        let event_datoms: Vec<Datom> = event_rows.into_iter().map(row_to_datom).collect::<Result<_, _>>()?;
+        let event_datoms: Vec<Datom> = event_rows
+            .into_iter()
+            .map(row_to_datom)
+            .collect::<Result<_, _>>()?;
 
         // Group event datoms by event entity
-        let mut events_by_ev: std::collections::HashMap<String, Vec<&Datom>> = std::collections::HashMap::new();
+        let mut events_by_ev: std::collections::HashMap<String, Vec<&Datom>> =
+            std::collections::HashMap::new();
         for d in &event_datoms {
             events_by_ev.entry(d.entity.clone()).or_default().push(d);
         }
@@ -1091,7 +1147,10 @@ impl Store {
         let mut term_datoms_by_id: std::collections::HashMap<String, Vec<&Datom>> =
             std::collections::HashMap::new();
         for d in &term_datoms {
-            term_datoms_by_id.entry(d.entity.clone()).or_default().push(d);
+            term_datoms_by_id
+                .entry(d.entity.clone())
+                .or_default()
+                .push(d);
         }
 
         // Build TermRecord for each entity
@@ -1133,7 +1192,15 @@ impl Store {
                 .map(ToString::to_string);
             let mut events = events_by_term.remove(&id).unwrap_or_default();
             events.sort_by_key(|event| event.tx);
-            records.push(TermRecord { id, curie, label, definition, status, created_at, events });
+            records.push(TermRecord {
+                id,
+                curie,
+                label,
+                definition,
+                status,
+                created_at,
+                events,
+            });
         }
         Ok(records)
     }
@@ -1180,8 +1247,7 @@ impl Store {
             .map(hypotheses_from_value)
             .transpose()?
             .unwrap_or_default();
-        let confidence = latest_asserted_value(&datoms, "confidence")
-            .and_then(Value::as_f64);
+        let confidence = latest_asserted_value(&datoms, "confidence").and_then(Value::as_f64);
         let mut events = self.events_for_claim(claim_id)?;
         events.sort_by_key(|event| event.tx);
         Ok(Some(ClaimRecord {
@@ -1250,7 +1316,10 @@ impl Store {
         self.term_by_id(term_id)
     }
 
-    pub fn imported_term_by_curie(&self, curie: &str) -> Result<Option<ImportedTermRecord>, StoreError> {
+    pub fn imported_term_by_curie(
+        &self,
+        curie: &str,
+    ) -> Result<Option<ImportedTermRecord>, StoreError> {
         let script = format!(
             r#"?[entity] := *datoms[entity, "curie", {}, _, true], *datoms[entity, "entity_type", "imported_term", _, true]"#,
             json_string(curie)
@@ -1275,9 +1344,7 @@ impl Store {
         let source = latest_asserted_value(&datoms, "source")
             .and_then(Value::as_str)
             .ok_or_else(|| {
-                StoreError::Malformed(format!(
-                    "imported_term {imported_term_id} has no source"
-                ))
+                StoreError::Malformed(format!("imported_term {imported_term_id} has no source"))
             })?
             .to_string();
         let imported_at = latest_asserted_value(&datoms, "imported_at")
@@ -1297,7 +1364,10 @@ impl Store {
         }))
     }
 
-    pub fn resolve_curie_reference(&self, curie: &str) -> Result<Option<CurieResolution>, StoreError> {
+    pub fn resolve_curie_reference(
+        &self,
+        curie: &str,
+    ) -> Result<Option<CurieResolution>, StoreError> {
         if let Some(term) = self.term_by_curie(curie)? {
             return Ok(Some(CurieResolution::Coined(term)));
         }
@@ -1324,7 +1394,9 @@ impl Store {
 
         if let Some(suffix) = input.strip_prefix("claim:") {
             if suffix.len() == ULID_LEN {
-                return self.claim_by_id(input).map(|opt| opt.map(EntityResolution::Claim));
+                return self
+                    .claim_by_id(input)
+                    .map(|opt| opt.map(EntityResolution::Claim));
             }
             let full_prefix = input; // "claim:<partial>"
             let candidates = self.ids_by_entity_type_and_prefix("claim", full_prefix)?;
@@ -1335,7 +1407,9 @@ impl Store {
 
         if let Some(suffix) = input.strip_prefix("term:") {
             if suffix.len() == ULID_LEN {
-                return self.term_by_id(input).map(|opt| opt.map(EntityResolution::Term));
+                return self
+                    .term_by_id(input)
+                    .map(|opt| opt.map(EntityResolution::Term));
             }
             let full_prefix = input;
             let candidates = self.ids_by_entity_type_and_prefix("term", full_prefix)?;
@@ -1346,7 +1420,9 @@ impl Store {
 
         if input.contains(':') {
             // CURIE
-            return self.term_by_curie(input).map(|opt| opt.map(EntityResolution::Term));
+            return self
+                .term_by_curie(input)
+                .map(|opt| opt.map(EntityResolution::Term));
         }
 
         // Bare prefix — search both namespaces
@@ -1367,7 +1443,9 @@ impl Store {
         }
         match candidates.into_iter().next() {
             None => Ok(None),
-            Some((id, "claim")) => self.claim_by_id(&id).map(|o| o.map(EntityResolution::Claim)),
+            Some((id, "claim")) => self
+                .claim_by_id(&id)
+                .map(|o| o.map(EntityResolution::Claim)),
             Some((id, _)) => self.term_by_id(&id).map(|o| o.map(EntityResolution::Term)),
         }
     }
@@ -1387,7 +1465,11 @@ impl Store {
         let rows = self.query_rows(&script)?;
         Ok(rows
             .into_iter()
-            .filter_map(|row| row.into_iter().next().and_then(|v| v.as_str().map(str::to_string)))
+            .filter_map(|row| {
+                row.into_iter()
+                    .next()
+                    .and_then(|v| v.as_str().map(str::to_string))
+            })
             .filter(|id| id.to_uppercase().starts_with(&prefix_upper))
             .collect())
     }
@@ -1458,9 +1540,8 @@ impl Store {
                     detail: "file does not contain a valid integer transaction counter".to_string(),
                 })?
         } else {
-            let rows = self.query_rows(
-                "?[max(tx)] := *datoms[entity, attribute, value, tx, assert_bit]",
-            )?;
+            let rows =
+                self.query_rows("?[max(tx)] := *datoms[entity, attribute, value, tx, assert_bit]")?;
             rows.first()
                 .and_then(|row| row.first())
                 .and_then(Value::as_i64)
@@ -1704,8 +1785,6 @@ fn json_string(value: &str) -> String {
     serde_json::to_string(value).expect("serializing string literal cannot fail")
 }
 
-
-
 #[cfg(test)]
 mod data_model {
     use super::*;
@@ -1716,7 +1795,9 @@ mod data_model {
         let dir = TempDir::new().unwrap();
         let store = Store::open_dont_dir(dir.path()).unwrap();
 
-        let first = store.append_term("WB:P001", "a first definition", None).unwrap();
+        let first = store
+            .append_term("WB:P001", "a first definition", None)
+            .unwrap();
         let err = store
             .append_term("WB:P001", "a second definition", None)
             .unwrap_err();
@@ -1740,7 +1821,12 @@ mod data_model {
         let store = Store::open_dont_dir(dir.path()).unwrap();
 
         store
-            .append_imported_term("EX:Observation", "imported definition", Some("Observation"), "linkml:basic")
+            .append_imported_term(
+                "EX:Observation",
+                "imported definition",
+                Some("Observation"),
+                "linkml:basic",
+            )
             .unwrap();
 
         assert!(store.term_by_curie("EX:Observation").unwrap().is_none());

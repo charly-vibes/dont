@@ -2,7 +2,7 @@ mod common;
 
 use common::dont;
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
+    HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -83,7 +83,13 @@ fn flag_doubted_claim_produces_verified_status() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "photosynthesis converts CO2 to O2");
     dont()
-        .args(["trust", &id, "--reason", "Need to verify the chemistry", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "Need to verify the chemistry",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success();
@@ -145,8 +151,14 @@ fn flag_already_verified_appends_evidence_without_status_change() {
     // Both evidence URIs should appear
     let evidence = v["data"]["evidence"].as_array().unwrap();
     let uris: Vec<&str> = evidence.iter().filter_map(|e| e.as_str()).collect();
-    assert!(uris.contains(&"https://example.test/ev-1"), "first evidence missing");
-    assert!(uris.contains(&"https://example.test/ev-2"), "second evidence missing");
+    assert!(
+        uris.contains(&"https://example.test/ev-1"),
+        "first evidence missing"
+    );
+    assert!(
+        uris.contains(&"https://example.test/ev-2"),
+        "second evidence missing"
+    );
 }
 
 // --- Refusals ---
@@ -194,7 +206,13 @@ fn flag_refuses_claims_with_unverified_term_dependencies() {
     let id = v["data"]["id"].as_str().unwrap().to_string();
 
     let output = dont()
-        .args(["flag", &id, "--evidence", "https://example.test/proof", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.test/proof",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .code(1)
@@ -224,7 +242,13 @@ fn flag_claim_not_found_returns_error_exit_1() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let out = dont()
-        .args(["flag", "claim:01JNONEXISTENT", "--evidence", "https://example.test", "--json"])
+        .args([
+            "flag",
+            "claim:01JNONEXISTENT",
+            "--evidence",
+            "https://example.test",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .code(1)
@@ -248,7 +272,10 @@ fn flag_file_locator_stored_as_structured_entry() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true, "flag --file should succeed: {v}");
     let evidence = v["data"]["evidence"].as_array().unwrap();
-    let locator = evidence.iter().find(|e| e.is_object()).expect("should have a structured locator entry");
+    let locator = evidence
+        .iter()
+        .find(|e| e.is_object())
+        .expect("should have a structured locator entry");
     assert_eq!(locator["kind"], "repo-file");
     assert_eq!(locator["path"], "README.md");
 }
@@ -257,9 +284,7 @@ fn flag_file_locator_stored_as_structured_entry() {
 fn flag_file_locator_with_line_span() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
-    let spec = (1..=18)
-        .map(|n| format!("line {n}\n"))
-        .collect::<String>();
+    let spec = (1..=18).map(|n| format!("line {n}\n")).collect::<String>();
     std::fs::write(dir.path().join("spec.md"), spec).unwrap();
     let id = conclude_claim(&dir, "spec defines the contract on lines 10-18");
     let out = flag_file(&dir, &id, &["--file", "spec.md", "--lines", "10-18"]);
@@ -280,7 +305,11 @@ fn flag_file_locator_with_anchor() {
     std::fs::create_dir(dir.path().join("docs")).unwrap();
     std::fs::write(dir.path().join("docs/api.md"), "# authentication\n").unwrap();
     let id = conclude_claim(&dir, "section heading anchors the claim");
-    let out = flag_file(&dir, &id, &["--file", "docs/api.md", "--anchor", "authentication"]);
+    let out = flag_file(
+        &dir,
+        &id,
+        &["--file", "docs/api.md", "--anchor", "authentication"],
+    );
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     let evidence = v["data"]["evidence"].as_array().unwrap();
@@ -319,13 +348,26 @@ fn flag_file_and_uri_evidence_combined() {
     let out = flag_file(
         &dir,
         &id,
-        &["--file", "README.md", "--evidence", "https://example.test/proof"],
+        &[
+            "--file",
+            "README.md",
+            "--evidence",
+            "https://example.test/proof",
+        ],
     );
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     let evidence = v["data"]["evidence"].as_array().unwrap();
-    assert!(evidence.iter().any(|e| e.as_str() == Some("https://example.test/proof")), "URI evidence missing");
-    assert!(evidence.iter().any(|e| e.is_object()), "locator entry missing");
+    assert!(
+        evidence
+            .iter()
+            .any(|e| e.as_str() == Some("https://example.test/proof")),
+        "URI evidence missing"
+    );
+    assert!(
+        evidence.iter().any(|e| e.is_object()),
+        "locator entry missing"
+    );
 }
 
 #[test]
@@ -398,12 +440,27 @@ fn flag_file_locator_includes_commit_ref() {
     let id = conclude_claim(&dir, "README documents the API");
     let out = flag_file(&dir, &id, &["--file", "README.md"]);
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], true, "flag --file should succeed for clean committed file: {v}");
+    assert_eq!(
+        v["ok"], true,
+        "flag --file should succeed for clean committed file: {v}"
+    );
     let evidence = v["data"]["evidence"].as_array().unwrap();
-    let locator = evidence.iter().find(|e| e.is_object()).expect("should have locator");
-    let commit_ref = locator["commit_ref"].as_str().expect("commit_ref must be present for git repo");
-    assert!(commit_ref.starts_with("git:"), "commit_ref should start with 'git:': {commit_ref}");
-    assert_eq!(commit_ref.len(), 44, "commit_ref should be 'git:' + 40-char SHA: {commit_ref}");
+    let locator = evidence
+        .iter()
+        .find(|e| e.is_object())
+        .expect("should have locator");
+    let commit_ref = locator["commit_ref"]
+        .as_str()
+        .expect("commit_ref must be present for git repo");
+    assert!(
+        commit_ref.starts_with("git:"),
+        "commit_ref should start with 'git:': {commit_ref}"
+    );
+    assert_eq!(
+        commit_ref.len(),
+        44,
+        "commit_ref should be 'git:' + 40-char SHA: {commit_ref}"
+    );
 }
 
 #[test]
@@ -437,7 +494,10 @@ fn flag_file_staged_not_committed_rejected() {
     let id = conclude_claim(&dir, "claim needing file evidence");
     let out = flag_file(&dir, &id, &["--file", "staged.md"]);
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], false, "staged-not-committed file should be rejected: {v}");
+    assert_eq!(
+        v["ok"], false,
+        "staged-not-committed file should be rejected: {v}"
+    );
     assert_eq!(v["data"]["code"], "staged-not-committed");
 }
 
@@ -500,7 +560,9 @@ fn seed_assessed_hypotheses_in_dont_dir(dir: &TempDir, claim_id: &str, count: us
             },
         })
         .collect();
-    store.set_claim_hypotheses_for_test(claim_id, &hypotheses).unwrap();
+    store
+        .set_claim_hypotheses_for_test(claim_id, &hypotheses)
+        .unwrap();
 }
 
 #[test]
@@ -527,7 +589,13 @@ fn flag_locked_claim_is_refused_with_invalid_transition() {
 
     // Now try to flag the locked claim — must be refused
     let out = dont()
-        .args(["flag", &id, "--evidence", "https://example.test/new-proof", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.test/new-proof",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .code(1)
@@ -536,8 +604,10 @@ fn flag_locked_claim_is_refused_with_invalid_transition() {
         .clone();
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], false, "flag on locked claim must be refused: {v}");
-    assert_eq!(v["data"]["code"], "invalid-transition",
-        "error code must be invalid-transition: {v}");
+    assert_eq!(
+        v["data"]["code"], "invalid-transition",
+        "error code must be invalid-transition: {v}"
+    );
 }
 
 // --- Spec: deprecated alias emits warning ---
@@ -554,7 +624,13 @@ fn dismiss_alias_emits_deprecation_warning_to_stderr() {
     let id = conclude_claim(&dir, "claim verified via deprecated dismiss alias");
 
     let output = dont()
-        .args(["dismiss", &id, "--evidence", "https://example.test/dep-proof", "--json"])
+        .args([
+            "dismiss",
+            &id,
+            "--evidence",
+            "https://example.test/dep-proof",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success()
@@ -564,7 +640,10 @@ fn dismiss_alias_emits_deprecation_warning_to_stderr() {
     // Command must succeed (proceed normally)
     let v: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(v["ok"], true, "dismiss must proceed normally: {v}");
-    assert_eq!(v["data"]["status"], "verified", "dismiss must verify the claim: {v}");
+    assert_eq!(
+        v["data"]["status"], "verified",
+        "dismiss must verify the claim: {v}"
+    );
 
     // Deprecation warning MUST go to stderr
     let stderr = String::from_utf8(output.stderr).unwrap();
@@ -583,7 +662,13 @@ fn dismiss_alias_emits_deprecation_warning_to_stderr_with_json_flag() {
     let id = conclude_claim(&dir, "claim for deprecation-warning-with-json test");
 
     let output = dont()
-        .args(["dismiss", &id, "--evidence", "https://example.test/dep-proof2", "--json"])
+        .args([
+            "dismiss",
+            &id,
+            "--evidence",
+            "https://example.test/dep-proof2",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success()
@@ -610,7 +695,13 @@ fn dismiss_deprecation_warning_does_not_appear_on_stdout() {
     let id = conclude_claim(&dir, "claim for stdout-clean deprecation check");
 
     let output = dont()
-        .args(["dismiss", &id, "--evidence", "https://example.test/dep-proof3", "--json"])
+        .args([
+            "dismiss",
+            &id,
+            "--evidence",
+            "https://example.test/dep-proof3",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path().join(".dont"))
         .assert()
         .success()
@@ -632,7 +723,10 @@ fn dismiss_deprecation_warning_does_not_appear_on_stdout() {
 fn flag_malformed_evidence_uri_no_scheme_is_rejected() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
-    let id = conclude_claim(&dir, "claim that should never be verified with garbage evidence");
+    let id = conclude_claim(
+        &dir,
+        "claim that should never be verified with garbage evidence",
+    );
 
     let out = dont()
         .args(["flag", &id, "--evidence", "not-a-valid-locator", "--json"])
@@ -644,7 +738,10 @@ fn flag_malformed_evidence_uri_no_scheme_is_rejected() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], false, "malformed evidence URI must be rejected: {v}");
+    assert_eq!(
+        v["ok"], false,
+        "malformed evidence URI must be rejected: {v}"
+    );
     assert_eq!(
         v["data"]["code"], "malformed-evidence-uri",
         "error code must be malformed-evidence-uri, got: {:?}",
@@ -732,12 +829,15 @@ fn flag_multi_file_evidence_both_appear_in_show() {
         2,
         "show must expose exactly two repo-file locators; got: {evidence:?}"
     );
-    let paths: Vec<&str> = evidence
-        .iter()
-        .filter_map(|e| e["path"].as_str())
-        .collect();
-    assert!(paths.contains(&"docs.md"), "docs.md locator missing from show: {paths:?}");
-    assert!(paths.contains(&"src/impl.rs"), "src/impl.rs locator missing from show: {paths:?}");
+    let paths: Vec<&str> = evidence.iter().filter_map(|e| e["path"].as_str()).collect();
+    assert!(
+        paths.contains(&"docs.md"),
+        "docs.md locator missing from show: {paths:?}"
+    );
+    assert!(
+        paths.contains(&"src/impl.rs"),
+        "src/impl.rs locator missing from show: {paths:?}"
+    );
 }
 
 /// `dont why --json` exposes both file locators in `data.entity.evidence`
@@ -771,17 +871,26 @@ fn flag_multi_file_evidence_both_appear_in_why() {
         2,
         "why must expose exactly two repo-file locators; got: {evidence:?}"
     );
-    let paths: Vec<&str> = evidence
-        .iter()
-        .filter_map(|e| e["path"].as_str())
-        .collect();
-    assert!(paths.contains(&"spec.md"), "spec.md locator missing from why: {paths:?}");
-    assert!(paths.contains(&"test.rs"), "test.rs locator missing from why: {paths:?}");
+    let paths: Vec<&str> = evidence.iter().filter_map(|e| e["path"].as_str()).collect();
+    assert!(
+        paths.contains(&"spec.md"),
+        "spec.md locator missing from why: {paths:?}"
+    );
+    assert!(
+        paths.contains(&"test.rs"),
+        "test.rs locator missing from why: {paths:?}"
+    );
 
     // `data.history` must contain two flagged events
     let history = wv["data"]["history"].as_array().unwrap();
-    let flagged_count = history.iter().filter(|h| h["event_kind"] == "flagged").count();
-    assert_eq!(flagged_count, 2, "why history must show two flagged events; got: {history:?}");
+    let flagged_count = history
+        .iter()
+        .filter(|h| h["event_kind"] == "flagged")
+        .count();
+    assert_eq!(
+        flagged_count, 2,
+        "why history must show two flagged events; got: {history:?}"
+    );
 }
 
 /// A `file:` scheme URI is not an accepted evidence scheme; it must be rejected.
@@ -801,7 +910,10 @@ fn flag_file_scheme_uri_is_rejected_as_malformed() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], false, "file: URI must be rejected as malformed: {v}");
+    assert_eq!(
+        v["ok"], false,
+        "file: URI must be rejected as malformed: {v}"
+    );
     assert_eq!(
         v["data"]["code"], "malformed-evidence-uri",
         "got: {:?}",

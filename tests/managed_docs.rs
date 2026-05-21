@@ -237,5 +237,8 @@ fn doctor_fix_reports_managed_doc_write_failures_with_path_context() {
         message.contains(canonical_path.to_string_lossy().as_ref()),
         "message should name failing managed-doc path: {message}"
     );
-    assert!(message.contains("write"), "message should name write operation: {message}");
+    assert!(
+        message.contains("write"),
+        "message should name write operation: {message}"
+    );
 }

@@ -237,7 +237,9 @@ fn help_lists_all_core_subcommands() {
         .clone();
 
     let text = String::from_utf8(out).unwrap();
-    for cmd in &["conclude", "trust", "flag", "ignore", "show", "list", "ground"] {
+    for cmd in &[
+        "conclude", "trust", "flag", "ignore", "show", "list", "ground",
+    ] {
         assert!(
             text.contains(cmd),
             "bare help must list '{cmd}' subcommand, got: {text}"
@@ -303,9 +305,19 @@ fn top_level_help_groups_related_commands_and_surfaces_nested_actions() {
         "Vocabulary and import:",
         "Structured workflows:",
     ] {
-        assert!(text.contains(heading), "top-level help must include '{heading}', got: {text}");
+        assert!(
+            text.contains(heading),
+            "top-level help must include '{heading}', got: {text}"
+        );
     }
-    for nested in ["atom (define, dismiss)", "hypothesis (add, assess)", "rules (list, show, add, test)"] {
-        assert!(text.contains(nested), "top-level help must surface nested actions '{nested}', got: {text}");
+    for nested in [
+        "atom (define, dismiss)",
+        "hypothesis (add, assess)",
+        "rules (list, show, add, test)",
+    ] {
+        assert!(
+            text.contains(nested),
+            "top-level help must surface nested actions '{nested}', got: {text}"
+        );
     }
 }

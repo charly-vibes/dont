@@ -50,7 +50,13 @@ fn import_verify_shape() {
     let id = cv["data"]["id"].as_str().unwrap().to_string();
 
     dont()
-        .args(["flag", &id, "--evidence", "https://example.test/ref", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.test/ref",
+            "--json",
+        ])
         .env("DONT_DIR", dir2.path())
         .assert()
         .success();
@@ -58,7 +64,10 @@ fn import_verify_shape() {
     let verify_out = dont()
         .args(["verify-evidence", &id, "--json"])
         .env("DONT_DIR", dir2.path())
-        .env("DONT_VERIFY_EVIDENCE_MOCK", r#"{"https://example.test/ref":{"outcome":"reachable"}}"#)
+        .env(
+            "DONT_VERIFY_EVIDENCE_MOCK",
+            r#"{"https://example.test/ref":{"outcome":"reachable"}}"#,
+        )
         .assert()
         .success()
         .get_output()
@@ -75,7 +84,15 @@ fn import_verify_shape() {
 
     // "Ricci tensor" lacks indefinite article — normally refused, but check is disabled.
     let output3 = dont()
-        .args(["define", "WB:P001", "--doc", "A valid definition", "--label", "Ricci tensor", "--json"])
+        .args([
+            "define",
+            "WB:P001",
+            "--doc",
+            "A valid definition",
+            "--label",
+            "Ricci tensor",
+            "--json",
+        ])
         .env("DONT_DIR", dir3.path())
         .assert()
         .success()
@@ -91,10 +108,7 @@ fn trust_hedges_and_term_nonfunctional_config_rules_take_effect_at_runtime() {
     // --- 1. [trust.hedges] custom pattern causes refusal ---
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
-    append_config(
-        &dir,
-        "[trust.hedges]\npatterns = [\"speculative at best\"]",
-    );
+    append_config(&dir, "[trust.hedges]\npatterns = [\"speculative at best\"]");
 
     let claim_out = dont()
         .args(["conclude", "a claim to trust with hedge", "--json"])
@@ -427,7 +441,10 @@ fn malformed_config_toml_returns_error_exit_not_panic() {
     let v: Value = serde_json::from_slice(&out)
         .expect("output must be valid JSON even when config is malformed");
 
-    assert_eq!(v["ok"], false, "malformed config.toml must produce ok=false");
+    assert_eq!(
+        v["ok"], false,
+        "malformed config.toml must produce ok=false"
+    );
     let code = v["data"]["code"].as_str().unwrap_or("");
     assert!(
         code.contains("config") || code.contains("invalid"),
@@ -435,7 +452,10 @@ fn malformed_config_toml_returns_error_exit_not_panic() {
     );
     let message = v["data"]["message"].as_str().unwrap_or("");
     assert!(
-        message.contains("config.toml") || message.contains("TOML") || message.contains("parse") || message.contains("invalid"),
+        message.contains("config.toml")
+            || message.contains("TOML")
+            || message.contains("parse")
+            || message.contains("invalid"),
         "error message should describe the parse failure, got: {message}"
     );
 }
@@ -447,7 +467,10 @@ fn unknown_config_field_reports_field_name_and_line_number() {
 
     let config_path = dir.path().join("config.toml");
     let config = fs::read_to_string(&config_path).unwrap();
-    let updated = config.replace("mode = \"permissive\"", "mode = \"permissive\"\nmodex = \"permissive\"");
+    let updated = config.replace(
+        "mode = \"permissive\"",
+        "mode = \"permissive\"\nmodex = \"permissive\"",
+    );
     fs::write(&config_path, updated).unwrap();
 
     let out = dont()
@@ -463,7 +486,10 @@ fn unknown_config_field_reports_field_name_and_line_number() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "config-invalid");
     let message = v["data"]["message"].as_str().unwrap_or("");
-    assert!(message.contains("modex"), "must name unknown field, got: {message}");
+    assert!(
+        message.contains("modex"),
+        "must name unknown field, got: {message}"
+    );
     assert!(
         message.contains("line") || message.contains("column"),
         "must include parse location, got: {message}"

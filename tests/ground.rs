@@ -106,10 +106,7 @@ fn ground_history_reflects_concluded_then_dismissed_events() {
     let id = v["data"]["id"].as_str().unwrap();
     let events = v["data"]["events"].as_array().unwrap();
 
-    let kinds: Vec<&str> = events
-        .iter()
-        .map(|e| e["kind"].as_str().unwrap())
-        .collect();
+    let kinds: Vec<&str> = events.iter().map(|e| e["kind"].as_str().unwrap()).collect();
     assert!(
         kinds.contains(&"concluded"),
         "events should contain 'concluded', got: {:?}",
@@ -239,7 +236,13 @@ fn ground_with_empty_statement_is_refused() {
     init_dir(&dir);
 
     let out = dont()
-        .args(["ground", "", "--evidence", "https://example.com/proof", "--json"])
+        .args([
+            "ground",
+            "",
+            "--evidence",
+            "https://example.com/proof",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -277,7 +280,13 @@ fn ground_rejects_stdin_bulk_mode() {
     init_dir(&dir);
 
     let out = dont()
-        .args(["ground", "-", "--evidence", "https://example.com/proof", "--json"])
+        .args([
+            "ground",
+            "-",
+            "--evidence",
+            "https://example.com/proof",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -522,7 +531,10 @@ fn ground_malformed_evidence_uri_no_scheme_is_rejected() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], false, "malformed evidence URI must be rejected: {v}");
+    assert_eq!(
+        v["ok"], false,
+        "malformed evidence URI must be rejected: {v}"
+    );
     assert_eq!(
         v["data"]["code"], "malformed-evidence-uri",
         "error code must be malformed-evidence-uri, got: {:?}",

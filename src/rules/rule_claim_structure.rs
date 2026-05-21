@@ -69,7 +69,11 @@ mod rule_claim_structure_tests {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[CONFIG] Enabled: yes", std::slice::from_ref(&term.id), None)
+            .append_claim(
+                "[CONFIG] Enabled: yes",
+                std::slice::from_ref(&term.id),
+                None,
+            )
             .unwrap();
         let config = RuleClaimStructureConfig {
             enabled: false,
@@ -84,7 +88,11 @@ mod rule_claim_structure_tests {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("no trigger or mode here", std::slice::from_ref(&term.id), None)
+            .append_claim(
+                "no trigger or mode here",
+                std::slice::from_ref(&term.id),
+                None,
+            )
             .unwrap();
         let config = RuleClaimStructureConfig {
             enabled: true,
@@ -98,7 +106,9 @@ mod rule_claim_structure_tests {
         let dir = TempDir::new().unwrap();
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
-        store.append_claim("no trigger, no mode", &[], None).unwrap();
+        store
+            .append_claim("no trigger, no mode", &[], None)
+            .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
     }
@@ -109,7 +119,11 @@ mod rule_claim_structure_tests {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[CONFIG] Enabled by default: yes", std::slice::from_ref(&term.id), None)
+            .append_claim(
+                "[CONFIG] Enabled by default: yes",
+                std::slice::from_ref(&term.id),
+                None,
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -123,7 +137,11 @@ mod rule_claim_structure_tests {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[TRIGGER] fires when X happens", std::slice::from_ref(&term.id), None)
+            .append_claim(
+                "[TRIGGER] fires when X happens",
+                std::slice::from_ref(&term.id),
+                None,
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -138,7 +156,11 @@ mod rule_claim_structure_tests {
         let store = make_store(&dir);
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         store
-            .append_claim("[GUARD] silently skips empty inputs", std::slice::from_ref(&term.id), None)
+            .append_claim(
+                "[GUARD] silently skips empty inputs",
+                std::slice::from_ref(&term.id),
+                None,
+            )
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
@@ -200,7 +222,11 @@ mod rule_claim_structure_tests {
         let term = store.append_term("ns:rule-claim-type", "", None).unwrap();
         // Create a tagged claim that is missing mandatory slots
         let claim = store
-            .append_claim("[GUARD] no trigger or mode", std::slice::from_ref(&term.id), None)
+            .append_claim(
+                "[GUARD] no trigger or mode",
+                std::slice::from_ref(&term.id),
+                None,
+            )
             .unwrap();
         // Doubt it — should be skipped by the rule during remediation
         store
@@ -208,7 +234,11 @@ mod rule_claim_structure_tests {
                 &claim.id,
                 Status::Unverified,
                 Status::Doubted,
-                StoreEvent { kind: StoreEventKind::Flagged, note: None, evidence: vec![] },
+                StoreEvent {
+                    kind: StoreEventKind::Flagged,
+                    note: None,
+                    evidence: vec![],
+                },
             )
             .unwrap();
         let config = enabled_config(&term.id);
@@ -229,7 +259,9 @@ mod rule_claim_structure_tests {
             )
             .unwrap();
         // Untagged claim: would violate if evaluated
-        store.append_claim("no trigger, no mode", &[], None).unwrap();
+        store
+            .append_claim("no trigger, no mode", &[], None)
+            .unwrap();
         let config = enabled_config(&term.id);
         assert!(check(&store, &config).unwrap().is_empty());
     }
@@ -244,13 +276,21 @@ mod rule_claim_structure_tests {
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
-        assert_eq!(matches.len(), 2, "expected both [TRIGGER] and [CONFIG]/[MODE] violations");
+        assert_eq!(
+            matches.len(),
+            2,
+            "expected both [TRIGGER] and [CONFIG]/[MODE] violations"
+        );
         assert!(
-            matches.iter().any(|m| m.detail == "tagged rule claim is missing mandatory [TRIGGER] slot"),
+            matches
+                .iter()
+                .any(|m| m.detail == "tagged rule claim is missing mandatory [TRIGGER] slot"),
             "expected TRIGGER violation with exact message"
         );
         assert!(
-            matches.iter().any(|m| m.detail.contains("CONFIG/MODE slot")),
+            matches
+                .iter()
+                .any(|m| m.detail.contains("CONFIG/MODE slot")),
             "expected CONFIG/MODE violation"
         );
     }
@@ -285,7 +325,11 @@ mod rule_claim_structure_tests {
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
-        assert_eq!(matches.len(), 2, "expected both [TRIGGER] and [CONFIG]/[MODE] violations for unicode body");
+        assert_eq!(
+            matches.len(),
+            2,
+            "expected both [TRIGGER] and [CONFIG]/[MODE] violations for unicode body"
+        );
     }
 
     #[test]
@@ -317,13 +361,21 @@ mod rule_claim_structure_tests {
             .unwrap();
         let config = enabled_config(&term.id);
         let matches = check(&store, &config).unwrap();
-        assert_eq!(matches.len(), 2, "expected both violations on 10k-char body");
+        assert_eq!(
+            matches.len(),
+            2,
+            "expected both violations on 10k-char body"
+        );
         assert!(
-            matches.iter().any(|m| m.detail == "tagged rule claim is missing mandatory [TRIGGER] slot"),
+            matches
+                .iter()
+                .any(|m| m.detail == "tagged rule claim is missing mandatory [TRIGGER] slot"),
             "TRIGGER violation missing"
         );
         assert!(
-            matches.iter().any(|m| m.detail.contains("CONFIG/MODE slot")),
+            matches
+                .iter()
+                .any(|m| m.detail.contains("CONFIG/MODE slot")),
             "CONFIG/MODE violation missing"
         );
     }

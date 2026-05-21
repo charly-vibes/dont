@@ -129,7 +129,10 @@ fn entity_lookup_prefix_not_found_exits_nonzero() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["data"]["code"], "claim-not-found");
     let msg = v["data"]["message"].as_str().unwrap_or("");
-    assert!(msg.contains("claim"), "must name missing entity type, got: {msg}");
+    assert!(
+        msg.contains("claim"),
+        "must name missing entity type, got: {msg}"
+    );
 }
 
 /// Empty prefix (claim:) with 2 claims → ambiguous-prefix error, exit non-zero

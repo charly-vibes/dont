@@ -25,7 +25,10 @@ fn list_human_emits_plain_text_not_json() {
         !text.trim_start().starts_with('{'),
         "output must not be JSON, got: {text}"
     );
-    assert!(text.contains("water is wet"), "output should contain statement");
+    assert!(
+        text.contains("water is wet"),
+        "output should contain statement"
+    );
     assert!(text.contains("unverified"), "output should contain status");
 }
 
@@ -77,10 +80,7 @@ fn conclude_human_emits_plain_text() {
         text.contains("all bachelors are unmarried"),
         "output should contain statement"
     );
-    assert!(
-        text.contains("unverified"),
-        "output should contain status"
-    );
+    assert!(text.contains("unverified"), "output should contain status");
 }
 
 #[test]
@@ -103,7 +103,10 @@ fn show_human_emits_plain_text() {
         !text.trim_start().starts_with('{'),
         "output must not be JSON, got: {text}"
     );
-    assert!(text.contains("gravity exists"), "output should contain statement");
+    assert!(
+        text.contains("gravity exists"),
+        "output should contain statement"
+    );
     assert!(text.contains("unverified"), "output should contain status");
 }
 
@@ -125,7 +128,10 @@ fn init_human_emits_plain_text() {
         !text.trim_start().starts_with('{'),
         "output must not be JSON, got: {text}"
     );
-    assert!(text.contains("initialized"), "output should say initialized");
+    assert!(
+        text.contains("initialized"),
+        "output should say initialized"
+    );
 }
 
 #[test]
@@ -148,7 +154,10 @@ fn prime_human_emits_plain_text() {
         !text.trim_start().starts_with('{'),
         "output must not be JSON, got: {text}"
     );
-    assert!(text.contains("unverified"), "output should contain status counts");
+    assert!(
+        text.contains("unverified"),
+        "output should contain status counts"
+    );
 }
 
 // --- --json flag still works ---
@@ -199,7 +208,10 @@ fn list_default_emits_human_not_json() {
         !text.trim_start().starts_with('{'),
         "default output must not be JSON, got: {text}"
     );
-    assert!(text.contains("water is wet"), "output should contain statement");
+    assert!(
+        text.contains("water is wet"),
+        "output should contain statement"
+    );
 }
 
 #[test]
@@ -221,7 +233,10 @@ fn conclude_default_emits_human_not_json() {
         !text.trim_start().starts_with('{'),
         "default output must not be JSON, got: {text}"
     );
-    assert!(text.contains("the sky is blue"), "output should contain statement");
+    assert!(
+        text.contains("the sky is blue"),
+        "output should contain statement"
+    );
 }
 
 // --- --plain flag disables ANSI; color env vars respected ---
@@ -246,7 +261,10 @@ fn plain_flag_emits_no_ansi_escape_codes() {
         !text.contains('\x1b'),
         "--plain output must not contain ANSI escape codes, got: {text:?}"
     );
-    assert!(text.contains("all swans are white"), "output should contain statement");
+    assert!(
+        text.contains("all swans are white"),
+        "output should contain statement"
+    );
 }
 
 #[test]
@@ -385,7 +403,14 @@ fn show_human_renders_hypotheses_section() {
     let id = conclude_json(&dir, "claim with hypotheses");
 
     dont()
-        .args(["hypothesis", "add", &id, "--text", "maybe it's the moon", "--json"])
+        .args([
+            "hypothesis",
+            "add",
+            &id,
+            "--text",
+            "maybe it's the moon",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -438,13 +463,17 @@ fn show_json_includes_atom_and_hypothesis_fields() {
         .clone();
 
     let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
-    let atoms = v["data"]["atoms"].as_array().expect("data.atoms must be array");
+    let atoms = v["data"]["atoms"]
+        .as_array()
+        .expect("data.atoms must be array");
     assert_eq!(atoms.len(), 1);
     assert_eq!(atoms[0]["idx"], 0);
     assert_eq!(atoms[0]["text"], "an atom");
     assert_eq!(atoms[0]["status"], "unverified");
 
-    let hyps = v["data"]["hypotheses"].as_array().expect("data.hypotheses must be array");
+    let hyps = v["data"]["hypotheses"]
+        .as_array()
+        .expect("data.hypotheses must be array");
     assert_eq!(hyps.len(), 1);
     assert_eq!(hyps[0]["idx"], 0);
     assert_eq!(hyps[0]["text"], "a hypothesis");

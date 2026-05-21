@@ -35,8 +35,14 @@ fn version_without_json_prints_plain_version() {
 
     let text = String::from_utf8(out).unwrap();
     // Should contain a semver-ish string, not JSON
-    assert!(!text.trim_start().starts_with('{'), "expected plain text, got JSON: {text}");
-    assert!(text.contains('.'), "expected version number with dots, got: {text}");
+    assert!(
+        !text.trim_start().starts_with('{'),
+        "expected plain text, got JSON: {text}"
+    );
+    assert!(
+        text.contains('.'),
+        "expected version number with dots, got: {text}"
+    );
 }
 
 // --- $DONT_AUTHOR and --author ---

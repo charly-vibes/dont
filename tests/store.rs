@@ -1,4 +1,4 @@
-use dont::store::{Store, StoreError, StoreEvent, StoreEventKind, Status};
+use dont::store::{Status, Store, StoreError, StoreEvent, StoreEventKind};
 
 #[test]
 fn opens_project_store_at_canonical_path_and_records_schema_metadata() {
@@ -120,7 +120,9 @@ fn status_changes_are_stored_as_retraction_and_assertion_datoms() {
     let root = tempfile::tempdir().expect("temp root");
     let store = Store::open_project(root.path()).expect("store opens");
 
-    let claim = store.append_claim("truth needs pressure", &[], None).expect("claim");
+    let claim = store
+        .append_claim("truth needs pressure", &[], None)
+        .expect("claim");
     let event = StoreEvent {
         kind: StoreEventKind::Trusted,
         note: Some("source is ambiguous".to_string()),
@@ -128,12 +130,7 @@ fn status_changes_are_stored_as_retraction_and_assertion_datoms() {
     };
 
     let transition = store
-        .append_status_change(
-            &claim.id,
-            Status::Unverified,
-            Status::Doubted,
-            event,
-        )
+        .append_status_change(&claim.id, Status::Unverified, Status::Doubted, event)
         .expect("status change appends");
 
     assert!(transition.tx > claim.tx);
@@ -203,7 +200,10 @@ fn claim_events_are_replayed_in_tx_insertion_order() {
 
     // tx values must be strictly increasing
     assert!(claim.tx < flag_result.tx, "flag tx must follow initial tx");
-    assert!(flag_result.tx < reopen_result.tx, "reopen tx must follow flag tx");
+    assert!(
+        flag_result.tx < reopen_result.tx,
+        "reopen tx must follow flag tx"
+    );
 
     let loaded = store
         .claim_by_id(&claim.id)
@@ -213,9 +213,21 @@ fn claim_events_are_replayed_in_tx_insertion_order() {
     assert_eq!(loaded.events.len(), 3, "must have 3 events");
 
     // Events must be in tx order — Concluded → Flagged → Reopened
-    assert_eq!(loaded.events[0].kind, StoreEventKind::Concluded, "first event must be Concluded");
-    assert_eq!(loaded.events[1].kind, StoreEventKind::Flagged, "second event must be Flagged");
-    assert_eq!(loaded.events[2].kind, StoreEventKind::Reopened, "third event must be Reopened");
+    assert_eq!(
+        loaded.events[0].kind,
+        StoreEventKind::Concluded,
+        "first event must be Concluded"
+    );
+    assert_eq!(
+        loaded.events[1].kind,
+        StoreEventKind::Flagged,
+        "second event must be Flagged"
+    );
+    assert_eq!(
+        loaded.events[2].kind,
+        StoreEventKind::Reopened,
+        "third event must be Reopened"
+    );
 
     // tx values on each EventRecord must match the AppendResult tx values
     assert_eq!(loaded.events[0].tx, claim.tx);
@@ -278,7 +290,10 @@ fn list_claims_events_are_in_tx_order() {
     let txs: Vec<i64> = found.events.iter().map(|e| e.tx).collect();
     let mut sorted = txs.clone();
     sorted.sort_unstable();
-    assert_eq!(txs, sorted, "list_claims event order must match tx insertion order");
+    assert_eq!(
+        txs, sorted,
+        "list_claims event order must match tx insertion order"
+    );
 
     // Exact sequence must be Concluded → Flagged → Reopened
     assert_eq!(found.events[0].tx, c1.tx);
@@ -333,12 +348,19 @@ fn list_terms_events_are_in_tx_order() {
         .find(|t| t.id == t1.id)
         .expect("term appears in list");
 
-    assert_eq!(found.events.len(), 3, "must have 3 events: Defined + Trusted + Flagged");
+    assert_eq!(
+        found.events.len(),
+        3,
+        "must have 3 events: Defined + Trusted + Flagged"
+    );
 
     let txs: Vec<i64> = found.events.iter().map(|e| e.tx).collect();
     let mut sorted_txs = txs.clone();
     sorted_txs.sort_unstable();
-    assert_eq!(txs, sorted_txs, "list_terms event order must match tx insertion order");
+    assert_eq!(
+        txs, sorted_txs,
+        "list_terms event order must match tx insertion order"
+    );
 
     assert_eq!(found.events[0].kind, StoreEventKind::Defined);
     assert_eq!(found.events[1].kind, StoreEventKind::Trusted);
@@ -461,7 +483,8 @@ fn corrupt_db_file_error_names_the_file_path() {
 
     // Corrupt the SQLite file by overwriting it with garbage.
     let db_path = root.path().join(".dont/db.cozo");
-    std::fs::write(&db_path, b"not a valid sqlite database\x00\x00\xff\xfe").expect("wrote garbage db");
+    std::fs::write(&db_path, b"not a valid sqlite database\x00\x00\xff\xfe")
+        .expect("wrote garbage db");
 
     // Attempting to reopen must return an error that names the db path.
     let err = Store::open_project(root.path()).expect_err("corrupt db must fail to open");

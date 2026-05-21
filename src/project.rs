@@ -309,9 +309,8 @@ impl Project {
     /// caller rather than silently replaced with defaults.
     pub fn load_validated_config(&self) -> Result<Config, ProjectError> {
         let text = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
-        let config: Config = toml::from_str(&text).map_err(|e| {
-            ProjectError::ConfigInvalid(format!("config.toml: {e}"))
-        })?;
+        let config: Config = toml::from_str(&text)
+            .map_err(|e| ProjectError::ConfigInvalid(format!("config.toml: {e}")))?;
         config
             .validate()
             .map_err(|e: ConfigValidationError| ProjectError::ConfigInvalid(e.message))?;

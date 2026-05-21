@@ -58,7 +58,10 @@ fn rules_list_contains_all_seven_shipped_rules() {
         "dangling-definition",
         "term-nonfunctional-label",
     ] {
-        assert!(names.contains(&expected), "missing shipped rule: {expected}");
+        assert!(
+            names.contains(&expected),
+            "missing shipped rule: {expected}"
+        );
     }
 }
 
@@ -85,7 +88,10 @@ fn rules_list_shipped_rules_have_correct_source_and_severity_fields() {
             matches!(rule["severity"].as_str(), Some("warn") | Some("strict")),
             "severity must be warn or strict: {rule}"
         );
-        assert_eq!(rule["source"], "shipped", "shipped rules must have source=shipped: {rule}");
+        assert_eq!(
+            rule["source"], "shipped",
+            "shipped rules must have source=shipped: {rule}"
+        );
     }
 }
 
@@ -108,7 +114,10 @@ fn rules_list_non_overridable_rules_have_strict_severity() {
 
     for name in ["unresolved-terms", "dangling-definition", "stale-cascade"] {
         let rule = rules.iter().find(|r| r["name"] == name).unwrap();
-        assert_eq!(rule["severity"], "strict", "{name} must have strict severity");
+        assert_eq!(
+            rule["severity"], "strict",
+            "{name} must have strict severity"
+        );
     }
 }
 
@@ -166,7 +175,10 @@ fn rules_show_shipped_rule_returns_rule_envelope() {
     assert_eq!(v["data"]["name"], "ungrounded");
     assert_eq!(v["data"]["source"], "shipped");
     assert!(
-        matches!(v["data"]["severity"].as_str(), Some("warn") | Some("strict")),
+        matches!(
+            v["data"]["severity"].as_str(),
+            Some("warn") | Some("strict")
+        ),
         "severity must be present"
     );
 }

@@ -88,7 +88,10 @@ impl LinkmlUnsupportedError {
 /// messages.
 ///
 /// This is intentionally decoupled from I/O so it can be unit-tested.
-pub fn import_schema(schema_name: &str, content: &str) -> Result<LinkmlImportResult, LinkmlUnsupportedError> {
+pub fn import_schema(
+    schema_name: &str,
+    content: &str,
+) -> Result<LinkmlImportResult, LinkmlUnsupportedError> {
     // Parse as a generic YAML value so we can inspect any key.
     let root: Value = serde_yaml::from_str(content).map_err(|e| LinkmlUnsupportedError {
         code: "linkml-unsupported-feature".to_string(),
@@ -288,12 +291,15 @@ fn lower_classes(root: &Value) -> Vec<ImportedTerm> {
             .to_string();
 
         // is_a → kind_of (silent flattening)
-        let kind_of = class_def.get("is_a").and_then(|v| v.as_str()).map(|parent| {
-            let parent_def = classes.get(parent);
-            parent_def
-                .map(|pd| derive_curie(pd, parent, &prefixes, schema_prefix))
-                .unwrap_or_else(|| parent.to_string())
-        });
+        let kind_of = class_def
+            .get("is_a")
+            .and_then(|v| v.as_str())
+            .map(|parent| {
+                let parent_def = classes.get(parent);
+                parent_def
+                    .map(|pd| derive_curie(pd, parent, &prefixes, schema_prefix))
+                    .unwrap_or_else(|| parent.to_string())
+            });
 
         terms.push(ImportedTerm {
             curie,
@@ -400,7 +406,12 @@ enums:
 classes: {}
 "#;
         let result = import_schema("t.yaml", yaml).unwrap();
-        assert!(result.warnings.iter().any(|w| w.feature == "permissible_values"));
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.feature == "permissible_values")
+        );
     }
 
     #[test]
@@ -458,7 +469,10 @@ classes:
       - Timestamps
 "#;
         let result = import_schema("t.yaml", yaml).unwrap();
-        assert!(result.warnings.is_empty(), "mixin must not produce warnings");
+        assert!(
+            result.warnings.is_empty(),
+            "mixin must not produce warnings"
+        );
         // Mixin class itself must not appear as a term
         assert!(
             !result.terms.iter().any(|t| t.label == "Timestamps"),

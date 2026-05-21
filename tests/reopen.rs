@@ -2,7 +2,7 @@ mod common;
 
 use common::{conclude_claim, dont, init_dir};
 use dont::store::{
-    HypothesisAssessment, HypothesisRecord, Store, StoreEvent, StoreEventKind, Status,
+    HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -123,7 +123,13 @@ fn reopen_verified_claim_is_refused() {
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
-        .args(["flag", &id, "--evidence", "https://example.com/e1", "--json"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.com/e1",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -149,7 +155,13 @@ fn reopen_doubted_claim_is_refused() {
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
-        .args(["trust", &id, "--reason", "contradicted by experiment", "--json"])
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "contradicted by experiment",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
@@ -213,7 +225,10 @@ fn reopen_locked_claim_is_rejected() {
         .stdout
         .clone();
     let lock_v: Value = serde_json::from_slice(&lock_out).unwrap();
-    assert_eq!(lock_v["data"]["status"], "locked", "forget must produce locked status");
+    assert_eq!(
+        lock_v["data"]["status"], "locked",
+        "forget must produce locked status"
+    );
 
     let output = dont()
         .args(["reopen", &id, "--json"])
