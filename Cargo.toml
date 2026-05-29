@@ -23,4 +23,5 @@ ulid = "1.2.1"
 [dev-dependencies]
 assert_cmd = "2.2.1"
 predicates = "3.1.4"
+proptest = "1.9.0"
 tempfile = "3.23.0"
