@@ -150,6 +150,7 @@ enum Command {
   dont conclude \"X causes Y\" --depends-on WB:P001 --confidence 0.85")]
     Conclude {
         /// Claim statement text.
+        #[arg(value_name = "statement")]
         statement: String,
 
         /// CURIE of a term this claim depends on. May be repeated.
@@ -167,6 +168,7 @@ enum Command {
   dont define --label \"a widget\" --doc \"A reusable UI component\"")]
     Define {
         /// Term CURIE, e.g. WB:P001.
+        #[arg(value_name = "curie")]
         curie: Option<String>,
 
         /// Prose definition for the term.
@@ -184,6 +186,7 @@ enum Command {
   dont trust term:WB:P001 --reason \"Definition is ambiguous\"")]
     Trust {
         /// Claim or term identifier (claim:... or term:...).
+        #[arg(value_name = "entity-id")]
         id: String,
 
         /// Reason for doubt (required).
@@ -197,6 +200,7 @@ enum Command {
   dont flag term:WB:P001 --file docs/spec.md --anchor terminology")]
     Flag {
         /// Claim or term identifier.
+        #[arg(value_name = "entity-id")]
         id: String,
 
         /// Evidence URI or reference.
@@ -226,6 +230,7 @@ enum Command {
   dont dismiss term:WB:P001 --file docs/spec.md --anchor terminology")]
     Dismiss {
         /// Claim or term identifier.
+        #[arg(value_name = "entity-id")]
         id: String,
 
         /// Evidence URI or reference.
@@ -254,6 +259,7 @@ enum Command {
   dont undoubt claim:abc123")]
     Undoubt {
         /// Entity identifier (claim:... or term:...).
+        #[arg(value_name = "entity-id")]
         id: String,
     },
 
@@ -262,6 +268,7 @@ enum Command {
   dont forget claim:abc123")]
     Forget {
         /// Claim identifier.
+        #[arg(value_name = "claim-id")]
         id: String,
     },
 
@@ -270,6 +277,7 @@ enum Command {
   dont lock claim:abc123")]
     Lock {
         /// Claim identifier.
+        #[arg(value_name = "claim-id")]
         id: String,
     },
 
@@ -279,6 +287,7 @@ enum Command {
   dont reopen term:WB:P001")]
     Reopen {
         /// Entity identifier (claim:... or term:...).
+        #[arg(value_name = "entity-id")]
         id: String,
     },
 
@@ -288,6 +297,7 @@ enum Command {
   dont ignore term:WB:P001 --reason \"Merged into canonical vocabulary\"")]
     Ignore {
         /// Entity identifier (claim:... or term:...).
+        #[arg(value_name = "entity-id")]
         id: String,
 
         /// Substantive reason for ignoring (required; hedge-only reasons are refused).
@@ -301,6 +311,7 @@ enum Command {
   dont show WB:P001 --history")]
     Show {
         /// Claim or term identifier (claim:ID, term:ID, or CURIE like WB:P001).
+        #[arg(value_name = "entity-id")]
         id: String,
 
         /// Include full event history in the output.
@@ -314,6 +325,7 @@ enum Command {
   dont why term:WB:P001")]
     Why {
         /// Claim or term identifier (claim:ID, term:ID, or CURIE like WB:P001).
+        #[arg(value_name = "entity-id")]
         id: String,
     },
 
@@ -323,6 +335,7 @@ enum Command {
   dont verify-evidence term:WB:P001 --timeout-seconds 5")]
     VerifyEvidence {
         /// Entity identifier (claim:... or term:...).
+        #[arg(value_name = "entity-id")]
         id: String,
 
         /// Per-reference timeout in seconds.
@@ -396,6 +409,7 @@ enum Command {
   dont trace term:WB:P001")]
     Trace {
         /// Entity identifier (claim:... or term:...).
+        #[arg(value_name = "entity-id")]
         id: String,
     },
 
@@ -405,6 +419,7 @@ enum Command {
   dont completions fish --json")]
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, powershell, elvish).
+        #[arg(value_name = "shell")]
         shell: Shell,
     },
 
@@ -414,6 +429,7 @@ enum Command {
   dont ground \"water boils at 100C\" --file docs/spec.md --lines 10-12")]
     Ground {
         /// Claim statement text.
+        #[arg(value_name = "statement")]
         statement: String,
 
         /// Evidence URI or reference.
@@ -461,10 +477,15 @@ enum Command {
   dont import linkml schema.yaml --json")]
     Import {
         /// Adapter name (obo, ols, wikidata, openalex, bioregistry, jsonld, ttl, linkml).
+        #[arg(value_name = "adapter")]
         adapter: String,
 
         /// Adapter-specific arguments.
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        #[arg(
+            value_name = "arg",
+            trailing_var_arg = true,
+            allow_hyphen_values = true
+        )]
         args: Vec<String>,
     },
 
@@ -483,6 +504,7 @@ enum Command {
   dont explain lockable --json")]
     Explain {
         /// Rule name (e.g. ungrounded, lockable, correlated-error).
+        #[arg(value_name = "rule-name")]
         rule: String,
     },
 
@@ -493,6 +515,7 @@ enum Command {
   dont help --howto rule-claims")]
     Help {
         /// Command name to show help for (same output as <cmd> --help).
+        #[arg(value_name = "command")]
         command: Option<String>,
 
         /// Print the first-session tutorial walkthrough.
@@ -514,6 +537,7 @@ enum AtomAction {
     /// Add an independently checkable atom to a claim.
     Define {
         /// Claim identifier.
+        #[arg(value_name = "claim-id")]
         id: String,
 
         /// Atom text.
@@ -524,9 +548,11 @@ enum AtomAction {
     /// Mark an atom verified with evidence.
     Dismiss {
         /// Claim identifier.
+        #[arg(value_name = "claim-id")]
         id: String,
 
         /// Atom index (0-based).
+        #[arg(value_name = "idx")]
         idx: usize,
 
         /// Evidence URI or reference. May be repeated.
@@ -540,6 +566,7 @@ enum HypothesisAction {
     /// Record a competing hypothesis for a claim.
     Add {
         /// Claim identifier.
+        #[arg(value_name = "claim-id")]
         id: String,
 
         /// Hypothesis text.
@@ -550,9 +577,11 @@ enum HypothesisAction {
     /// Assess a hypothesis with supporting or refuting evidence.
     Assess {
         /// Claim identifier.
+        #[arg(value_name = "claim-id")]
         id: String,
 
         /// Hypothesis index (0-based).
+        #[arg(value_name = "idx")]
         idx: usize,
 
         /// Evidence supporting this hypothesis. May be repeated.
@@ -573,12 +602,14 @@ enum RulesAction {
     /// Show details for one rule, including Datalog source for custom rules.
     Show {
         /// Rule name.
+        #[arg(value_name = "rule-name")]
         name: String,
     },
 
     /// Install a project-specific rule from a .dl file.
     Add {
         /// Path to the .dl file.
+        #[arg(value_name = "file")]
         file: PathBuf,
         /// Overwrite an existing rule with the same name.
         #[arg(long)]
@@ -588,6 +619,7 @@ enum RulesAction {
     /// Dry-run a rule against the current store without modifying state.
     Test {
         /// Rule name.
+        #[arg(value_name = "rule-name")]
         name: String,
     },
 }
