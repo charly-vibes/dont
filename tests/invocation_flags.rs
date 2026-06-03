@@ -19,8 +19,57 @@ fn version_json_emits_structured_envelope() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["envelope_kind"], "version");
-    assert!(v["data"]["cli_version"].is_string());
-    assert!(v["data"]["envelope_version"].is_string());
+    // data.version is the semver string
+    assert!(
+        v["data"]["version"].is_string(),
+        "data.version must be a string"
+    );
+    // data.name identifies the binary
+    assert_eq!(v["data"]["name"], "dont", "data.name must be 'dont'");
+}
+
+#[test]
+fn version_json_data_version_is_semver() {
+    let out = dont()
+        .args(["--version", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let ver = v["data"]["version"].as_str().unwrap();
+    // Must match semver: digits and dots, at least one dot
+    assert!(ver.contains('.'), "data.version must be semver, got: {ver}");
+    assert!(
+        ver.chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false),
+        "data.version must start with a digit, got: {ver}"
+    );
+}
+
+#[test]
+fn version_json_no_prose_on_stdout() {
+    let out = dont()
+        .args(["--version", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out.clone()).unwrap();
+    // Must be valid JSON and nothing else on stdout
+    let trimmed = text.trim();
+    assert!(
+        trimmed.starts_with('{') && trimmed.ends_with('}'),
+        "stdout must be a single JSON object, got: {text}"
+    );
+    let parsed: Result<Value, _> = serde_json::from_str(trimmed);
+    assert!(parsed.is_ok(), "stdout must be valid JSON, got: {text}");
 }
 
 #[test]
@@ -42,6 +91,31 @@ fn version_without_json_prints_plain_version() {
     assert!(
         text.contains('.'),
         "expected version number with dots, got: {text}"
+    );
+}
+
+#[test]
+fn version_plain_matches_dont_semver_format() {
+    let out = dont()
+        .args(["--version"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap().trim().to_string();
+    assert!(
+        text.starts_with("dont "),
+        "plain version must start with 'dont ', got: {text}"
+    );
+    let ver = text.strip_prefix("dont ").unwrap();
+    assert!(
+        ver.chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false),
+        "version after 'dont ' must start with a digit, got: {ver}"
     );
 }
 

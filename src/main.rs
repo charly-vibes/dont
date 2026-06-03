@@ -11,8 +11,8 @@ use sha2::{Digest, Sha256};
 
 use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::envelope::{
-    CLI_VERSION, ENVELOPE_VERSION, Envelope, EnvelopeKind, ErrorResult, HintEntry,
-    RemediationEntry, UnmetClause, Warning, set_author,
+    CLI_VERSION, Envelope, EnvelopeKind, ErrorResult, HintEntry, RemediationEntry, UnmetClause,
+    Warning, set_author,
 };
 use dont::linkml as linkml_adapter;
 use dont::model::{
@@ -3131,8 +3131,8 @@ fn main() {
             let env = Envelope::success(
                 EnvelopeKind::Version,
                 json!({
-                    "cli_version": CLI_VERSION,
-                    "envelope_version": ENVELOPE_VERSION,
+                    "version": CLI_VERSION,
+                    "name": "dont",
                 }),
                 vec![],
                 vec![],
