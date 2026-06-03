@@ -2928,8 +2928,8 @@ fn validate_claim_statement(statement: &str, command: &str) -> Option<ErrorResul
         return Some(refusal(
             "statement-contains-metacharacter",
             &format!(
-                "claim statement must not contain shell metacharacters or path separators; \
-                 found {:?}",
+                "statement: must not contain shell metacharacters or path separators; \
+                 found {:?}; expected printable prose characters only",
                 bad
             ),
             None,
@@ -2951,7 +2951,7 @@ fn validate_claim_statement(statement: &str, command: &str) -> Option<ErrorResul
     if has_traversal {
         return Some(refusal(
             "statement-contains-path-traversal",
-            "claim statement must not contain the path traversal sequence '..'",
+            "statement: must not contain the path traversal sequence '..'; expected printable prose characters only",
             None,
             vec![RemediationEntry {
                 command: format!("{command} \"<claim text>\""),
@@ -3246,7 +3246,7 @@ fn main() {
                 emit_error_and_exit(
                     refusal(
                         "empty-statement",
-                        "conclude requires a non-empty claim statement",
+                        "statement: required; expected non-empty claim text",
                         None,
                         vec![RemediationEntry {
                             command: "dont conclude \"<claim text>\"".to_string(),
@@ -3393,7 +3393,7 @@ fn main() {
                 _ => emit_error_and_exit(
                     refusal(
                         "doc-required",
-                        "define requires --doc with a non-empty prose definition",
+                        "--doc: required; expected non-empty prose definition",
                         None,
                         vec![RemediationEntry {
                             command: format!("dont define {curie} --doc \"<definition>\""),
@@ -3440,7 +3440,7 @@ fn main() {
                     emit_error_and_exit(
                         refusal(
                             "reason-required",
-                            "trust requires --reason: state what specific grounds you have for doubt",
+                            "--reason: required; expected specific grounds for doubt (not a hedge)",
                             Some(&id),
                             vec![RemediationEntry {
                                 command: format!("dont trust {id} --reason \"<specific grounds>\""),
@@ -3642,7 +3642,7 @@ fn main() {
                 None => emit_error_and_exit(
                     refusal(
                         "reason-required",
-                        "ignore requires --reason: state why this entity is being set aside",
+                        "--reason: required; expected explanation for why this entity is being set aside",
                         Some(&id),
                         vec![RemediationEntry {
                             command: format!("dont ignore {id} --reason \"<substantive reason>\""),
@@ -3712,7 +3712,7 @@ fn main() {
                 emit_error_and_exit(
                     refusal(
                         "no-evidence",
-                        "flag requires at least one --evidence URI or --file locator",
+                        "--evidence: required; expected at least one URI or --file locator",
                         Some(&id),
                         vec![RemediationEntry {
                             command: format!("dont flag {id} --evidence <uri>"),
@@ -4651,7 +4651,7 @@ fn main() {
                 emit_error_and_exit(
                     refusal(
                         "empty-statement",
-                        "ground requires a non-empty claim statement",
+                        "statement: required; expected non-empty claim text",
                         None,
                         vec![RemediationEntry {
                             command: "dont ground \"<claim text>\" --evidence <uri>".to_string(),
@@ -4676,7 +4676,7 @@ fn main() {
                 emit_error_and_exit(
                     refusal(
                         "no-evidence",
-                        "ground requires at least one --evidence URI or --file locator",
+                        "--evidence: required; expected at least one URI or --file locator",
                         None,
                         vec![RemediationEntry {
                             command: "dont ground \"<statement>\" --evidence <uri>".to_string(),
