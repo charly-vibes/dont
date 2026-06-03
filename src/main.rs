@@ -30,10 +30,15 @@ thread_local! {
     static HUMAN_MODE: Cell<bool> = const { Cell::new(false) };
     static PLAIN_MODE: Cell<bool> = const { Cell::new(false) };
     static FORCE_COLOR_MODE: Cell<bool> = const { Cell::new(false) };
+    static QUIET_MODE: Cell<bool> = const { Cell::new(false) };
 }
 
 fn human_mode() -> bool {
     HUMAN_MODE.with(|m| m.get())
+}
+
+fn quiet_mode() -> bool {
+    QUIET_MODE.with(|m| m.get())
 }
 
 fn color_enabled() -> bool {
@@ -119,6 +124,10 @@ struct Cli {
     /// Disable ANSI colour output for this invocation.
     #[arg(long = "no-color", global = true, conflicts_with_all = ["plain", "color"])]
     no_color: bool,
+
+    /// Suppress confirmatory output; errors and data output are unaffected.
+    #[arg(long, short = 'q', global = true)]
+    quiet: bool,
 
     /// Author identifier for this invocation. Overrides $DONT_AUTHOR.
     #[arg(long, short = 'a', global = true)]
@@ -1029,6 +1038,15 @@ fn emit_json<T: serde::Serialize>(envelope: &T) {
     } else {
         println!("{}", serde_json::to_string(envelope).unwrap());
     }
+}
+
+/// Like `emit_json` but suppresses output in `--quiet` mode.
+/// Use for write/mutation commands whose stdout is confirmatory, not data.
+fn emit_confirm_json<T: serde::Serialize>(envelope: &T) {
+    if quiet_mode() {
+        return;
+    }
+    emit_json(envelope);
 }
 
 fn emit_error_no_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> i32 {
@@ -2604,7 +2622,7 @@ fn emit_claim_view(record: &ClaimRecord, result: &AppendResult, store: &Store) {
         }],
         Some(result.tx as u64),
     );
-    emit_json(&env);
+    emit_confirm_json(&env);
 }
 
 fn emit_term_view(
@@ -2624,7 +2642,7 @@ fn emit_term_view(
         }],
         Some(result.tx as u64),
     );
-    emit_json(&env);
+    emit_confirm_json(&env);
 }
 
 fn transition_not_found_refusal(code: &str, id: &str) -> ErrorResult {
@@ -3124,6 +3142,9 @@ fn main() {
     if cli.color && !cli.json {
         FORCE_COLOR_MODE.with(|m| m.set(true));
     }
+    if cli.quiet && !cli.json {
+        QUIET_MODE.with(|m| m.set(true));
+    }
 
     // --version [--json]
     if cli.version {
@@ -3199,7 +3220,7 @@ fn main() {
                             description: "Introduce your first claim".to_string(),
                         }],
                     );
-                    emit_json(&env);
+                    emit_confirm_json(&env);
                 }
                 Err(err) => {
                     let (code, message, exit) = project_error_to_exit(&err);
@@ -3364,7 +3385,7 @@ fn main() {
                         }],
                         Some(result.tx as u64),
                     );
-                    emit_json(&env);
+                    emit_confirm_json(&env);
                 }
                 Err(err) => handle_store_error(err, None),
             }
@@ -5265,7 +5286,7 @@ fn main() {
                         );
                     }
 
-                    emit_json(&Envelope::success(
+                    emit_confirm_json(&Envelope::success(
                         EnvelopeKind::Empty,
                         serde_json::Value::Null,
                         vec![],
