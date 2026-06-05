@@ -70,6 +70,30 @@ fn prime_exits_0_when_no_blockers() {
 }
 
 #[test]
+fn prime_exits_1_when_doubted_claim_blocks() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "a claim that will be doubted");
+    dont()
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "contradicted by evidence",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+    dont()
+        .args(["prime", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .code(1);
+}
+
+#[test]
 fn show_exits_0_for_existing_claim() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);

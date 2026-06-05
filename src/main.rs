@@ -5449,10 +5449,19 @@ fn main() {
                 match howto_content(&topic) {
                     Some(guide) => print!("{guide}"),
                     None => {
-                        eprintln!(
-                            "dont: no how-to guide for topic '{topic}'; run `dont help --topics`"
+                        emit_error_and_exit(
+                            refusal(
+                                "not-found",
+                                &format!("no how-to guide for topic '{topic}'"),
+                                None,
+                                vec![RemediationEntry {
+                                    command: "dont help --topics".to_string(),
+                                    description: "List available how-to topics".to_string(),
+                                }],
+                            ),
+                            vec![],
+                            1,
                         );
-                        process::exit(1);
                     }
                 }
             } else if let Some(name) = cmd_name {
@@ -5460,8 +5469,19 @@ fn main() {
                 if let Some(sub) = app.find_subcommand_mut(&name) {
                     let _ = sub.print_help();
                 } else {
-                    eprintln!("dont: no command named '{name}'");
-                    process::exit(1);
+                    emit_error_and_exit(
+                        refusal(
+                            "not-found",
+                            &format!("no command named '{name}'"),
+                            None,
+                            vec![RemediationEntry {
+                                command: "dont help".to_string(),
+                                description: "List available commands".to_string(),
+                            }],
+                        ),
+                        vec![],
+                        1,
+                    );
                 }
             } else {
                 // Bare `dont help` — list subcommands, then tutorial/how-to entry points.

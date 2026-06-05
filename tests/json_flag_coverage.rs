@@ -17,6 +17,10 @@ fn assert_valid_envelope(bytes: &[u8], expected_kind: &str) {
     );
     assert_eq!(v["envelope_kind"], expected_kind, "envelope_kind mismatch");
     assert!(v["data"].is_object(), "data must be a JSON object");
+    assert!(
+        v["error"].is_null(),
+        "error must be null on success for {expected_kind}"
+    );
 }
 
 // --- data-outputting commands accept --json and emit valid envelopes ---
@@ -88,6 +92,7 @@ fn prime_json_emits_prime_envelope() {
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
+        .success()
         .get_output()
         .stdout
         .clone();
