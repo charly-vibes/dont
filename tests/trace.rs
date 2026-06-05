@@ -76,7 +76,7 @@ fn trace_healthy_claim_returns_empty_blockers() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["envelope_kind"], "trace");
+    assert_eq!(v["envelope_kind"], "events");
     assert_eq!(v["data"]["entity_id"], id.as_str());
     assert!(v["data"]["blockers"].as_array().unwrap().is_empty());
     assert!(v["data"]["as_of"].as_str().unwrap().contains('T'));
@@ -239,7 +239,7 @@ fn trace_term_entity_returns_empty_blockers() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["envelope_kind"], "trace");
+    assert_eq!(v["envelope_kind"], "events");
     assert_eq!(v["data"]["entity_id"], term_id.as_str());
     assert!(
         v["data"]["blockers"].as_array().unwrap().is_empty(),
@@ -396,7 +396,7 @@ fn trace_mutual_cycle_between_two_claims_terminates_with_bounded_output() {
         v["ok"], true,
         "trace must succeed for a claim in a mutual cycle"
     );
-    assert_eq!(v["envelope_kind"], "trace");
+    assert_eq!(v["envelope_kind"], "events");
     let blockers = v["data"]["blockers"].as_array().unwrap();
     // A2 depends on B; B's claim ID is not a term CURIE, so trace reports it
     // as an unresolved-term blocker.  Crucially, trace does NOT recurse into B's
@@ -492,7 +492,7 @@ fn trace_self_referential_dependency_terminates_with_bounded_output() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["envelope_kind"], "trace");
+    assert_eq!(v["envelope_kind"], "events");
     // The self-dep "claim:..." is treated as an unresolved-term reference since
     // it doesn't resolve to any defined term.  Trace must produce exactly one
     // bounded blocker, not an infinite expansion.

@@ -83,7 +83,7 @@ fn list_empty_terms_json_returns_valid_envelope() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["envelope_kind"], "terms");
+    assert_eq!(v["envelope_kind"], "term_list");
     assert_eq!(
         v["data"].as_array().unwrap().len(),
         0,

@@ -1222,9 +1222,9 @@ fn format_human(v: &Value) -> String {
                 format_term_detail(data)
             }
         }
-        "terms" => format_terms_list(data),
+        "term_list" => format_terms_list(data),
         "prime" => format_prime(data),
-        "trace" => format_trace(data),
+        "events" => format_trace(data),
         "evidence_check" => format_evidence_check(data),
         _ => format!("ok  {kind}"),
     }
@@ -4424,7 +4424,7 @@ fn main() {
                         .iter()
                         .map(|term| build_term_view(term, &project.store))
                         .collect();
-                    let env = Envelope::success(EnvelopeKind::Terms, views, vec![], vec![]);
+                    let env = Envelope::success(EnvelopeKind::TermList, views, vec![], vec![]);
                     emit_json(&env);
                 }
                 ListKind::All => {
@@ -4547,7 +4547,7 @@ fn main() {
                 .iter()
                 .map(|term| build_term_view(term, &project.store))
                 .collect();
-            let env = Envelope::success(EnvelopeKind::Terms, views, vec![], vec![]);
+            let env = Envelope::success(EnvelopeKind::TermList, views, vec![], vec![]);
             emit_json(&env);
         }
 
@@ -4561,7 +4561,7 @@ fn main() {
                             "blockers": [],
                             "as_of": chrono::Utc::now().to_rfc3339(),
                         });
-                        let env = Envelope::success(EnvelopeKind::Trace, payload, vec![], vec![]);
+                        let env = Envelope::success(EnvelopeKind::Events, payload, vec![], vec![]);
                         emit_json(&env);
                     }
                     Ok(None) => emit_error_and_exit(
@@ -4599,7 +4599,7 @@ fn main() {
                                 description: "Inspect the entity details".to_string(),
                             }]
                         };
-                        let env = Envelope::success(EnvelopeKind::Trace, payload, vec![], hints);
+                        let env = Envelope::success(EnvelopeKind::Events, payload, vec![], hints);
                         emit_json(&env);
                     }
                     Ok(None) => emit_error_and_exit(

@@ -112,7 +112,7 @@ fn trace_json_emits_trace_envelope() {
         .get_output()
         .stdout
         .clone();
-    assert_valid_envelope(&out, "trace");
+    assert_valid_envelope(&out, "events");
 }
 
 #[test]

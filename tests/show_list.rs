@@ -443,7 +443,7 @@ fn list_kind_terms_returns_defined_terms() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["envelope_kind"], "terms");
+    assert_eq!(v["envelope_kind"], "term_list");
     let terms = v["data"].as_array().unwrap();
     assert_eq!(terms.len(), 1);
     assert_eq!(terms[0]["id"], term_id);

@@ -36,7 +36,7 @@ fn vocab_returns_terms_envelope_kind() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["envelope_kind"], "terms");
+    assert_eq!(v["envelope_kind"], "term_list");
     let terms = v["data"].as_array().unwrap();
     assert_eq!(terms.len(), 1);
     assert_eq!(terms[0]["id"], term_id);
@@ -94,6 +94,6 @@ fn vocab_empty_project_returns_empty_array() {
 
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["envelope_kind"], "terms");
+    assert_eq!(v["envelope_kind"], "term_list");
     assert_eq!(v["data"].as_array().unwrap().len(), 0);
 }
