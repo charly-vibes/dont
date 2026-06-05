@@ -129,3 +129,65 @@ fn completions_json_envelope_is_parseable_for_all_shells() {
         );
     }
 }
+
+#[test]
+fn completions_json_envelope_kind_is_dont_completions_for_all_shells() {
+    for shell in &["bash", "zsh", "fish", "powershell", "elvish"] {
+        let output = dont()
+            .args(["completions", shell, "--json"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(
+            v["envelope_kind"], "dont-completions",
+            "shell {shell} should emit envelope_kind=dont-completions"
+        );
+        assert!(
+            v["error"].is_null(),
+            "shell {shell} error must be null on success"
+        );
+    }
+}
+
+#[test]
+fn completions_plain_output_is_not_json_when_no_json_flag() {
+    for shell in &["bash", "zsh", "fish", "powershell", "elvish"] {
+        let output = dont()
+            .args(["completions", shell])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let text = String::from_utf8_lossy(&output);
+        assert!(
+            serde_json::from_slice::<Value>(&output).is_err(),
+            "shell {shell} plain output should not be JSON, got: {text:.80}"
+        );
+    }
+}
+
+#[test]
+fn completions_json_script_contains_subcommands_for_all_shells() {
+    for shell in &["bash", "zsh", "fish", "powershell", "elvish"] {
+        let output = dont()
+            .args(["completions", shell, "--json"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: Value = serde_json::from_slice(&output).unwrap();
+        let script = v["data"]["script"].as_str().unwrap_or("");
+        assert!(
+            script.contains("conclude"),
+            "shell {shell} JSON script should contain 'conclude'"
+        );
+    }
+}
