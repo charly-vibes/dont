@@ -1138,7 +1138,7 @@ fn handle_store_error_code(err: StoreError, entity_id: Option<&str>) -> i32 {
             },
         ],
     };
-    emit_error_no_exit(err_result, vec![], 4)
+    emit_error_no_exit(err_result, vec![], 1)
 }
 
 fn run_per_entity<F: FnMut(&str) -> i32>(id: String, mut f: F) -> ! {
@@ -1464,13 +1464,13 @@ fn project_error_to_exit(err: &ProjectError) -> (String, String, i32) {
                 "project already initialised at {} — re-init would overwrite existing state",
                 path.display()
             ),
-            3,
+            1,
         ),
-        ProjectError::ConfigMissing(msg) => ("config-missing".to_string(), msg.clone(), 3),
-        ProjectError::ConfigInvalid(msg) => ("config-invalid".to_string(), msg.clone(), 3),
-        ProjectError::LayoutInvalid(_) => ("layout-invalid".to_string(), err.to_string(), 3),
-        ProjectError::Store(_) => ("internal".to_string(), err.to_string(), 4),
-        ProjectError::Io { .. } => ("internal".to_string(), err.to_string(), 4),
+        ProjectError::ConfigMissing(msg) => ("config-missing".to_string(), msg.clone(), 1),
+        ProjectError::ConfigInvalid(msg) => ("config-invalid".to_string(), msg.clone(), 1),
+        ProjectError::LayoutInvalid(_) => ("layout-invalid".to_string(), err.to_string(), 1),
+        ProjectError::Store(_) => ("internal".to_string(), err.to_string(), 1),
+        ProjectError::Io { .. } => ("internal".to_string(), err.to_string(), 1),
     }
 }
 

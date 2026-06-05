@@ -137,7 +137,7 @@ fn conclude_outside_project_exits_3_with_config_missing() {
         .args(["conclude", "some claim", "--json"])
         .env("DONT_DIR", dir.path().join("nonexistent"))
         .assert()
-        .code(3)
+        .code(1)
         .get_output()
         .stdout
         .clone();
