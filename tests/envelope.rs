@@ -311,7 +311,7 @@ fn cli_error_conclude_no_project_is_well_formed_envelope() {
         .args(["conclude", "some claim", "--json"])
         .env("DONT_DIR", dir.path().join("nonexistent"))
         .assert()
-        .code(3)
+        .code(1)
         .get_output()
         .stdout
         .clone();

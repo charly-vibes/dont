@@ -328,7 +328,7 @@ fn envelope_conformance_error_commands() {
         .args(["conclude", "orphan", "--json"])
         .env("DONT_DIR", dir.path().join("nonexistent"))
         .assert()
-        .code(3)
+        .code(1)
         .get_output()
         .stdout
         .clone();

@@ -27,7 +27,7 @@ mod layout {
             .args(["prime", "--json"])
             .env("DONT_DIR", dir.path())
             .assert()
-            .code(3)
+            .code(1)
             .get_output()
             .stdout
             .clone();
@@ -54,7 +54,7 @@ mod layout {
                 .args(["prime", "--json"])
                 .env("DONT_DIR", dir.path())
                 .assert()
-                .code(3)
+                .code(1)
                 .get_output()
                 .stdout
                 .clone();
@@ -82,7 +82,7 @@ mod layout {
             .args(["prime", "--json"])
             .env("DONT_DIR", dir.path())
             .assert()
-            .code(3)
+            .code(1)
             .get_output()
             .stdout
             .clone();

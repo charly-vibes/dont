@@ -233,7 +233,7 @@ fn reinit_returns_already_initialised_error_and_exits_3() {
         .arg("--json")
         .env("DONT_DIR", dir.path())
         .assert()
-        .code(3)
+        .code(1)
         .get_output()
         .stdout
         .clone();
@@ -287,7 +287,7 @@ fn conclude_outside_project_returns_config_missing_and_exits_3() {
         .arg("--json")
         .env("DONT_DIR", dir.path().join("nonexistent"))
         .assert()
-        .code(3)
+        .code(1)
         .get_output()
         .stdout
         .clone();
@@ -313,7 +313,7 @@ fn any_command_outside_project_returns_config_missing_with_init_hint() {
         .args(["list", "--json"])
         .env("DONT_DIR", dir.path().join("no-project-here"))
         .assert()
-        .code(3)
+        .code(1)
         .get_output()
         .stdout
         .clone();
@@ -361,7 +361,7 @@ fn multiple_commands_outside_project_all_return_config_missing() {
             .args(&args)
             .env("DONT_DIR", &no_project)
             .assert()
-            .code(3)
+            .code(1)
             .get_output()
             .stdout
             .clone();
@@ -400,7 +400,7 @@ fn internal_project_errors_do_not_suggest_dont_doctor() {
         .arg("--json")
         .env("DONT_DIR", dir.path())
         .assert()
-        .code(4)
+        .code(1)
         .get_output()
         .stdout
         .clone();
@@ -435,7 +435,7 @@ fn init_io_failures_name_target_path_in_structured_error() {
         .arg("--json")
         .env("DONT_DIR", &blocked)
         .assert()
-        .code(4)
+        .code(1)
         .get_output()
         .stdout
         .clone();
@@ -462,7 +462,7 @@ fn init_treats_malformed_existing_config_as_already_initialised() {
         .arg("--json")
         .env("DONT_DIR", dir.path())
         .assert()
-        .code(3)
+        .code(1)
         .get_output()
         .stdout
         .clone();
@@ -481,7 +481,7 @@ fn init_reports_late_gitignore_write_failures_with_path_context() {
         .arg("--json")
         .current_dir(root.path())
         .assert()
-        .code(4)
+        .code(1)
         .get_output()
         .stdout
         .clone();

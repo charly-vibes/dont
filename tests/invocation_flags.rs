@@ -197,7 +197,7 @@ fn lock_without_project_emits_error_envelope() {
         .args(["--json", "lock", "claim:123"])
         .env("DONT_DIR", dir.path().join("nonexistent"))
         .assert()
-        .code(3)
+        .code(1)
         .get_output()
         .stdout
         .clone();

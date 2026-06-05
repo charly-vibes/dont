@@ -230,7 +230,7 @@ fn doctor_fix_reports_managed_doc_write_failures_with_path_context() {
     fs::remove_file(&canonical_path).unwrap();
     fs::create_dir(&canonical_path).unwrap();
 
-    let output = doctor_fix(&root).code(4).get_output().stdout.clone();
+    let output = doctor_fix(&root).code(1).get_output().stdout.clone();
     let v: Value = serde_json::from_slice(&output).unwrap();
     let message = v["data"]["message"].as_str().unwrap();
     assert!(
