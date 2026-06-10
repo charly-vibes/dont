@@ -2582,6 +2582,24 @@ fn severity_label(s: dont::rules::Severity) -> &'static str {
     }
 }
 
+/// Run the `ungrounded` rule and write a rejection event file when `DONT_EMIT_EVENTS=1`.
+/// Errors are silently swallowed — event emission is best-effort and must not break doctor.
+fn emit_ungrounded_events_if_enabled(project: &dont::project::Project) {
+    if std::env::var(dont::events::EVENTS_ENV).is_err() {
+        return;
+    }
+    let rules_dir = project.dont_dir.join("rules");
+    let config = project.load_config();
+    let engine = dont::rules::RuleEngine::new(
+        rules_dir,
+        config.rules,
+        project.mode() == Some(dont::project::ProjectMode::Strict),
+    );
+    if let Some(Ok(matches)) = engine.evaluate_shipped(&project.store, "ungrounded") {
+        let _ = dont::events::emit_if_enabled(&project.dont_dir, "ungrounded", &matches);
+    }
+}
+
 fn refusal(
     code: &str,
     message: &str,
@@ -4260,6 +4278,8 @@ fn main() {
             });
             let env = Envelope::success(EnvelopeKind::Doctor, payload, vec![], vec![]);
             emit_json(&env);
+            // Emit ungrounded rejection events when DONT_EMIT_EVENTS=1.
+            emit_ungrounded_events_if_enabled(&project);
             let exit_code = if strict {
                 if warn > 0 || fail > 0 { 1 } else { 0 }
             } else if fail > 0 {

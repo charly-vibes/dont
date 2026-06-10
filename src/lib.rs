@@ -84,6 +84,13 @@ pub mod project;
 /// values that are attached to command envelopes.
 pub mod rules;
 
+/// Structured rejection event emission for cross-tool drift signals.
+///
+/// When `DONT_EMIT_EVENTS=1`, `dont doctor` writes a JSON event file to
+/// `.dont/events/` for each rule that fires. Downstream tools (e.g.,
+/// `espectacular`) read these files to detect spec drift.
+pub mod events;
+
 /// CozoDB-backed persistence layer.
 ///
 /// [`Store`](store::Store) is the single entry point for all database
