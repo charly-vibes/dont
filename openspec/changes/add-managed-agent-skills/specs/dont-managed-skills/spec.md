@@ -14,12 +14,7 @@ The system SHALL support first-party, tool-managed agent skill packs installed u
 
 ### Requirement: Managed skill pack staleness detection
 
-A managed skill pack is **stale** when the SHA-256 hash of its current on-disk content (all files
-in the pack directory, sorted by relative path, concatenated) differs from the SHA-256 hash of the
-content the current `dont` version would generate for the same detected project state. A managed
-skill pack is **missing** when its directory does not exist or is empty. `dont doctor` SHALL report
-each configured managed pack as `status: "pass"`, `status: "stale"`, or `status: "missing"` in its
-JSON payload.
+`dont doctor` SHALL report each configured managed pack as `status: "pass"`, `status: "stale"`, or `status: "missing"` in its JSON payload. A managed skill pack is **stale** when the SHA-256 hash of its current on-disk content (all files in the pack directory, sorted by relative path, concatenated) differs from the SHA-256 hash of the content the current `dont` version would generate for the same detected project state. A managed skill pack is **missing** when its directory does not exist or is empty.
 
 #### Scenario: doctor reports pass when pack matches generator output
 
