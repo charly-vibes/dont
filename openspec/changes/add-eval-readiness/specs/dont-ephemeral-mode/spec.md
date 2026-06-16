@@ -4,9 +4,11 @@
 > in `dont-cli-surface`. Its placement alongside `--json`, `--plain`, and `--strict` is governed by
 > the conventions in that spec.
 
-### Requirement: --no-persist universal flag for ephemeral invocations
+### Requirement: --no-persist flag for write-capable subcommands
 
-The system SHALL accept `--no-persist` as a universal flag on every write-capable subcommand. When
+The system SHALL accept `--no-persist` as a universal flag on every write-capable subcommand
+(universal in syntax: parsed at the same layer as `--json` and `--plain`; a no-op on read-only
+commands). When
 `--no-persist` is set, the command SHALL validate the invocation (including hedge-rejection, dedup
 checks, and rule evaluation) against the current read-only store state, return the same success or
 validation-error envelope it would return if the write had occurred, and write no events to the
@@ -39,11 +41,26 @@ store. `--no-persist` SHALL be a no-op on read-only commands (`list`, `show`, `w
 - **WHEN** the caller runs `dont list --no-persist --json`
 - **THEN** the flag is silently ignored and the command behaves identically to `dont list --json`
 
+#### Scenario: no-persist on import validates without writing
+
+- **WHEN** the caller runs `dont import <source> --no-persist --json`
+- **AND** the import would succeed in normal mode
+- **THEN** the command returns the same import result payload shape as a successful write
+- **AND** no terms are written to the store
+- **AND** no import manifest is updated
+- **AND** `envelope.ephemeral` is `true`
+
 #### Scenario: no-persist does not hold a write lock
 
 - **WHEN** the caller runs any write command with `--no-persist`
 - **THEN** the tool acquires no write transaction on the store
 - **AND** concurrent write commands are not blocked
+
+> **Advisory:** `--no-persist` validation is non-atomic. The validation reads current store state
+> but holds no lock; a subsequent real write may fail if the store state changes between the
+> validation and the write (for example, another process concurrently adds a duplicate claim).
+> Callers SHOULD NOT treat a successful `--no-persist` response as a guarantee that the equivalent
+> persisted write will succeed.
 
 ### Requirement: --no-persist reflected in the response envelope
 

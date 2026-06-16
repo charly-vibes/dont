@@ -53,17 +53,22 @@ The `EvalExport` payload SHALL be a flat JSON document (not NDJSON) containing t
 - `events_by_kind` — map of event-kind string to non-negative integer count of events in scope
 - `trust_events` — array of objects, one per trust event in scope, each containing `event_id`,
   `target_claim_id`, `doubt` (boolean), `reason_excerpt` (first 120 Unicode code points of the
-  reason string; included because reason text may contain task-specific content — callers sharing
-  eval exports externally should be aware that excerpts may leak task context), and `timestamp`
-  (RFC 3339)
+  reason string), and `timestamp` (RFC 3339)
 - `dedup_refusals` — array of objects, one per duplicate-refused error event in scope, each
-  containing `attempted_text_hash` (the normalized hash of the rejected text) and `timestamp` (RFC
-  3339)
-- `wall_clock_duration_seconds` — a non-negative integer, present only when a session scope is used
-  and both a session-start and session-end event exist; absent otherwise
+  containing `attempted_text_hash` (the hex-encoded SHA-256 hash of the NFC-normalized, lowercased,
+  whitespace-collapsed UTF-8 encoding of the rejected claim text, using the same normalization
+  procedure as the dedup check that rejected it) and `timestamp` (RFC 3339)
+- `wall_clock_duration_seconds` — a non-negative float (e.g., `1.234` for sub-second precision),
+  present only when a session scope is used and both a session-start and session-end event exist;
+  absent otherwise
 
 All count fields SHALL be non-negative integers. Array fields SHALL be empty arrays when no matching
 events exist in scope, not null or absent.
+
+> **Privacy consideration:** `reason_excerpt` contains the first 120 Unicode code points of the
+> trust-event reason string. Reason text may include task-specific or sensitive content. Callers
+> sharing eval exports externally SHOULD be aware that excerpts may leak task context. Consider
+> redacting or omitting `reason_excerpt` before publishing eval exports publicly.
 
 #### Scenario: payload contains all required top-level fields
 
@@ -96,6 +101,26 @@ events exist in scope, not null or absent.
 
 - **WHEN** a session scope is used but no session-end event has been recorded
 - **THEN** `wall_clock_duration_seconds` is absent from the payload
+
+### Requirement: Eval export truncation for large scopes
+
+The `trust_events` and `dedup_refusals` arrays SHALL be bounded. When either array would contain
+more than 1000 entries in the specified scope, the payload SHALL include a top-level `truncated:
+true` field and each array SHALL contain at most 1000 entries ordered by timestamp ascending. When
+no truncation occurs, `truncated` SHALL be `false` (not absent). Callers that require complete
+coverage of large scopes SHOULD use narrow `--since`/`--until` windows to retrieve data in smaller
+batches.
+
+#### Scenario: trust_events truncated when scope exceeds limit
+
+- **WHEN** more than 1000 trust events exist in the specified scope
+- **THEN** `trust_events` contains exactly 1000 entries ordered by timestamp ascending
+- **AND** the payload includes `truncated: true`
+
+#### Scenario: truncated is false when arrays are within limit
+
+- **WHEN** both `trust_events` and `dedup_refusals` contain 1000 or fewer entries
+- **THEN** the payload includes `truncated: false`
 
 ### Requirement: Eval export is the only --eval subformat for now
 

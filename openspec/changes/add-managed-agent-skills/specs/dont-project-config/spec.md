@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 ### Requirement: Harness configuration surface
 
-The system SHALL expose a `[harness]` block including the managed-doc targets, the managed first-party skill-pack selection, and the spawn-timeout window. Managed-doc targets MUST determine which root files may receive the shorter `dont` block (those files become inputs to `dont doctor`'s managed-docs check and to `dont doctor --fix`), managed skill-pack selection MUST determine which first-party packs are installed or repaired under `.agents/skills/`, and the timeout window MUST inform `spawn_request.expires_at` computation.
+The system SHALL expose a `[harness]` block including the managed-doc targets, the managed first-party skill-pack selection, and the spawn-timeout window. Managed-doc targets MUST determine which root files may receive the shorter `dont` block (those files become inputs to `dont doctor`'s managed-docs check and to `dont doctor --fix`), managed skill-pack selection MUST determine which first-party packs are installed or repaired under `.agents/skills/` (the default when `managed_skill_packs` is absent is an empty list — no managed packs are installed or repaired; the only currently defined valid value is `"dont-grill"`), and the timeout window MUST inform `spawn_request.expires_at` computation.
 
 #### Scenario: managed docs list targets root files
 

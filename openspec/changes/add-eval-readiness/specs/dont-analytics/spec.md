@@ -27,6 +27,12 @@ windows. `dont stats` MUST NOT open a write transaction or mutate any stored sta
 - **THEN** the payload aggregates over events whose timestamps fall within `[t1, t2)`
 - **AND** `--since` and `--until` accept RFC 3339 timestamps
 
+#### Scenario: inverted time window returns error
+
+- **WHEN** the caller runs `dont stats --since <t2> --until <t1> --json` where `<t2>` is later than `<t1>`
+- **THEN** the command returns an error envelope with a message indicating that `--since` must not be after `--until`
+- **AND** `envelope.ok` is `false`
+
 #### Scenario: unknown session ID returns error
 
 - **WHEN** the caller runs `dont stats --session <nonexistent-id> --json`
@@ -44,21 +50,24 @@ windows. `dont stats` MUST NOT open a write transaction or mutate any stored sta
 
 The `StatsView` payload SHALL include: `verb_counts` (a map from **write-command** event-kind
 string to non-negative integer count; write commands are all subcommands that create or modify
-claim-graph state, e.g., `conclude`, `define`, `trust`, `dismiss`, `flag`, `spawn`, `link`;
+claim-graph state, the canonical write-command names are `conclude`, `define`, `trust`, `flag`, `spawn`, `link`, `lock`, and `ignore`; command aliases are resolved to their canonical name before keying — events from the deprecated `dismiss` alias are counted under `flag`;
 read-only commands such as `list`, `show`, `why`, `prime`, `doctor`, `stats`, `export`, `vocab`,
 `trace`, and `schema` SHALL NOT appear in `verb_counts`), `dedup_refusal_count` (count of
 duplicate-refused error events in the scope), `claim_verification_rate` (ratio of claims whose
 status is `verified` as of the `--until` timestamp — or now if no `--until` is set — to the total
 number of claims in the store at that same timestamp, regardless of when each claim was created;
-expressed as a float in `[0.0, 1.0]`), `idle_skill` (a boolean that is `true` when `verb_counts`
-contains no entries for the scope, i.e., no write-command events were recorded), and
+expressed as a float in `[0.0, 1.0]`; the field SHALL always be present in the payload — its value is `null` when no claims exist and a float otherwise), `idle_skill` (a boolean that is `true` when the agent performed no write-capable commands during the scope — equivalently, when `verb_counts` has no entries; a `true` value signals inactivity on writes, not absence from the session), and
 `caught_contradiction_count` (see the caught-contradiction requirement below). All count fields
 SHALL be non-negative integers.
+
+> **Design note:** `claim_verification_rate` is intentionally store-wide at scope end, not bounded
+> to the scope window. It measures cumulative epistemic health at a point in time; `verb_counts` and
+> `dedup_refusal_count` measure activity within the window. This asymmetry is by design.
 
 #### Scenario: verb_counts includes only write-command event kinds seen in scope
 
 - **WHEN** the caller runs `dont stats --json` over a scope containing conclude, trust, dismiss, and list events
-- **THEN** `verb_counts` maps `"conclude"`, `"trust"`, and `"dismiss"` to their respective event counts
+- **THEN** `verb_counts` maps `"conclude"` and `"trust"` to their respective event counts, and `"dismiss"` events are counted under `"flag"`
 - **AND** `"list"` and other read-only commands do not appear in `verb_counts`
 - **AND** event kinds not present in the scope are omitted from the map rather than appearing as zero
 
@@ -94,7 +103,7 @@ The system SHALL compute `caught_contradiction_count` as the number of `trust` e
 where (a) the event carries `doubt: true` and (b) the targeted claim appears as an evidence
 reference for at least one other claim that was created before the doubt event. This metric requires
 no new write-path events; it is a retrospective join over the existing event log and evidence
-relations.
+relations. Each doubt event in scope is counted independently regardless of how many prior doubt events targeted the same claim.
 
 #### Scenario: contradiction counted when doubted claim was evidence for another
 
@@ -114,5 +123,5 @@ relations.
 - **WHEN** two distinct `trust --doubt` events both target claim X
 - **AND** claim X was used as evidence before both events
 - **AND** both events fall within the scope
-- **AND** both doubt events are assumed to be valid recordings (the store permitted them)
+- **AND** both doubt events are valid recordings that the store permitted
 - **THEN** `caught_contradiction_count` is incremented by 2
