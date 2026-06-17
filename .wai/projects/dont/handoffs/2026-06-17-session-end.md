@@ -32,17 +32,6 @@ phase: implement
 
 ## Context
 
-### git_status
-
-```
-?? .wai/pipeline-runs/tdd-ro5-2026-06-16-add-eval-readiness.yml
-?? .wai/projects/dont/plans/2026-06-16-add-eval-readiness-implementation-plan-wh.md
-?? .wai/projects/dont/plans/2026-06-16-test-cases-implemented-28-tests-across-tests-stat.md
-?? .wai/projects/dont/plans/2026-06-17-rule-of-5-review-add-eval-readiness-crit.md
-?? .wai/projects/dont/reviews/2026-06-17-ro5-review-complete-critical-dont-no-persist-env.md
-?? .wai/projects/dont/reviews/2026-06-17-ro5-review-of-add-eval-readiness-needs-revision.md
-```
-
 ### open_issues
 
 ```

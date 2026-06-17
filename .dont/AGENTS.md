@@ -29,6 +29,32 @@ dont show <id>                          # inspect a claim
 dont list                               # list all claims
 ```
 
+## Analytics and eval
+
+```
+dont stats --json                                  # verb mix, dedup hits, idle-skill flag
+dont stats --since 2026-06-01T00:00:00Z --json    # scoped to a time window
+dont export --eval --json                          # structured JSON for eval harnesses
+dont export --eval --session <id> --json           # scoped to a session
+```
+
+`dont stats` reports per-scope: verb counts, dedup-hit count, idle-skill flag (no claims
+concluded), caught-contradiction count, and claim-verification rate.
+
+`dont export --eval` produces an `EvalExport` payload with claim counts by verb, trust events
+with targets, dedup refusals, and wall-clock timestamps — suitable for A/B harnesses.
+
+## Ephemeral mode
+
+Pass `--no-persist` (or set `DONT_NO_PERSIST=1`) to run any command in memory only.
+All commands are validated and checked but no events are written to the store.
+Use this as the C2 "fake-dont" control arm in eval experiments.
+
+```
+dont --no-persist conclude "claim text"   # validate without persisting
+DONT_NO_PERSIST=1 dont list               # read-only pass-through
+```
+
 ## Rule Claim Authoring
 
 When documenting a `dont` rule's behavior as a claim, use the canonical slot-marker
