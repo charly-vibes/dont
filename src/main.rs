@@ -21,6 +21,7 @@ use dont::model::{
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::rules::{RuleError, shipped_rule_names};
+use dont::skill_pack;
 use dont::store::{
     AppendResult, ClaimRecord, CurieResolution, EntityResolution, EventRecord, HypothesisRecord,
     Store, StoreError, StoreEvent, StoreEventKind, TermRecord,
@@ -4439,8 +4440,8 @@ fn main() {
                 Ok(status) => status,
                 Err(err) => emit_project_error_and_exit(&err),
             };
-            let (skills_clean, skills_details) = match project.managed_skill_packs_status() {
-                Ok(status) => status,
+            let pack_health = match project.managed_skill_packs_status() {
+                Ok(h) => h,
                 Err(err) => emit_project_error_and_exit(&err),
             };
 
@@ -4450,20 +4451,28 @@ fn main() {
             } else {
                 managed_details.join("; ")
             };
-            let skills_status = if skills_clean {
+            let skills_all_pass = pack_health
+                .iter()
+                .all(|h| h.state == skill_pack::PackState::Pass);
+            let skills_status = if skills_all_pass {
                 "pass"
+            } else if pack_health
+                .iter()
+                .any(|h| h.state == skill_pack::PackState::Missing)
+            {
+                "missing"
             } else {
-                let first = skills_details.first().map(String::as_str).unwrap_or("");
-                if first.contains("missing") {
-                    "missing"
-                } else {
-                    "stale"
-                }
+                "stale"
             };
-            let skills_detail = if skills_clean {
+            let skills_detail = if skills_all_pass || pack_health.is_empty() {
                 "managed skill packs are current".to_string()
             } else {
-                skills_details.join("; ")
+                pack_health
+                    .iter()
+                    .filter(|h| h.state != skill_pack::PackState::Pass)
+                    .map(|h| h.detail.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
             };
             let seed_snapshot_exists = project.seed_snapshot_path().is_file();
             let seed_snapshot_status = if seed_snapshot_exists { "pass" } else { "warn" };

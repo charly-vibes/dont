@@ -5,6 +5,30 @@ use std::path::Path;
 
 pub type PackFiles = BTreeMap<String, String>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackState {
+    Pass,
+    Stale,
+    Missing,
+}
+
+impl PackState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pass => "pass",
+            Self::Stale => "stale",
+            Self::Missing => "missing",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PackHealth {
+    pub name: String,
+    pub state: PackState,
+    pub detail: String,
+}
+
 /// Generate all files for a named first-party managed skill pack.
 /// Returns an error if `pack_name` is not a recognized first-party pack.
 pub fn generate_pack(pack_name: &str) -> Result<PackFiles, String> {

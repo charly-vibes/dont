@@ -415,33 +415,43 @@ impl Project {
         Ok(())
     }
 
-    pub fn managed_skill_packs_status(&self) -> Result<(bool, Vec<String>), ProjectError> {
+    pub fn managed_skill_packs_status(&self) -> Result<Vec<skill_pack::PackHealth>, ProjectError> {
         let skills_root = self.skills_dir();
-        let mut clean = true;
-        let mut details = Vec::new();
+        let mut results = Vec::new();
         for pack_name in self.configured_skill_packs() {
             let pack_dir = skills_root.join(&pack_name);
             let generated = skill_pack::generate_pack(&pack_name).map_err(|msg| {
                 ProjectError::ConfigInvalid(format!("managed_skill_packs: {msg}"))
             })?;
             let expected_hash = skill_pack::pack_content_hash(&generated);
-            if !pack_dir.exists() || pack_dir.read_dir().map_or(true, |mut d| d.next().is_none()) {
-                clean = false;
-                details.push(format!(
-                    "managed pack {pack_name} is missing; run dont doctor --fix"
-                ));
+            let health = if !pack_dir.exists()
+                || pack_dir.read_dir().map_or(true, |mut d| d.next().is_none())
+            {
+                skill_pack::PackHealth {
+                    name: pack_name.clone(),
+                    state: skill_pack::PackState::Missing,
+                    detail: format!("managed pack {pack_name} is missing; run dont doctor --fix"),
+                }
             } else {
                 let disk_hash = skill_pack::disk_content_hash(&pack_dir)
                     .map_err(|e| io_error("read", &pack_dir, e))?;
                 if disk_hash != expected_hash {
-                    clean = false;
-                    details.push(format!(
-                        "managed pack {pack_name} is stale; run dont doctor --fix"
-                    ));
+                    skill_pack::PackHealth {
+                        name: pack_name.clone(),
+                        state: skill_pack::PackState::Stale,
+                        detail: format!("managed pack {pack_name} is stale; run dont doctor --fix"),
+                    }
+                } else {
+                    skill_pack::PackHealth {
+                        name: pack_name.clone(),
+                        state: skill_pack::PackState::Pass,
+                        detail: format!("managed pack {pack_name} is current"),
+                    }
                 }
-            }
+            };
+            results.push(health);
         }
-        Ok((clean, details))
+        Ok(results)
     }
 
     /// Detect if the config.toml mode differs from the last recorded mode in events.jsonl
