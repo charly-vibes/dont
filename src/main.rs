@@ -1064,6 +1064,46 @@ fn handle_linkml_import(args: &[String], project: &Project) {
     }
 }
 
+/// Validate --session and --since/--until flags for analytics commands.
+///
+/// Exits with an error if the time window is inverted or the session is unknown.
+fn validate_scope_flags(session: &Option<String>, since: &Option<String>, until: &Option<String>) {
+    if let (Some(s), Some(u)) = (since, until)
+        && s.as_str() >= u.as_str()
+    {
+        emit_error_and_exit(
+            refusal(
+                "invalid-time-window",
+                "--since must be before --until",
+                None,
+                vec![],
+            ),
+            vec![],
+            1,
+        );
+    }
+    if session.is_some() {
+        emit_error_and_exit(
+            refusal(
+                "unknown-session",
+                "session scoping is not yet implemented; no session found with that id",
+                None,
+                vec![],
+            ),
+            vec![],
+            1,
+        );
+    }
+}
+
+/// Build the `scope` JSON object for stats/export payloads.
+fn build_scope_value(since: Option<&str>, until: Option<&str>, now: &str) -> serde_json::Value {
+    json!({
+        "since": since.unwrap_or("1970-01-01T00:00:00Z"),
+        "until": until.unwrap_or(now),
+    })
+}
+
 fn cwd() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
@@ -4755,32 +4795,7 @@ fn main() {
             since,
             until,
         } => {
-            if let (Some(s), Some(u)) = (&since, &until)
-                && s.as_str() >= u.as_str()
-            {
-                emit_error_and_exit(
-                    refusal(
-                        "invalid-time-window",
-                        "--since must be before --until",
-                        None,
-                        vec![],
-                    ),
-                    vec![],
-                    1,
-                );
-            }
-            if session.is_some() {
-                emit_error_and_exit(
-                    refusal(
-                        "unknown-session",
-                        "session scoping is not yet implemented; no session found with that id",
-                        None,
-                        vec![],
-                    ),
-                    vec![],
-                    1,
-                );
-            }
+            validate_scope_flags(&session, &since, &until);
             let project = open_project_or_exit();
             let since_ref = since.as_deref();
             let until_ref = until.as_deref();
@@ -4834,11 +4849,7 @@ fn main() {
                 Err(err) => handle_store_error(err, None),
             };
             let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-            let scope = {
-                let s = since.as_deref().unwrap_or("1970-01-01T00:00:00Z");
-                let u = until.as_deref().unwrap_or(now.as_str());
-                json!({"since": s, "until": u})
-            };
+            let scope = build_scope_value(since_ref, until_ref, &now);
             let payload = json!({
                 "scope": scope,
                 "verb_counts": verb_counts,
@@ -4872,40 +4883,12 @@ fn main() {
                     1,
                 );
             }
-            if let (Some(s), Some(u)) = (&since, &until)
-                && s.as_str() >= u.as_str()
-            {
-                emit_error_and_exit(
-                    refusal(
-                        "invalid-time-window",
-                        "--since must be before --until",
-                        None,
-                        vec![],
-                    ),
-                    vec![],
-                    1,
-                );
-            }
-            if session.is_some() {
-                emit_error_and_exit(
-                    refusal(
-                        "unknown-session",
-                        "session scoping is not yet implemented; no session found with that id",
-                        None,
-                        vec![],
-                    ),
-                    vec![],
-                    1,
-                );
-            }
+            validate_scope_flags(&session, &since, &until);
             let project = open_project_or_exit();
             let since_ref = since.as_deref();
             let until_ref = until.as_deref();
             let exported_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-            let now_str = exported_at.as_str();
-            let scope_since = since.as_deref().unwrap_or("1970-01-01T00:00:00Z");
-            let scope_until = until.as_deref().unwrap_or(now_str);
-            let scope = json!({"since": scope_since, "until": scope_until});
+            let scope = build_scope_value(since_ref, until_ref, &exported_at);
             // claims_by_status
             let claim_counts = match project.store.claim_counts_by_status() {
                 Ok(c) => c,
