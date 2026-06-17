@@ -403,6 +403,12 @@ impl Project {
                 ProjectError::ConfigInvalid(format!("managed_skill_packs: {msg}"))
             })?;
             let pack_dir = skills_root.join(&pack_name);
+            // Remove the entire pack dir and recreate it so that files removed from
+            // the generator in a future version don't linger and cause an infinite
+            // stale loop (disk hash would never match the generated set).
+            if pack_dir.exists() {
+                fs::remove_dir_all(&pack_dir).map_err(|e| io_error("remove", &pack_dir, e))?;
+            }
             fs::create_dir_all(&pack_dir).map_err(|e| io_error("create", &pack_dir, e))?;
             for (rel, content) in &files {
                 let dest = pack_dir.join(rel);

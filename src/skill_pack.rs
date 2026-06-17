@@ -5,7 +5,7 @@ use std::path::Path;
 
 pub type PackFiles = BTreeMap<String, String>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackState {
     Pass,
     Stale,
@@ -355,4 +355,98 @@ A statement is claim-worthy if it:
 4. If worthy: hand off to `dont-grill/conclude`
 "#
     .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    #[test]
+    fn generate_dont_grill_is_deterministic() {
+        let a = generate_pack("dont-grill").unwrap();
+        let b = generate_pack("dont-grill").unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn generate_dont_grill_contains_router_and_all_sub_skills() {
+        let files = generate_pack("dont-grill").unwrap();
+        assert_eq!(files.len(), 10, "expected router + 9 sub-skills");
+        assert!(
+            files.contains_key("dont-grill.md"),
+            "router must be present"
+        );
+        for sub in &[
+            "subs/conclude.md",
+            "subs/define.md",
+            "subs/flag.md",
+            "subs/trust.md",
+            "subs/lock.md",
+            "subs/ignore.md",
+            "subs/trace.md",
+            "subs/scenarios.md",
+            "subs/conclude-worthiness.md",
+        ] {
+            assert!(files.contains_key(*sub), "sub-skill {sub} must be present");
+        }
+    }
+
+    #[test]
+    fn generate_dont_grill_router_uses_canonical_verbs() {
+        let files = generate_pack("dont-grill").unwrap();
+        let router = &files["dont-grill.md"];
+        assert!(
+            router.contains("dont flag"),
+            "should use canonical 'dont flag'"
+        );
+        assert!(
+            router.contains("dont lock"),
+            "should use canonical 'dont lock'"
+        );
+        assert!(
+            !router.contains("dont dismiss"),
+            "must not use deprecated 'dont dismiss'"
+        );
+        assert!(
+            !router.contains("dont forget"),
+            "must not use deprecated 'dont forget'"
+        );
+    }
+
+    #[test]
+    fn pack_content_hash_changes_when_content_differs() {
+        let mut files = generate_pack("dont-grill").unwrap();
+        let original_hash = pack_content_hash(&files);
+        files.insert("dont-grill.md".to_string(), "mutated content".to_string());
+        let mutated_hash = pack_content_hash(&files);
+        assert_ne!(original_hash, mutated_hash);
+    }
+
+    #[test]
+    fn disk_content_hash_matches_pack_content_hash() {
+        let dir = TempDir::new().unwrap();
+        let files = generate_pack("dont-grill").unwrap();
+        let expected_hash = pack_content_hash(&files);
+
+        for (rel, content) in &files {
+            let dest = dir.path().join(rel);
+            if let Some(parent) = dest.parent() {
+                std::fs::create_dir_all(parent).unwrap();
+            }
+            let mut f = std::fs::File::create(&dest).unwrap();
+            f.write_all(content.as_bytes()).unwrap();
+        }
+
+        let disk_hash = disk_content_hash(dir.path()).unwrap();
+        assert_eq!(expected_hash, disk_hash);
+    }
+
+    #[test]
+    fn generate_pack_returns_error_for_unknown_name() {
+        let result = generate_pack("not-a-real-pack");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not-a-real-pack"));
+    }
 }

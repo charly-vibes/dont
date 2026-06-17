@@ -227,6 +227,42 @@ fn doctor_fix_repairs_stale_pack_and_reports_pass() {
 }
 
 #[test]
+fn doctor_fix_removes_extra_files_not_in_generated_set() {
+    // Regression test: refresh must delete files that are no longer in the
+    // generator output; otherwise the hash never matches after a version upgrade
+    // removes a sub-skill (stale loop forever).
+    let root = TempDir::new().unwrap();
+    init_project(&root);
+    add_managed_skill_pack(&root);
+    doctor_fix(&root);
+
+    // Inject a file that simulates a removed sub-skill from a prior version
+    let ghost_file = root
+        .path()
+        .join(".agents/skills/dont-grill/subs/old-removed-skill.md");
+    fs::write(&ghost_file, "# ghost from prior version\n").unwrap();
+
+    // Before fix, ghost file causes stale
+    let v_before = doctor_json(&root);
+    let check_before = managed_skills_check(&v_before);
+    assert_eq!(check_before["status"], "stale");
+
+    // After fix, ghost file is removed and hash converges
+    doctor_fix(&root);
+    assert!(
+        !ghost_file.exists(),
+        "ghost file should be removed by doctor --fix"
+    );
+
+    let v_after = doctor_json(&root);
+    let check_after = managed_skills_check(&v_after);
+    assert_eq!(
+        check_after["status"], "pass",
+        "should pass after removing ghost file"
+    );
+}
+
+#[test]
 fn doctor_fix_is_idempotent() {
     let root = TempDir::new().unwrap();
     init_project(&root);
