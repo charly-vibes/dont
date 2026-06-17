@@ -91,13 +91,13 @@ fn stats_claim_verification_rate_is_correct_ratio() {
     let id1 = conclude_claim(&dir, "alpha claim");
     let _id2 = conclude_claim(&dir, "beta claim");
     let _id3 = conclude_claim(&dir, "gamma claim");
-    // trust id1 to make it verified
+    // flag id1 to verify it (flag = "dont flag as a concern" = verify in dont semantics)
     dont()
         .args([
-            "trust",
+            "flag",
             &id1,
-            "--reason",
-            "confirmed in prod logs",
+            "--evidence",
+            "https://example.com/prod-logs",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -170,34 +170,27 @@ fn stats_idle_skill_true_when_no_writes_in_scope() {
 fn stats_caught_contradiction_count_increments_for_doubted_evidence() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
-    // Create claim X and cite it as evidence for claim Y
+    // Create claim X and conclude Y with X as a dependency (X is evidence for Y)
     let x_id = conclude_claim(&dir, "claim X that will be doubted");
-    let y_id = conclude_claim(&dir, "claim Y that depends on X");
-    // Add X as evidence for Y
+    // conclude Y with --depends-on x_id to establish X as evidence for Y
     dont()
         .args([
-            "ground",
-            &y_id,
-            "--url",
-            "https://example.com/source",
+            "conclude",
+            "claim Y that depends on X",
+            "--depends-on",
+            &x_id,
             "--json",
         ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();
-    // Trust X as evidence for Y: mark X as verified first
-    dont()
-        .args(["trust", &x_id, "--reason", "initial trust", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-    // Now doubt claim X (which is evidence for Y)
+    // Now trust (= doubt in dont semantics) claim X; this is the contradiction event
     dont()
         .args([
-            "flag",
+            "trust",
             &x_id,
             "--reason",
-            "turns out this was wrong",
+            "turns out this was wrong, evidence from experiment 2026-06-15",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -222,8 +215,15 @@ fn stats_caught_contradiction_count_zero_when_doubted_claim_not_evidence() {
         &dir,
         "isolated claim that is doubted but not used as evidence",
     );
+    // trust = doubt in dont semantics; X has no depends_on back-references
     dont()
-        .args(["flag", &x_id, "--reason", "was wrong", "--json"])
+        .args([
+            "trust",
+            &x_id,
+            "--reason",
+            "was wrong, see experiment 2026-06-15",
+            "--json",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success();

@@ -97,13 +97,22 @@ fn conclude_persists_claim_across_invocations() {
     init_dir(&dir);
     let out = conclude_in(&dir, "gravity attracts masses");
     let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true, "first conclude should succeed");
     let id = v["data"]["id"].as_str().unwrap().to_string();
+    assert!(!id.is_empty(), "first conclude must return a claim id");
 
-    // A second invocation produces a different claim id
-    let out2 = conclude_in(&dir, "gravity attracts masses");
-    let v2: Value = serde_json::from_slice(&out2).unwrap();
-    let id2 = v2["data"]["id"].as_str().unwrap();
-    assert_ne!(id, id2, "each conclude creates a distinct claim");
+    // A second invocation with identical text is rejected as a duplicate.
+    let out2 = dont()
+        .args(["conclude", "gravity attracts masses", "--json"])
+        .env("DONT_DIR", dir.path())
+        .output()
+        .unwrap();
+    let v2: Value = serde_json::from_slice(&out2.stdout).unwrap();
+    assert_eq!(v2["ok"], false, "duplicate conclude must be refused");
+    assert_eq!(
+        v2["data"]["code"], "duplicate-refused",
+        "duplicate conclude must use code duplicate-refused"
+    );
 }
 
 // --- Refusals ---

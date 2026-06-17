@@ -364,9 +364,8 @@ fn ground_respects_author_override_flag() {
 fn ground_duplicate_statement_follows_conclude_policy() {
     // Spec: a duplicate-equivalent claim follows the same duplicate-claim policy
     // that would apply to the underlying `conclude` operation.
-    // Since `conclude` does not refuse duplicate statements, `ground` must not
-    // add an extra refusal — both invocations should succeed and produce distinct
-    // verified claims.
+    // Since `conclude` now refuses duplicate statements (dedup check), `ground`
+    // also refuses a second invocation with the same normalized statement text.
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
@@ -385,6 +384,14 @@ fn ground_duplicate_statement_follows_conclude_policy() {
         .stdout
         .clone();
 
+    let v1: Value = serde_json::from_slice(&out1).unwrap();
+    assert_eq!(v1["ok"], true, "first ground must succeed");
+    assert_eq!(
+        v1["data"]["status"], "verified",
+        "grounded claim must be verified"
+    );
+
+    // Second ground with same text is refused as duplicate.
     let out2 = dont()
         .args([
             "ground",
@@ -394,26 +401,14 @@ fn ground_duplicate_statement_follows_conclude_policy() {
             "--json",
         ])
         .env("DONT_DIR", dir.path())
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-
-    let v1: Value = serde_json::from_slice(&out1).unwrap();
-    let v2: Value = serde_json::from_slice(&out2).unwrap();
-
-    assert_eq!(v1["ok"], true);
-    assert_eq!(v2["ok"], true);
-
-    let id1 = v1["data"]["id"].as_str().unwrap();
-    let id2 = v2["data"]["id"].as_str().unwrap();
-    assert_ne!(
-        id1, id2,
-        "each ground invocation must produce a distinct claim entity"
+        .output()
+        .unwrap();
+    let v2: Value = serde_json::from_slice(&out2.stdout).unwrap();
+    assert_eq!(v2["ok"], false, "duplicate ground must be refused");
+    assert_eq!(
+        v2["data"]["code"], "duplicate-refused",
+        "duplicate ground must use code duplicate-refused"
     );
-    assert_eq!(v1["data"]["status"], "verified");
-    assert_eq!(v2["data"]["status"], "verified");
 }
 
 #[test]

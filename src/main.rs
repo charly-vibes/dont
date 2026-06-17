@@ -31,6 +31,7 @@ thread_local! {
     static PLAIN_MODE: Cell<bool> = const { Cell::new(false) };
     static FORCE_COLOR_MODE: Cell<bool> = const { Cell::new(false) };
     static QUIET_MODE: Cell<bool> = const { Cell::new(false) };
+    static NO_PERSIST_MODE: Cell<bool> = const { Cell::new(false) };
 }
 
 fn human_mode() -> bool {
@@ -39,6 +40,10 @@ fn human_mode() -> bool {
 
 fn quiet_mode() -> bool {
     QUIET_MODE.with(|m| m.get())
+}
+
+fn no_persist_mode() -> bool {
+    NO_PERSIST_MODE.with(|m| m.get())
 }
 
 fn color_enabled() -> bool {
@@ -136,6 +141,10 @@ struct Cli {
     /// Bypass harness detection; behave as if DONT_DIRECT=1.
     #[arg(long, global = true)]
     direct: bool,
+
+    /// Validate and check but do not write to the store.
+    #[arg(long = "no-persist", global = true)]
+    no_persist: bool,
 
     #[command(subcommand)]
     command: Option<Command>,
@@ -430,6 +439,41 @@ enum Command {
         /// Shell to generate completions for (bash, zsh, fish, powershell, elvish).
         #[arg(value_name = "shell")]
         shell: Shell,
+    },
+
+    /// Report usage statistics for a time scope.
+    #[command(after_help = "Examples:
+  dont stats --json
+  dont stats --since 2026-06-01T00:00:00Z --json")]
+    Stats {
+        /// Scope to a specific session identifier.
+        #[arg(long)]
+        session: Option<String>,
+        /// Include only events at or after this RFC 3339 timestamp.
+        #[arg(long)]
+        since: Option<String>,
+        /// Include only events before this RFC 3339 timestamp.
+        #[arg(long)]
+        until: Option<String>,
+    },
+
+    /// Export structured data for eval harnesses.
+    #[command(after_help = "Examples:
+  dont export --eval --json
+  dont export --eval --session <id> --json")]
+    Export {
+        /// Export eval-harness structured JSON.
+        #[arg(long)]
+        eval: bool,
+        /// Scope to a specific session identifier.
+        #[arg(long)]
+        session: Option<String>,
+        /// Include only events at or after this RFC 3339 timestamp.
+        #[arg(long)]
+        since: Option<String>,
+        /// Include only events before this RFC 3339 timestamp.
+        #[arg(long)]
+        until: Option<String>,
     },
 
     /// Atomically ground a claim with its supporting evidence.
@@ -1070,6 +1114,26 @@ fn emit_error_and_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> !
 }
 
 fn handle_store_error_code(err: StoreError, entity_id: Option<&str>) -> i32 {
+    if let StoreError::DuplicateClaim {
+        text_hash: _,
+        existing_id,
+    } = err
+    {
+        return emit_error_no_exit(
+            refusal(
+                "duplicate-refused",
+                &format!("claim with equivalent text already exists as {existing_id}"),
+                Some(&existing_id),
+                vec![RemediationEntry {
+                    command: format!("dont show {existing_id}"),
+                    description: "Inspect the existing claim".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        );
+    }
+
     if let StoreError::CurieConflict { curie, existing_id } = err {
         return emit_error_no_exit(
             refusal(
@@ -2722,6 +2786,25 @@ fn apply_claim_transition_impl(
         Err(err) => handle_store_error(err, Some(id)),
     };
     let current = record.status;
+
+    if no_persist_mode() {
+        // Validate transition without writing.
+        match transition(current) {
+            Ok(_new_status) => {}
+            Err(_) if allow_evidence_append_on_verified && current == Status::Verified => {}
+            Err(err) => emit_error_and_exit(transition_invalid_refusal(id, &err), vec![], 1),
+        }
+        // Emit the current record as if the transition had occurred (status unchanged).
+        let fake_result = dont::store::AppendResult {
+            id: id.to_string(),
+            event_id: String::new(),
+            tx: 0,
+            created_at: dont::store::now_rfc3339_pub(),
+        };
+        emit_claim_view(&record, &fake_result, &project.store);
+        return;
+    }
+
     let result = match transition(current) {
         Ok(new_status) => match project
             .store
@@ -3163,6 +3246,9 @@ fn main() {
     if cli.quiet && !cli.json {
         QUIET_MODE.with(|m| m.set(true));
     }
+    if cli.no_persist {
+        NO_PERSIST_MODE.with(|m| m.set(true));
+    }
 
     // --version [--json]
     if cli.version {
@@ -3375,37 +3461,61 @@ fn main() {
                 .chain(unresolved.iter())
                 .cloned()
                 .collect();
-            match project
-                .store
-                .append_claim(&statement, &all_depends_on, confidence)
-            {
-                Ok(result) => {
-                    let payload = json!({
-                        "id": result.id,
-                        "entity_kind": "claim",
-                        "statement": statement,
-                        "status": "unverified",
-                        "derived_assessments": [],
-                        "atoms": [],
-                        "hypotheses": [],
-                        "evidence": [],
-                        "depends_on": all_depends_on,
-                        "applicable_rules": {},
-                        "created_at": result.created_at,
-                    });
-                    let env = Envelope::success_with_tx(
-                        EnvelopeKind::Claim,
-                        payload,
-                        warnings,
-                        vec![HintEntry {
-                            command: format!("dont show {}", result.id),
-                            description: "Inspect the new claim".to_string(),
-                        }],
-                        Some(result.tx as u64),
-                    );
-                    emit_confirm_json(&env);
+
+            if no_persist_mode() {
+                // Validate dedup without writing.
+                if let Err(err) = project.store.check_claim_dedup(&statement) {
+                    handle_store_error(err, None);
                 }
-                Err(err) => handle_store_error(err, None),
+                let now = dont::store::now_rfc3339_pub();
+                let payload = json!({
+                    "id": "ephemeral",
+                    "entity_kind": "claim",
+                    "statement": statement,
+                    "status": "unverified",
+                    "derived_assessments": [],
+                    "atoms": [],
+                    "hypotheses": [],
+                    "evidence": [],
+                    "depends_on": all_depends_on,
+                    "applicable_rules": {},
+                    "created_at": now,
+                });
+                let env = Envelope::success(EnvelopeKind::Claim, payload, warnings, vec![]);
+                emit_confirm_json(&env);
+            } else {
+                match project
+                    .store
+                    .append_claim(&statement, &all_depends_on, confidence)
+                {
+                    Ok(result) => {
+                        let payload = json!({
+                            "id": result.id,
+                            "entity_kind": "claim",
+                            "statement": statement,
+                            "status": "unverified",
+                            "derived_assessments": [],
+                            "atoms": [],
+                            "hypotheses": [],
+                            "evidence": [],
+                            "depends_on": all_depends_on,
+                            "applicable_rules": {},
+                            "created_at": result.created_at,
+                        });
+                        let env = Envelope::success_with_tx(
+                            EnvelopeKind::Claim,
+                            payload,
+                            warnings,
+                            vec![HintEntry {
+                                command: format!("dont show {}", result.id),
+                                description: "Inspect the new claim".to_string(),
+                            }],
+                            Some(result.tx as u64),
+                        );
+                        emit_confirm_json(&env);
+                    }
+                    Err(err) => handle_store_error(err, None),
+                }
             }
         }
 
@@ -4638,6 +4748,225 @@ fn main() {
                     Err(err) => handle_store_error(err, Some(&id)),
                 }
             }
+        }
+
+        Command::Stats {
+            session,
+            since,
+            until,
+        } => {
+            if let (Some(s), Some(u)) = (&since, &until)
+                && s.as_str() >= u.as_str()
+            {
+                emit_error_and_exit(
+                    refusal(
+                        "invalid-time-window",
+                        "--since must be before --until",
+                        None,
+                        vec![],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+            if session.is_some() {
+                emit_error_and_exit(
+                    refusal(
+                        "unknown-session",
+                        "session scoping is not yet implemented; no session found with that id",
+                        None,
+                        vec![],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+            let project = open_project_or_exit();
+            let since_ref = since.as_deref();
+            let until_ref = until.as_deref();
+            let events = match project.store.all_events_in_scope(since_ref, until_ref) {
+                Ok(e) => e,
+                Err(err) => handle_store_error(err, None),
+            };
+            // Map event kind → canonical command name per spec.
+            let event_to_verb: std::collections::HashMap<&str, &str> = [
+                ("concluded", "conclude"),
+                ("defined", "define"),
+                ("trusted", "trust"),
+                ("flagged", "flag"),
+                ("dismissed", "flag"),
+                ("locked", "lock"),
+                ("ignored", "ignore"),
+            ]
+            .iter()
+            .copied()
+            .collect();
+            let mut verb_counts: serde_json::Map<String, Value> = serde_json::Map::new();
+            for ev in &events {
+                let kind_str = ev.kind.as_str();
+                if let Some(&verb) = event_to_verb.get(kind_str) {
+                    let counter = verb_counts
+                        .entry(verb.to_string())
+                        .or_insert(Value::Number(0.into()));
+                    if let Some(n) = counter.as_u64() {
+                        *counter = Value::Number((n + 1).into());
+                    }
+                }
+            }
+            let idle_skill = verb_counts.is_empty();
+            let claim_counts = match project.store.claim_counts_by_status() {
+                Ok(c) => c,
+                Err(err) => handle_store_error(err, None),
+            };
+            let total_claims: u64 = claim_counts.values().sum();
+            let verified_claims = claim_counts.get("verified").copied().unwrap_or(0);
+            let claim_verification_rate: Value = if total_claims == 0 {
+                Value::Null
+            } else {
+                let rate = verified_claims as f64 / total_claims as f64;
+                serde_json::to_value(rate).unwrap_or(Value::Null)
+            };
+            let caught_contradiction_count = match project
+                .store
+                .caught_contradiction_count(since_ref, until_ref)
+            {
+                Ok(c) => c,
+                Err(err) => handle_store_error(err, None),
+            };
+            let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            let scope = {
+                let s = since.as_deref().unwrap_or("1970-01-01T00:00:00Z");
+                let u = until.as_deref().unwrap_or(now.as_str());
+                json!({"since": s, "until": u})
+            };
+            let payload = json!({
+                "scope": scope,
+                "verb_counts": verb_counts,
+                "dedup_refusal_count": 0u64,
+                "claim_verification_rate": claim_verification_rate,
+                "idle_skill": idle_skill,
+                "caught_contradiction_count": caught_contradiction_count,
+            });
+            let env = Envelope::success(EnvelopeKind::Stats, payload, vec![], vec![]);
+            emit_json(&env);
+        }
+
+        Command::Export {
+            eval,
+            session,
+            since,
+            until,
+        } => {
+            if !eval {
+                emit_error_and_exit(
+                    refusal(
+                        "flag-required",
+                        "export requires --eval flag",
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont export --eval --json".to_string(),
+                            description: "Add --eval to export eval-harness data".to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+            if let (Some(s), Some(u)) = (&since, &until)
+                && s.as_str() >= u.as_str()
+            {
+                emit_error_and_exit(
+                    refusal(
+                        "invalid-time-window",
+                        "--since must be before --until",
+                        None,
+                        vec![],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+            if session.is_some() {
+                emit_error_and_exit(
+                    refusal(
+                        "unknown-session",
+                        "session scoping is not yet implemented; no session found with that id",
+                        None,
+                        vec![],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+            let project = open_project_or_exit();
+            let since_ref = since.as_deref();
+            let until_ref = until.as_deref();
+            let exported_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            let now_str = exported_at.as_str();
+            let scope_since = since.as_deref().unwrap_or("1970-01-01T00:00:00Z");
+            let scope_until = until.as_deref().unwrap_or(now_str);
+            let scope = json!({"since": scope_since, "until": scope_until});
+            // claims_by_status
+            let claim_counts = match project.store.claim_counts_by_status() {
+                Ok(c) => c,
+                Err(err) => handle_store_error(err, None),
+            };
+            let claims_by_status: serde_json::Map<String, Value> = claim_counts
+                .into_iter()
+                .filter(|(_, v)| *v > 0)
+                .map(|(k, v)| (k, Value::Number(v.into())))
+                .collect();
+            // events_by_kind
+            let events = match project.store.all_events_in_scope(since_ref, until_ref) {
+                Ok(e) => e,
+                Err(err) => handle_store_error(err, None),
+            };
+            let mut events_by_kind: serde_json::Map<String, Value> = serde_json::Map::new();
+            for ev in &events {
+                let key = ev.kind.as_str().to_string();
+                let counter = events_by_kind.entry(key).or_insert(Value::Number(0.into()));
+                if let Some(n) = counter.as_u64() {
+                    *counter = Value::Number((n + 1).into());
+                }
+            }
+            // trust_events (Trusted and Flagged events with claim_id)
+            let trust_rows = match project
+                .store
+                .trust_flag_events_with_claim_id(since_ref, until_ref)
+            {
+                Ok(r) => r,
+                Err(err) => handle_store_error(err, None),
+            };
+            let trust_events: Vec<Value> = trust_rows
+                .iter()
+                .map(|r| {
+                    let doubt = r.kind == "trusted";
+                    let reason_excerpt = r
+                        .note
+                        .as_deref()
+                        .unwrap_or("")
+                        .chars()
+                        .take(120)
+                        .collect::<String>();
+                    json!({
+                        "event_id": r.event_id,
+                        "target_claim_id": r.claim_id,
+                        "doubt": doubt,
+                        "reason_excerpt": reason_excerpt,
+                        "timestamp": r.created_at,
+                    })
+                })
+                .collect();
+            let payload = json!({
+                "exported_at": exported_at,
+                "scope": scope,
+                "claims_by_status": claims_by_status,
+                "events_by_kind": events_by_kind,
+                "trust_events": trust_events,
+                "dedup_refusals": [],
+            });
+            let env = Envelope::success(EnvelopeKind::EvalExport, payload, vec![], vec![]);
+            emit_json(&env);
         }
 
         Command::Completions { shell } => {

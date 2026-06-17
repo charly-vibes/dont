@@ -38,6 +38,8 @@ pub enum EnvelopeKind {
     DontExplain,
     #[serde(rename = "dont-completions")]
     DontCompletions,
+    Stats,
+    EvalExport,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

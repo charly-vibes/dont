@@ -102,13 +102,13 @@ fn eval_export_claims_by_status_reflects_store() {
     init_dir(&dir);
     let id1 = conclude_claim(&dir, "claim one");
     let _id2 = conclude_claim(&dir, "claim two");
-    // verify id1
+    // flag id1 to verify it (flag = "dont flag as concern" = verify in dont semantics)
     dont()
         .args([
-            "trust",
+            "flag",
             &id1,
-            "--reason",
-            "confirmed in production logs",
+            "--evidence",
+            "https://example.com/prod-logs",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -132,16 +132,17 @@ fn eval_export_events_by_kind_reflects_store() {
 }
 
 #[test]
-fn eval_export_trust_events_populated_after_trust() {
+fn eval_export_trust_events_populated_after_flag() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "the timeout is configurable");
+    // flag = verify in dont semantics (doubt=false in trust_events)
     dont()
         .args([
-            "trust",
+            "flag",
             &id,
-            "--reason",
-            "confirmed in production logs from 2026-06-01",
+            "--evidence",
+            "https://example.com/production-logs",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -149,7 +150,7 @@ fn eval_export_trust_events_populated_after_trust() {
         .success();
     let v = eval_export(&dir);
     let trust_events = v["data"]["trust_events"].as_array().unwrap();
-    assert_eq!(trust_events.len(), 1, "one trust event expected");
+    assert_eq!(trust_events.len(), 1, "one trust_event expected");
     let te = &trust_events[0];
     assert!(te["event_id"].is_string(), "event_id must be string");
     assert!(
@@ -159,7 +160,7 @@ fn eval_export_trust_events_populated_after_trust() {
     assert_eq!(te["target_claim_id"], id);
     assert_eq!(
         te["doubt"], false,
-        "trust (not doubt) event should have doubt=false"
+        "flag (verify) event should have doubt=false"
     );
     assert!(
         te["reason_excerpt"].is_string(),
@@ -177,6 +178,7 @@ fn eval_export_trust_event_reason_excerpt_truncated_at_120() {
     init_dir(&dir);
     let id = conclude_claim(&dir, "some conclusion");
     let long_reason = "x".repeat(200);
+    // trust = doubt in dont semantics; generates Trusted event with note=reason
     dont()
         .args(["trust", &id, "--reason", &long_reason, "--json"])
         .env("DONT_DIR", dir.path())
@@ -193,27 +195,17 @@ fn eval_export_trust_event_reason_excerpt_truncated_at_120() {
 }
 
 #[test]
-fn eval_export_doubt_event_has_doubt_true() {
+fn eval_export_trust_event_has_doubt_true() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "a claim that will be doubted");
+    // trust = "dont trust" = doubt in dont semantics → doubt=true in trust_events
     dont()
         .args([
             "trust",
             &id,
             "--reason",
-            "initially looked correct",
-            "--json",
-        ])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-    dont()
-        .args([
-            "flag",
-            &id,
-            "--reason",
-            "contradicted by new evidence",
+            "contradicted by new evidence from 2026-06-15",
             "--json",
         ])
         .env("DONT_DIR", dir.path())
@@ -221,14 +213,13 @@ fn eval_export_doubt_event_has_doubt_true() {
         .success();
     let v = eval_export(&dir);
     let trust_events = v["data"]["trust_events"].as_array().unwrap();
-    // flag event (doubt) should appear as trust event with doubt=true
     let doubt_events: Vec<_> = trust_events
         .iter()
         .filter(|te| te["doubt"] == true)
         .collect();
     assert!(
         !doubt_events.is_empty(),
-        "flag/doubt event must appear in trust_events with doubt=true"
+        "trust (doubt) event must appear in trust_events with doubt=true"
     );
 }
 

@@ -17,6 +17,7 @@ use chrono::{SecondsFormat, Utc};
 use cozo::DbInstance;
 use fs2::FileExt;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use ulid::Ulid;
 
 const SCHEMA_VERSION: i64 = 1;
@@ -59,7 +60,7 @@ pub enum StoreEventKind {
 }
 
 impl StoreEventKind {
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::Concluded => "concluded",
             Self::Defined => "defined",
@@ -182,6 +183,15 @@ pub struct EventRecord {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct TrustEventRow {
+    pub event_id: String,
+    pub claim_id: String,
+    pub kind: String,
+    pub note: Option<String>,
+    pub created_at: String,
+}
+
 #[derive(Debug)]
 pub enum StoreError {
     Io(std::io::Error),
@@ -207,6 +217,10 @@ pub enum StoreError {
         candidates: Vec<String>,
     },
     Malformed(String),
+    DuplicateClaim {
+        text_hash: String,
+        existing_id: String,
+    },
 }
 
 impl fmt::Display for StoreError {
@@ -235,6 +249,13 @@ impl fmt::Display for StoreError {
                 )
             }
             Self::Malformed(message) => f.write_str(message),
+            Self::DuplicateClaim {
+                text_hash,
+                existing_id,
+            } => write!(
+                f,
+                "claim with text hash {text_hash} already exists as {existing_id}"
+            ),
         }
     }
 }
@@ -573,6 +594,14 @@ impl Store {
         depends_on: &[String],
         confidence: Option<f64>,
     ) -> Result<AppendResult, StoreError> {
+        let text_hash = claim_text_hash(statement);
+        // Dedup check before acquiring the write lock (read-only query).
+        if let Some(existing_id) = self.find_claim_by_text_hash(&text_hash)? {
+            return Err(StoreError::DuplicateClaim {
+                text_hash,
+                existing_id,
+            });
+        }
         self.with_write_lock(|store| {
             let tx = store.next_tx()?;
             let claim_id = prefixed_ulid("claim");
@@ -591,6 +620,7 @@ impl Store {
                     Value::String(statement.to_string()),
                     tx,
                 ),
+                Datom::assert(&claim_id, "text_hash", Value::String(text_hash.clone()), tx),
                 Datom::assert(
                     &claim_id,
                     "status",
@@ -1662,6 +1692,201 @@ impl Store {
         serde_json::from_value(value.get("rows").cloned().unwrap_or(Value::Array(vec![])))
             .map_err(StoreError::from_err)
     }
+
+    /// Return all events ordered by `created_at`, optionally filtered to [since, until).
+    ///
+    /// Both bounds are RFC 3339 strings. RFC 3339 sorts lexicographically when
+    /// produced by the same formatter (seconds precision, UTC).
+    pub fn all_events_in_scope(
+        &self,
+        since: Option<&str>,
+        until: Option<&str>,
+    ) -> Result<Vec<EventRecord>, StoreError> {
+        let rows = self.query_rows(
+            r#"?[ev_entity, attribute, value, tx, assert_bit] :=
+                *datoms[ev_entity, "entity_type", "event", _, true],
+                *datoms[ev_entity, attribute, value, tx, assert_bit]"#,
+        )?;
+        let datoms: Vec<Datom> = rows
+            .into_iter()
+            .map(row_to_datom)
+            .collect::<Result<_, _>>()?;
+        let mut ev_ids: Vec<String> = datoms.iter().map(|d| d.entity.clone()).collect();
+        ev_ids.sort();
+        ev_ids.dedup();
+        let mut records: Vec<EventRecord> = ev_ids
+            .into_iter()
+            .map(|id| event_from_datoms(id.clone(), datoms.iter().filter(move |d| d.entity == id)))
+            .collect::<Result<_, _>>()?;
+        if let Some(s) = since {
+            records.retain(|e| e.created_at.as_str() >= s);
+        }
+        if let Some(u) = until {
+            records.retain(|e| e.created_at.as_str() < u);
+        }
+        records.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        Ok(records)
+    }
+
+    /// Count claims by their current status string (correctly resolved via list_claims).
+    pub fn claim_counts_by_status(
+        &self,
+    ) -> Result<std::collections::HashMap<String, u64>, StoreError> {
+        let claims = self.list_claims()?;
+        let mut counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        for claim in claims {
+            *counts.entry(claim.status.as_str().to_string()).or_insert(0) += 1;
+        }
+        Ok(counts)
+    }
+
+    /// Check dedup without writing. Returns Err(DuplicateClaim) if duplicate found.
+    pub fn check_claim_dedup(&self, statement: &str) -> Result<(), StoreError> {
+        let hash = claim_text_hash(statement);
+        if let Some(existing_id) = self.find_claim_by_text_hash(&hash)? {
+            return Err(StoreError::DuplicateClaim {
+                text_hash: hash,
+                existing_id,
+            });
+        }
+        Ok(())
+    }
+
+    /// Find the ID of any existing claim whose text hash matches `hash`.
+    pub fn find_claim_by_text_hash(&self, hash: &str) -> Result<Option<String>, StoreError> {
+        let rows = self.query_rows(&format!(
+            r#"?[entity] :=
+                *datoms[entity, "entity_type", "claim", _, true],
+                *datoms[entity, "text_hash", {}, _, true]"#,
+            json_string(hash)
+        ))?;
+        Ok(rows
+            .into_iter()
+            .next()
+            .and_then(|r| r.into_iter().next())
+            .and_then(|v| {
+                if let Value::String(s) = v {
+                    Some(s)
+                } else {
+                    None
+                }
+            }))
+    }
+
+    /// Richer query for trust/flag events that includes the claim_id.
+    pub fn trust_flag_events_with_claim_id(
+        &self,
+        since: Option<&str>,
+        until: Option<&str>,
+    ) -> Result<Vec<TrustEventRow>, StoreError> {
+        // Query without requiring note (note is optional on flag events).
+        let rows = self.query_rows(
+            r#"?[ev_id, claim_id, kind, created_at] :=
+                *datoms[ev_id, "entity_type", "event", _, true],
+                *datoms[ev_id, "claim_id", claim_id, _, true],
+                *datoms[ev_id, "kind", kind, _, true],
+                *datoms[ev_id, "created_at", created_at, _, true],
+                (kind == "trusted" || kind == "flagged")"#,
+        )?;
+        // Separately gather notes for events that have them.
+        let note_rows = self.query_rows(
+            r#"?[ev_id, note] :=
+                *datoms[ev_id, "entity_type", "event", _, true],
+                *datoms[ev_id, "note", note, _, true],
+                *datoms[ev_id, "kind", kind, _, true],
+                (kind == "trusted" || kind == "flagged")"#,
+        )?;
+        let mut notes: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        for row in note_rows {
+            if let (Some(Value::String(ev_id)), Some(Value::String(note))) =
+                (row.first(), row.get(1))
+            {
+                notes.insert(ev_id.clone(), note.clone());
+            }
+        }
+        let mut result = Vec::new();
+        for row in rows {
+            let ev_id = row
+                .first()
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let claim_id = row
+                .get(1)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let kind = row
+                .get(2)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let created_at = row
+                .get(3)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if let (Some(s), false) = (since, created_at.is_empty())
+                && created_at.as_str() < s
+            {
+                continue;
+            }
+            if let (Some(u), false) = (until, created_at.is_empty())
+                && created_at.as_str() >= u
+            {
+                continue;
+            }
+            let note = notes.get(&ev_id).cloned();
+            result.push(TrustEventRow {
+                event_id: ev_id,
+                claim_id,
+                kind,
+                note,
+                created_at,
+            });
+        }
+        Ok(result)
+    }
+
+    /// Count Trusted events in scope where the targeted claim is used as evidence
+    /// (appears in depends_on) for another claim created before the doubt event.
+    pub fn caught_contradiction_count(
+        &self,
+        since: Option<&str>,
+        until: Option<&str>,
+    ) -> Result<u64, StoreError> {
+        let trust_rows = self.trust_flag_events_with_claim_id(since, until)?;
+        let doubt_events: Vec<&TrustEventRow> =
+            trust_rows.iter().filter(|r| r.kind == "trusted").collect();
+        if doubt_events.is_empty() {
+            return Ok(0);
+        }
+        // Build map: dep_id → list of (parent created_at) for claims that depend on it.
+        let all_claims = self.list_claims()?;
+        let mut dep_to_parents: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for claim in &all_claims {
+            for dep_id in &claim.depends_on {
+                dep_to_parents
+                    .entry(dep_id.clone())
+                    .or_default()
+                    .push(claim.created_at.clone());
+            }
+        }
+        let mut count = 0u64;
+        for event in &doubt_events {
+            if let Some(parents) = dep_to_parents.get(&event.claim_id) {
+                // Use <= to handle same-second timestamps in tests/fast machines.
+                if parents
+                    .iter()
+                    .any(|cat| cat.as_str() <= event.created_at.as_str())
+                {
+                    count += 1;
+                }
+            }
+        }
+        Ok(count)
+    }
 }
 
 impl Datom {
@@ -1779,6 +2004,29 @@ fn atoms_from_value(value: &Value) -> Result<Vec<AtomRecord>, StoreError> {
 
 fn hypotheses_from_value(value: &Value) -> Result<Vec<HypothesisRecord>, StoreError> {
     serde_json::from_value(value.clone()).map_err(StoreError::from_err)
+}
+
+/// Public wrapper around `now_rfc3339_seconds` for use in ephemeral responses.
+pub fn now_rfc3339_pub() -> String {
+    now_rfc3339_seconds()
+}
+
+/// Normalize claim text for dedup: lowercase + whitespace collapse.
+///
+/// Full NFC normalization is not applied here to avoid a heavyweight dependency;
+/// the SHA-256 is computed over the ASCII-safe normalized form.
+pub fn normalize_claim_text(text: &str) -> String {
+    text.to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Hex-encoded SHA-256 of the normalized claim text.
+pub fn claim_text_hash(text: &str) -> String {
+    let normalized = normalize_claim_text(text);
+    let hash = Sha256::digest(normalized.as_bytes());
+    format!("{hash:x}")
 }
 
 fn json_string(value: &str) -> String {
