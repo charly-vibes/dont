@@ -233,3 +233,21 @@ fn stats_caught_contradiction_count_zero_when_doubted_claim_not_evidence() {
         "caught_contradiction_count must be 0 when doubted claim was never used as evidence"
     );
 }
+
+#[test]
+fn stats_default_scope_since_is_today_not_epoch() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let v = stats(&dir);
+    let since = v["data"]["scope"]["since"].as_str().unwrap();
+    // Should start with today's date (2026-...) not epoch (1970-...)
+    assert!(
+        !since.starts_with("1970-"),
+        "default scope.since must be today's midnight, not epoch; got: {since}"
+    );
+    // Should end with T00:00:00Z (midnight)
+    assert!(
+        since.ends_with("T00:00:00Z"),
+        "default scope.since must be midnight UTC; got: {since}"
+    );
+}

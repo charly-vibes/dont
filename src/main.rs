@@ -1096,10 +1096,24 @@ fn validate_scope_flags(session: &Option<String>, since: &Option<String>, until:
     }
 }
 
+/// Return today's midnight UTC as an RFC 3339 string (e.g. "2026-06-17T00:00:00Z").
+fn today_midnight_utc() -> String {
+    let now = chrono::Utc::now();
+    let midnight = now
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .expect("midnight is always valid")
+        .and_utc();
+    midnight.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
 /// Build the `scope` JSON object for stats/export payloads.
+///
+/// When `since` is `None`, defaults to today's midnight UTC (not epoch) per spec.
 fn build_scope_value(since: Option<&str>, until: Option<&str>, now: &str) -> serde_json::Value {
+    let midnight = today_midnight_utc();
     json!({
-        "since": since.unwrap_or("1970-01-01T00:00:00Z"),
+        "since": since.unwrap_or(midnight.as_str()),
         "until": until.unwrap_or(now),
     })
 }
@@ -1119,6 +1133,13 @@ fn emit_json<T: serde::Serialize>(envelope: &T) {
                 }
             }
         }
+    } else if no_persist_mode() {
+        // Inject ephemeral: true into every envelope when --no-persist is active.
+        let mut v = serde_json::to_value(envelope).unwrap();
+        if let Some(obj) = v.as_object_mut() {
+            obj.insert("ephemeral".to_string(), Value::Bool(true));
+        }
+        println!("{}", v);
     } else {
         println!("{}", serde_json::to_string(envelope).unwrap());
     }
@@ -2900,7 +2921,7 @@ fn apply_term_transition(
     transition: fn(Status) -> Result<Status, TransitionError>,
     event: StoreEvent,
     missing_code: &str,
-    action: &str,
+    _action: &str,
 ) {
     let record = match project.store.term_by_id(id) {
         Ok(Some(record)) => record,
@@ -2908,10 +2929,21 @@ fn apply_term_transition(
         Err(err) => handle_store_error(err, Some(id)),
     };
     let current = record.status;
-    let new_status = match transition(current) {
-        Ok(status) => status,
+    match transition(current) {
+        Ok(_) => {}
         Err(err) => emit_error_and_exit(transition_invalid_refusal(id, &err), vec![], 1),
-    };
+    }
+    if no_persist_mode() {
+        let fake_result = dont::store::AppendResult {
+            id: id.to_string(),
+            event_id: String::new(),
+            tx: 0,
+            created_at: dont::store::now_rfc3339_pub(),
+        };
+        emit_term_view(&record, &fake_result, &project.store, vec![]);
+        return;
+    }
+    let new_status = transition(current).expect("already validated above");
     let result = match project
         .store
         .append_term_status_change(id, current, new_status, event)
@@ -2922,7 +2954,7 @@ fn apply_term_transition(
     let updated = match project.store.term_by_id(id) {
         Ok(Some(record)) => record,
         Ok(None) => handle_store_error(
-            StoreError::Malformed(format!("term {id} vanished after {action}")),
+            StoreError::Malformed(format!("term {id} vanished after update")),
             Some(id),
         ),
         Err(err) => handle_store_error(err, Some(id)),
@@ -3286,7 +3318,7 @@ fn main() {
     if cli.quiet && !cli.json {
         QUIET_MODE.with(|m| m.set(true));
     }
-    if cli.no_persist {
+    if cli.no_persist || std::env::var("DONT_NO_PERSIST").as_deref() == Ok("1") {
         NO_PERSIST_MODE.with(|m| m.set(true));
     }
 
@@ -3608,19 +3640,38 @@ fn main() {
                 }
                 None => doc_shape_warnings(&doc),
             };
-            let result = match project.store.append_term(&curie, &doc, label.as_deref()) {
-                Ok(result) => result,
-                Err(err) => handle_store_error(err, None),
-            };
-            let term = match project.store.term_by_id(&result.id) {
-                Ok(Some(term)) => term,
-                Ok(None) => handle_store_error(
-                    StoreError::Malformed(format!("term {} vanished after define", result.id)),
-                    Some(&result.id),
-                ),
-                Err(err) => handle_store_error(err, Some(&result.id)),
-            };
-            emit_term_view(&term, &result, &project.store, warnings);
+            if no_persist_mode() {
+                let fake_result = dont::store::AppendResult {
+                    id: format!("term:{curie}"),
+                    event_id: String::new(),
+                    tx: 0,
+                    created_at: dont::store::now_rfc3339_pub(),
+                };
+                let fake_term = dont::store::TermRecord {
+                    id: fake_result.id.clone(),
+                    curie: curie.clone(),
+                    label: label.clone(),
+                    definition: doc.clone(),
+                    status: dont::model::Status::Unverified,
+                    created_at: fake_result.created_at.clone(),
+                    events: vec![],
+                };
+                emit_term_view(&fake_term, &fake_result, &project.store, warnings);
+            } else {
+                let result = match project.store.append_term(&curie, &doc, label.as_deref()) {
+                    Ok(result) => result,
+                    Err(err) => handle_store_error(err, None),
+                };
+                let term = match project.store.term_by_id(&result.id) {
+                    Ok(Some(term)) => term,
+                    Ok(None) => handle_store_error(
+                        StoreError::Malformed(format!("term {} vanished after define", result.id)),
+                        Some(&result.id),
+                    ),
+                    Err(err) => handle_store_error(err, Some(&result.id)),
+                };
+                emit_term_view(&term, &result, &project.store, warnings);
+            }
         }
 
         Command::Trust { id, reason } => {
@@ -4797,7 +4848,8 @@ fn main() {
         } => {
             validate_scope_flags(&session, &since, &until);
             let project = open_project_or_exit();
-            let since_ref = since.as_deref();
+            let midnight = today_midnight_utc();
+            let since_ref = since.as_deref().or(Some(midnight.as_str()));
             let until_ref = until.as_deref();
             let events = match project.store.all_events_in_scope(since_ref, until_ref) {
                 Ok(e) => e,
@@ -4885,7 +4937,8 @@ fn main() {
             }
             validate_scope_flags(&session, &since, &until);
             let project = open_project_or_exit();
-            let since_ref = since.as_deref();
+            let midnight = today_midnight_utc();
+            let since_ref = since.as_deref().or(Some(midnight.as_str()));
             let until_ref = until.as_deref();
             let exported_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
             let scope = build_scope_value(since_ref, until_ref, &exported_at);

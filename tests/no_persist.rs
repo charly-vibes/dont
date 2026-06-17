@@ -221,3 +221,97 @@ fn no_persist_flag_is_accepted_on_all_subcommands_without_error() {
         );
     }
 }
+
+#[test]
+fn dont_no_persist_env_var_makes_writes_ephemeral() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args(["conclude", "env var driven ephemeral claim", "--json"])
+        .env("DONT_DIR", dir.path())
+        .env("DONT_NO_PERSIST", "1")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(
+        v["ok"], true,
+        "DONT_NO_PERSIST=1 conclude should return ok=true"
+    );
+    // No claim should be written
+    let claims = list_claims(&dir);
+    assert!(
+        claims.is_empty(),
+        "DONT_NO_PERSIST=1 must not write to store; found {} claims",
+        claims.len()
+    );
+}
+
+#[test]
+fn dont_no_persist_env_var_0_is_treated_as_unset() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args(["conclude", "a persisted claim", "--json"])
+        .env("DONT_DIR", dir.path())
+        .env("DONT_NO_PERSIST", "0")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    // Claim SHOULD be written when DONT_NO_PERSIST=0
+    let claims = list_claims(&dir);
+    assert_eq!(
+        claims.len(),
+        1,
+        "DONT_NO_PERSIST=0 must not suppress writes"
+    );
+}
+
+#[test]
+fn no_persist_response_has_ephemeral_true() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args([
+            "conclude",
+            "ephemeral claim for envelope check",
+            "--no-persist",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(
+        v["ephemeral"], true,
+        "envelope.ephemeral must be true when --no-persist is used"
+    );
+}
+
+#[test]
+fn normal_response_has_no_ephemeral_field() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let out = dont()
+        .args(["conclude", "a normal persisted claim", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert!(
+        v.get("ephemeral").is_none() || v["ephemeral"].is_null(),
+        "envelope.ephemeral must be absent on normal (non-ephemeral) responses"
+    );
+}

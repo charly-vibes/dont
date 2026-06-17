@@ -119,6 +119,8 @@ pub struct Envelope<T: Serialize> {
     pub warnings: Vec<Warning>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hints: Option<Vec<HintEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ephemeral: Option<bool>,
     pub meta: Meta,
 }
 
@@ -143,6 +145,7 @@ impl<T: Serialize> Envelope<T> {
             data,
             warnings,
             hints: Some(hints),
+            ephemeral: None,
             meta: Meta {
                 duration_ms: 0,
                 tx: None,
@@ -175,6 +178,7 @@ impl Envelope<ErrorResult> {
             data: err,
             warnings,
             hints: None,
+            ephemeral: None,
             meta: Meta {
                 duration_ms: 0,
                 tx: None,
