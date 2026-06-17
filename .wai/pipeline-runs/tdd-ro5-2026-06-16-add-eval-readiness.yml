@@ -1,0 +1,6 @@
+run_id: tdd-ro5-2026-06-16-add-eval-readiness
+pipeline: tdd-ro5
+topic: add-eval-readiness
+created_at: '2026-06-16T21:48:46.800202446+00:00'
+current_step: 7
+approvals: {}
