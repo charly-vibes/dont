@@ -4431,8 +4431,15 @@ fn main() {
             if fix && let Err(err) = project.refresh_managed_docs() {
                 emit_project_error_and_exit(&err);
             }
+            if fix && let Err(err) = project.refresh_managed_skill_packs() {
+                emit_project_error_and_exit(&err);
+            }
 
             let (managed_clean, managed_details) = match project.managed_docs_status() {
+                Ok(status) => status,
+                Err(err) => emit_project_error_and_exit(&err),
+            };
+            let (skills_clean, skills_details) = match project.managed_skill_packs_status() {
                 Ok(status) => status,
                 Err(err) => emit_project_error_and_exit(&err),
             };
@@ -4442,6 +4449,21 @@ fn main() {
                 "managed docs are current".to_string()
             } else {
                 managed_details.join("; ")
+            };
+            let skills_status = if skills_clean {
+                "pass"
+            } else {
+                let first = skills_details.first().map(String::as_str).unwrap_or("");
+                if first.contains("missing") {
+                    "missing"
+                } else {
+                    "stale"
+                }
+            };
+            let skills_detail = if skills_clean {
+                "managed skill packs are current".to_string()
+            } else {
+                skills_details.join("; ")
             };
             let seed_snapshot_exists = project.seed_snapshot_path().is_file();
             let seed_snapshot_status = if seed_snapshot_exists { "pass" } else { "warn" };
@@ -4467,6 +4489,7 @@ fn main() {
                 json!({"name": "pending_spawns", "status": "pass", "detail": if project.root_doc_paths().is_empty() { "no pending spawn audit implemented; direct DONT_DIR override skips separate root managed docs" } else { "no pending spawn audit implemented" }}),
                 json!({"name": "remediation_invariant", "status": "pass", "detail": "error remediation invariant available"}),
                 json!({"name": "managed_docs", "status": managed_status, "detail": managed_detail}),
+                json!({"name": "managed_skills", "status": skills_status, "detail": skills_detail}),
                 json!({"name": "linkml_available", "status": linkml_available_status, "detail": linkml_available_detail}),
             ];
             let pass = checks.iter().filter(|c| c["status"] == "pass").count();

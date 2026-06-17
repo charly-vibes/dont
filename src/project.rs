@@ -10,6 +10,7 @@ use crate::managed_block::{
     file_matches, render_root_block, replace_or_prepend_root_block, root_block_matches,
     write_canonical,
 };
+use crate::skill_pack;
 
 use chrono::{SecondsFormat, Utc};
 use serde_json::json;
@@ -387,6 +388,62 @@ impl Project {
         Ok((clean, details))
     }
 
+    fn skills_dir(&self) -> PathBuf {
+        self.project_root().join(".agents").join("skills")
+    }
+
+    fn configured_skill_packs(&self) -> Vec<String> {
+        self.load_config().harness.managed_skill_packs
+    }
+
+    pub fn refresh_managed_skill_packs(&self) -> Result<(), ProjectError> {
+        let skills_root = self.skills_dir();
+        for pack_name in self.configured_skill_packs() {
+            let files = skill_pack::generate_pack(&pack_name).map_err(|msg| {
+                ProjectError::ConfigInvalid(format!("managed_skill_packs: {msg}"))
+            })?;
+            let pack_dir = skills_root.join(&pack_name);
+            fs::create_dir_all(&pack_dir).map_err(|e| io_error("create", &pack_dir, e))?;
+            for (rel, content) in &files {
+                let dest = pack_dir.join(rel);
+                if let Some(parent) = dest.parent() {
+                    fs::create_dir_all(parent).map_err(|e| io_error("create", parent, e))?;
+                }
+                write_canonical(&dest, content).map_err(|e| io_error("write", &dest, e))?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn managed_skill_packs_status(&self) -> Result<(bool, Vec<String>), ProjectError> {
+        let skills_root = self.skills_dir();
+        let mut clean = true;
+        let mut details = Vec::new();
+        for pack_name in self.configured_skill_packs() {
+            let pack_dir = skills_root.join(&pack_name);
+            let generated = skill_pack::generate_pack(&pack_name).map_err(|msg| {
+                ProjectError::ConfigInvalid(format!("managed_skill_packs: {msg}"))
+            })?;
+            let expected_hash = skill_pack::pack_content_hash(&generated);
+            if !pack_dir.exists() || pack_dir.read_dir().map_or(true, |mut d| d.next().is_none()) {
+                clean = false;
+                details.push(format!(
+                    "managed pack {pack_name} is missing; run dont doctor --fix"
+                ));
+            } else {
+                let disk_hash = skill_pack::disk_content_hash(&pack_dir)
+                    .map_err(|e| io_error("read", &pack_dir, e))?;
+                if disk_hash != expected_hash {
+                    clean = false;
+                    details.push(format!(
+                        "managed pack {pack_name} is stale; run dont doctor --fix"
+                    ));
+                }
+            }
+        }
+        Ok((clean, details))
+    }
+
     /// Detect if the config.toml mode differs from the last recorded mode in events.jsonl
     /// and append a `mode.changed` event if so.
     pub fn check_and_record_mode_change(&self) {
@@ -483,6 +540,7 @@ impl Project {
         let store = Store::open_dont_dir(&dont_dir)?;
         let project = Self { dont_dir, store };
         project.refresh_managed_docs()?;
+        project.refresh_managed_skill_packs()?;
         Ok(project)
     }
 }

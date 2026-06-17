@@ -91,6 +91,14 @@ pub mod rules;
 /// `espectacular`) read these files to detect spec drift.
 pub mod events;
 
+/// First-party managed skill pack templates and content hashing.
+///
+/// [`generate_pack`](skill_pack::generate_pack) renders all files for a named
+/// pack. [`pack_content_hash`](skill_pack::pack_content_hash) and
+/// [`disk_content_hash`](skill_pack::disk_content_hash) compute the SHA-256
+/// fingerprint used for staleness detection by `dont doctor`.
+pub mod skill_pack;
+
 /// CozoDB-backed persistence layer.
 ///
 /// [`Store`](store::Store) is the single entry point for all database

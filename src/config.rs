@@ -64,6 +64,8 @@ pub struct StorageConfig {
 pub struct HarnessConfig {
     #[serde(default = "default_managed_docs")]
     pub managed_docs: Vec<String>,
+    #[serde(default)]
+    pub managed_skill_packs: Vec<String>,
     pub spawn_timeout_hours: Option<u64>,
 }
 
