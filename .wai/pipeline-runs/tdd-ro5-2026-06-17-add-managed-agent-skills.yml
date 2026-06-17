@@ -1,0 +1,6 @@
+run_id: tdd-ro5-2026-06-17-add-managed-agent-skills
+pipeline: tdd-ro5
+topic: add-managed-agent-skills
+created_at: '2026-06-17T18:24:42.576845904+00:00'
+current_step: 7
+approvals: {}

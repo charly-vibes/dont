@@ -32,6 +32,18 @@ phase: implement
 
 ## Context
 
+### git_status
+
+```
+ M .wai/.pipeline-run
+ M .wai/resources/pipelines/.last-run
+?? .wai/pipeline-runs/tdd-ro5-2026-06-17-add-managed-agent-skills.yml
+?? .wai/projects/dont/plans/2026-06-17-feature-add-managed-agent-skills-what-is.md
+?? .wai/projects/dont/plans/2026-06-17-red-phase-complete-12-failing-tests-in-tests-mana.md
+?? .wai/projects/dont/plans/2026-06-17-ro5-review-add-managed-agent-skills-needs-minor.md
+?? .wai/projects/dont/reviews/2026-06-17-ro5-review-complete-needs-minor-fixes-high-1.md
+```
+
 ### open_issues
 
 ```
