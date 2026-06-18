@@ -5,15 +5,21 @@ This documentation site is an overview, not the project’s only source of truth
 ## What each source is for
 
 - **This mdBook (`docs/`)** gives a reader-friendly explanation of the project’s purpose and research basis.
-- **The [OpenSpec change specs](https://github.com/charly-vibes/dont/tree/main/openspec/changes)** are the main detailed design documents for the proposed tool as it is currently decomposed.
+- **The [OpenSpec change specs](https://github.com/charly-vibes/dont/tree/main/openspec/changes)** are the detailed design documents for the tool's capabilities, decomposed by feature area.
 - **Tracked [research notes](https://github.com/charly-vibes/dont/tree/main/.wai/projects/dont/research/)** capture the reasoning and source synthesis behind the project’s design, including the archived monolithic draft.
-- **[OpenSpec](https://github.com/charly-vibes/dont/tree/main/openspec/)** is the structured specification workspace where the monolithic draft is being decomposed into capability-focused specifications.
+- **[OpenSpec](https://github.com/charly-vibes/dont/tree/main/openspec/)** is the structured specification workspace with top-level specs and capability-focused change proposals.
 
 ## Current project status
 
-`dont` is still a specification-first project. The repository contains design drafts, capability splits, and research artifacts, not a released implementation.
+`dont` has a working Rust implementation with an active CLI surface. The repository contains:
 
-That means this book should be read as:
+- a functional implementation (`src/`)
+- OpenSpec change specs for planned capabilities (`openspec/changes/*/specs/`)
+- top-level formal specs (`openspec/specs/`)
+- tracked research artifacts explaining the design rationale (`.wai/projects/dont/research/`)
+- this mdBook documentation (`docs/`)
+
+This book should be read as:
 
 - an introduction to the project
 - a guide to why the tool is designed this way

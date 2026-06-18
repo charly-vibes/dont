@@ -12,6 +12,7 @@
 # Tool caches
 .cache/
 docs/_book/
+docs/specs/
 target/
 .dont/*
 !.dont/AGENTS.md

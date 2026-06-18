@@ -1,6 +1,8 @@
 # Repository-grounding workflow
 
-Use `dont` as a sidecar when you want repository facts to survive beyond chat memory.
+`dont` can act as a sidecar for any investigation session: claims you record are persisted to the store and survive context resets. Use it when you want repository facts to outlast a single chat session.
+
+This page covers the three most common patterns: fast single-shot grounding, attaching evidence with repository-relative locators, and diagnosing blockers with `dont trace`.
 
 ## Fast path: ground a documented fact
 

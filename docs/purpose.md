@@ -2,6 +2,8 @@
 
 ## The problem
 
+**Takeaway:** Fluency is not epistemic discipline — and that distinction has real consequences in autonomous workflows.
+
 Large language models are good at producing fluent answers, but fluency is not the same thing as epistemic discipline.
 
 Once a model has started down a line of reasoning, it often tends to elaborate on that line instead of questioning it. In practice, this means an autonomous agent can:
@@ -46,6 +48,8 @@ Instead of letting every plausible sentence become accepted project state, `dont
 The point is not to make the model sound cautious. The point is to make the workflow itself require justification.
 
 ## Why a tool instead of a prompt
+
+**Takeaway:** A tool enforces process outside the model's own judgment; a prompt merely asks the same model to judge itself.
 
 Prompting alone is weak because the same model that produced the claim is often asked to judge its own claim in the same context.
 
@@ -109,14 +113,9 @@ It is a guardrail and protocol layer.
 
 An agent concludes: "The API rate limit is 500 requests per minute."
 
-`dont` should not let that sentence quietly become accepted project state just because it sounds plausible.
+Without `dont`, that sentence can quietly become accepted project state just because it sounds plausible.
 
-Instead, the tool can force a better path:
-
-1. the agent uses `conclude` and the claim is recorded as unverified
-2. the agent is refused when it tries to promote or rely on that claim without support
-3. the refusal tells the agent to gather evidence, use `flag` with evidence, or request independent verification
-4. only after that grounding step can the claim earn a more trusted state
+With `dont`, the claim is recorded as `unverified` via `dont conclude`. Any attempt to promote or rely on it without evidence produces a structured refusal — one that tells the agent exactly what to do next: gather evidence, use `dont flag`, or request independent verification. Only after that grounding step can the claim earn a more trusted status.
 
 That is the point of `dont`: not better-sounding caution, but enforced epistemic process.
 

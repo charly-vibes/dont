@@ -1,5 +1,21 @@
 # Getting Started with `dont`
 
+## Prerequisites
+
+Build `dont` from source and install it to your PATH:
+
+```bash
+git clone https://github.com/charly-vibes/dont.git
+cd dont
+cargo install --path .
+```
+
+Verify:
+
+```bash
+dont --version
+```
+
 ## When to reach for `dont`
 
 The trigger is a thought that starts with *"I think..."*, *"I believe..."*, or *"I'm assuming..."* — combined with the fact that you haven't verified it yet, and that being wrong would cost you time.

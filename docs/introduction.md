@@ -1,12 +1,10 @@
 # Introduction
 
-This book explains what `dont` is, why it exists, and where the authoritative project sources live.
+`dont` is a command-line tool for autonomous LLM harnesses. Its job is narrow and opinionated: stop an agent from turning ungrounded text into asserted project truth.
 
-`dont` is a proposed command-line tool for autonomous LLM harnesses.
+This book explains why the problem exists, how `dont` solves it, and where to find detailed specs and research.
 
-Its job is narrow and opinionated: stop an agent from turning ungrounded text into asserted project truth.
-
-In the surrounding tool ecology (these auxiliary tracking tools are used in this repo, but aren't prerequisites for understanding `dont`):
+In this repo's workflow (not required to understand or use `dont`):
 
 - `wai` helps track workflow and design intent
 - `bd` tracks concrete work

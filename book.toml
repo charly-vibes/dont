@@ -3,7 +3,7 @@ authors = ["charly vibes"]
 language = "en"
 src = "docs"
 title = "dont"
-description = "Purpose and design notes for dont, a proposed CLI that forces autonomous LLM agents to ground claims before asserting them."
+description = "Purpose, design, and usage guide for dont, a CLI that forces autonomous LLM agents to ground claims before asserting them."
 
 [build]
 build-dir = "docs/_book"

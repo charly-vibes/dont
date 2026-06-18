@@ -47,7 +47,7 @@ just build        # cargo build
 just test         # cargo test
 just lint         # rustfmt check + clippy + prek + typos + vale
 just ci           # full check suite (run before every commit)
-just docs-build   # build the mdBook site locally
+just docs         # build the mdBook site locally (alias for docs-build)
 just status       # wai status
 just doctor       # wai doctor
 just ready        # bd ready — unblocked issues

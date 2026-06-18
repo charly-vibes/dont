@@ -21,6 +21,12 @@ live outside the binary. Because they're external, they can be bypassed.
 An agent or user can always choose not to call `dont`, but they cannot call it
 while bypassing its rules.
 
+**The fundamental limit:** this infrastructure makes it harder to accidentally
+skip the check — it does not make skipping impossible. An agent that never
+calls `dont` is invisible to these gates. The discipline works only when
+agents register claims as they make them (see the
+[grounding workflow](./grounding-workflow.md)).
+
 ## In-binary gates
 
 ### 1. State machine (`src/model.rs`)
@@ -121,10 +127,3 @@ exits 0 (output is still produced but not treated as an error by Claude Code).
 
 `just ci` calls `just check-claims`, which calls `dont prime`. A doubted claim
 fails the pipeline. See `.github/workflows/ci.yml`.
-
-## The fundamental limit
-
-This infrastructure makes it harder to accidentally skip the check — it does
-not make skipping impossible. An agent that never calls `dont` is invisible to
-these gates. The discipline works only when agents register claims as they make
-them (see the [grounding workflow](./grounding-workflow.md)).

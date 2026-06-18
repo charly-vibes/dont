@@ -4,7 +4,7 @@
 - External signals such as evidence, tests, and independent critics are stronger.
 - `dont` translates those conclusions into an explicit claim-handling protocol.
 
-This page explains which research conclusions most directly shaped the proposed design.
+This page explains which research conclusions most directly shaped the design.
 
 The documentation site is grounded in two main source categories in this repository:
 

@@ -49,6 +49,11 @@ lint:
 docs-build:
   mdbook build
 
+docs: docs-build
+
+coverage:
+  cargo tarpaulin
+
 check-claims:
   cargo build --quiet
   ./target/debug/dont prime
