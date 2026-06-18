@@ -489,6 +489,7 @@ impl Project {
             });
             let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
             if let Err(e) = fs::OpenOptions::new()
+                .create(true)
                 .append(true)
                 .open(&events_path)
                 .and_then(|mut f| {
@@ -511,6 +512,7 @@ impl Project {
             });
             let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
             if let Err(e) = fs::OpenOptions::new()
+                .create(true)
                 .append(true)
                 .open(&events_path)
                 .and_then(|mut f| {

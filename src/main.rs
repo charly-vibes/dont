@@ -181,20 +181,25 @@ enum Command {
         confidence: Option<f64>,
     },
 
-    /// Introduce an unverified coined term.
+    /// Introduce an unverified coined term. --doc is required. --label must be a singular
+    /// indefinite noun phrase starting with 'a' or 'an', e.g. "a velocity".
     #[command(after_help = "Examples:
   dont define WB:P001 --label \"a velocity\" --doc \"Rate of change of position\"
-  dont define --label \"a widget\" --doc \"A reusable UI component\"")]
+  dont define --label \"a widget\" --doc \"A reusable UI component\"
+
+Notes:
+  --doc is required: provide a non-empty prose definition.
+  --label must start with 'a' or 'an' followed by a noun phrase, e.g. \"a commit\".")]
     Define {
         /// Term CURIE, e.g. WB:P001.
         #[arg(value_name = "curie")]
         curie: Option<String>,
 
-        /// Prose definition for the term.
+        /// Prose definition for the term (required).
         #[arg(long)]
         doc: Option<String>,
 
-        /// SK11 type-text: singular indefinite noun phrase for the term box in an olog.
+        /// Singular indefinite noun phrase starting with 'a' or 'an', e.g. "a velocity".
         #[arg(long)]
         label: Option<String>,
     },
@@ -1352,6 +1357,9 @@ fn format_human(v: &Value) -> String {
         "prime" => format_prime(data),
         "events" => format_trace(data),
         "evidence_check" => format_evidence_check(data),
+        "why" => format_why(data),
+        "all" => format_all(data),
+        "stats" => format_stats(data),
         _ => format!("ok  {kind}"),
     }
 }
@@ -1572,11 +1580,92 @@ fn format_evidence_check(data: &Value) -> String {
         for r in results {
             let uri = r["uri"].as_str().unwrap_or("?");
             let outcome = r["outcome"].as_str().unwrap_or("?");
-            let check = if outcome == "ok" { "ok" } else { "fail" };
+            let check = match outcome {
+                "ok" => "ok",
+                "unchecked" => "skip",
+                _ => "fail",
+            };
             out.push_str(&format!("\n  [{check}] {uri}"));
             if let Some(detail) = r["detail"].as_str() {
                 out.push_str(&format!(" ({detail})"));
             }
+        }
+    }
+    out
+}
+
+fn format_why(data: &Value) -> String {
+    let entity = &data["entity"];
+    let entity_kind = entity["entity_kind"].as_str().unwrap_or("claim");
+    let mut out = if entity_kind == "term" {
+        format_term_detail(entity)
+    } else {
+        format_claim_detail(entity)
+    };
+    if let Some(history) = data["history"].as_array().filter(|h| !h.is_empty()) {
+        out.push_str("\n  history:");
+        for ev in history {
+            let at = ev["at"].as_str().unwrap_or("?");
+            let kind = ev["event_kind"].as_str().unwrap_or("?");
+            let reason = ev["reason"].as_str();
+            let author = ev["author"].as_str();
+            let mut line = format!("\n    {at}  {kind}");
+            if let Some(a) = author {
+                line.push_str(&format!("  (by {a})"));
+            }
+            if let Some(r) = reason {
+                line.push_str(&format!("  — {r}"));
+            }
+            out.push_str(&line);
+        }
+    }
+    if let Some(remediation) = data["remediation"].as_array().filter(|r| !r.is_empty()) {
+        out.push_str("\n  remediation:");
+        for item in remediation {
+            if let Some(cmd) = item["command"].as_str() {
+                out.push_str(&format!("\n    run: {cmd}"));
+            }
+            if let Some(desc) = item["description"].as_str() {
+                out.push_str(&format!("\n    {desc}"));
+            }
+        }
+    }
+    out
+}
+
+fn format_all(data: &Value) -> String {
+    let claims_data = json!({"claims": data["claims"].clone()});
+    let terms_data = data["terms"].clone();
+    let claims_out = format_claims_list(&claims_data);
+    let terms_out = format_terms_list(&terms_data);
+    let has_claims = data["claims"].as_array().is_some_and(|a| !a.is_empty());
+    let has_terms = data["terms"].as_array().is_some_and(|a| !a.is_empty());
+    match (has_claims, has_terms) {
+        (false, false) => "(no claims or terms)\nTry: dont conclude \"<claim text>\"".to_string(),
+        (true, false) => claims_out,
+        (false, true) => terms_out,
+        (true, true) => format!("{claims_out}\n{terms_out}"),
+    }
+}
+
+fn format_stats(data: &Value) -> String {
+    let scope = &data["scope"];
+    let since = scope["since"].as_str().unwrap_or("?");
+    let until = scope["until"].as_str().unwrap_or("?");
+    let rate = data["claim_verification_rate"]
+        .as_f64()
+        .map(|r| format!("{:.0}%", r * 100.0))
+        .unwrap_or_else(|| "n/a".to_string());
+    let contradictions = data["caught_contradiction_count"].as_u64().unwrap_or(0);
+    let mut out = format!(
+        "stats  {since} → {until}\n  verification rate: {rate}  contradictions caught: {contradictions}"
+    );
+    if let Some(verbs) = data["verb_counts"].as_object().filter(|m| !m.is_empty()) {
+        out.push_str("\n  commands:");
+        let mut pairs: Vec<_> = verbs.iter().collect();
+        pairs.sort_by_key(|(k, _)| k.as_str());
+        for (verb, count) in pairs {
+            out.push_str(&format!("\n    {verb}: {count}"));
         }
     }
     out
@@ -1669,6 +1758,7 @@ fn parse_claim_status_filter(status: &str) -> Option<Status> {
         "verified" => Some(Status::Verified),
         "doubted" => Some(Status::Doubted),
         "ignored" => Some(Status::Ignored),
+        "locked" => Some(Status::Locked),
         _ => None,
     }
 }
@@ -4576,13 +4666,14 @@ fn main() {
                         refusal(
                             "invalid-status",
                             &format!(
-                                "unsupported claim status '{raw}'; expected one of: unverified, verified, doubted, ignored"
+                                "unsupported claim status '{raw}'; expected one of: unverified, verified, doubted, ignored, locked"
                             ),
                             None,
                             vec![RemediationEntry {
                                 command: "dont list --status unverified".to_string(),
-                                description: "Use one of: unverified, verified, doubted, ignored"
-                                    .to_string(),
+                                description:
+                                    "Use one of: unverified, verified, doubted, ignored, locked"
+                                        .to_string(),
                             }],
                         ),
                         vec![],
@@ -4774,8 +4865,9 @@ fn main() {
                             None,
                             vec![RemediationEntry {
                                 command: "dont vocab --status unverified".to_string(),
-                                description: "Use one of: unverified, verified, doubted, ignored"
-                                    .to_string(),
+                                description:
+                                    "Use one of: unverified, verified, doubted, ignored, locked"
+                                        .to_string(),
                             }],
                         ),
                         vec![],
