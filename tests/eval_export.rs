@@ -254,7 +254,7 @@ fn eval_export_scope_session_not_present_when_no_session_flag() {
     let v = eval_export(&dir);
     let scope = &v["data"]["scope"];
     assert!(
-        scope.get("session_id").map_or(true, |v| v.is_null()),
+        scope.get("session_id").is_none_or(|v| v.is_null()),
         "session_id must be absent or null when no --session flag given"
     );
 }

@@ -19,6 +19,7 @@ use Status::*;
 /// Source order: [Unverified, Verified, Doubted, Ignored, Locked]
 /// Each row has 5 entries. Valid transitions use Ok(target); refused
 /// transitions use the actual Err from calling the function.
+#[allow(clippy::type_complexity)]
 fn data() -> Vec<(&'static str, fn(Status) -> R, Vec<R>)> {
     vec![
         (
@@ -164,6 +165,7 @@ fn matrix_has_exactly_10_valid_entries() {
 /// reopen is excluded because it is the explicit escape hatch for Ignored.
 #[test]
 fn locked_and_ignored_reject_all_normal_transitions() {
+    #[allow(clippy::type_complexity)]
     let normal_cmds: Vec<(&str, fn(Status) -> R)> = data()
         .into_iter()
         .filter(|(name, _, _)| *name != "reopen")
