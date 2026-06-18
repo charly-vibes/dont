@@ -1695,12 +1695,26 @@ impl Store {
     }
 
     fn run(&self, script: &str) -> Result<(), StoreError> {
-        let result = self.db.run_script_str(script, "", false);
-        let value: Value = serde_json::from_str(&result).map_err(StoreError::from_err)?;
-        if value.get("ok").and_then(Value::as_bool) == Some(false) {
-            return Err(StoreError::Cozo(value.to_string()));
+        // CozoDB's SQLite backend sets no busy_timeout. Rayon worker threads
+        // inside concurrent DbInstance objects can hold read locks that block
+        // writes, returning SQLITE_BUSY (code 5). Retry with exponential backoff
+        // so callers don't see transient lock contention as hard errors.
+        const MAX_ATTEMPTS: u32 = 5;
+        let mut attempt = 0u32;
+        loop {
+            let result = self.db.run_script_str(script, "", false);
+            let value: Value = serde_json::from_str(&result).map_err(StoreError::from_err)?;
+            if value.get("ok").and_then(Value::as_bool) != Some(false) {
+                return Ok(());
+            }
+            let json_str = value.to_string();
+            if attempt < MAX_ATTEMPTS && json_str.contains("database is locked") {
+                std::thread::sleep(std::time::Duration::from_millis(10 << attempt));
+                attempt += 1;
+            } else {
+                return Err(StoreError::Cozo(json_str));
+            }
         }
-        Ok(())
     }
 
     fn query_rows(&self, script: &str) -> Result<Vec<Vec<Value>>, StoreError> {

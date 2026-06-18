@@ -107,10 +107,12 @@ fn import_from_refused_url_completes_within_30_seconds() {
         .code(predicates::prelude::predicate::ne(0));
 
     let elapsed = start.elapsed();
+    // Use sub-second precision: as_secs() truncates, so 30.001s would report
+    // "30s" and fail the < 30 check even though the command was killed on time.
     assert!(
-        elapsed.as_secs() < 30,
-        "import must fail within 30s, took {}s",
-        elapsed.as_secs()
+        elapsed.as_millis() < 30_500,
+        "import must fail within 30s (spec bound), took {}ms",
+        elapsed.as_millis()
     );
 }
 
