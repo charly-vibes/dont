@@ -293,46 +293,54 @@ impl Store {
         let path = dont_dir.join("db.cozo");
         let lock_path = dont_dir.join("db.cozo.lock");
         let seq_path = dont_dir.join("tx.seq");
-        // CozoDB's SQLite backend calls `.unwrap()` internally when it cannot
-        // prepare its initial statement, which panics on a corrupt db file.
-        // Catch the panic and convert it to a structured CorruptStore error so
-        // callers get an actionable message that names the file.
-        let db_path_clone = path.clone();
-        let db_open_result =
-            std::panic::catch_unwind(|| DbInstance::new("sqlite", &db_path_clone, ""));
-        let db = match db_open_result {
-            Ok(Ok(instance)) => instance,
-            Ok(Err(err)) => {
-                return Err(StoreError::CorruptStore {
-                    path,
-                    detail: err.to_string(),
-                });
+
+        // Hold the file lock across both DbInstance::new and ensure_schema.
+        // DbInstance::new performs SQLite DDL (CREATE TABLE IF NOT EXISTS) which
+        // is a write operation. Without the lock, concurrent processes can hit
+        // SQLITE_BUSY (code 5) because CozoDB's SQLite backend sets no busy
+        // timeout. The single file lock serialises the entire open+init sequence.
+        Self::with_file_lock(&lock_path, || {
+            // CozoDB's SQLite backend calls `.unwrap()` internally when it cannot
+            // prepare its initial statement, which panics on a corrupt db file.
+            // Catch the panic and convert it to a structured CorruptStore error so
+            // callers get an actionable message that names the file.
+            let db_path_clone = path.clone();
+            let db_open_result =
+                std::panic::catch_unwind(|| DbInstance::new("sqlite", &db_path_clone, ""));
+            let db = match db_open_result {
+                Ok(Ok(instance)) => instance,
+                Ok(Err(err)) => {
+                    return Err(StoreError::CorruptStore {
+                        path: path.clone(),
+                        detail: err.to_string(),
+                    });
+                }
+                Err(_panic_payload) => {
+                    return Err(StoreError::CorruptStore {
+                        path: path.clone(),
+                        detail: "storage engine panicked while opening the database (file may be corrupt or truncated)".to_string(),
+                    });
+                }
+            };
+            // The SQLite backend creates db.cozo using the OS default (subject to umask).
+            // Tighten the permissions to 0o600 so the file is not world-readable.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if path.exists() {
+                    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+                        .map_err(StoreError::Io)?;
+                }
             }
-            Err(_panic_payload) => {
-                return Err(StoreError::CorruptStore {
-                    path,
-                    detail: "storage engine panicked while opening the database (file may be corrupt or truncated)".to_string(),
-                });
-            }
-        };
-        // The SQLite backend creates db.cozo using the OS default (subject to umask).
-        // Tighten the permissions to 0o600 so the file is not world-readable.
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if path.exists() {
-                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
-                    .map_err(StoreError::Io)?;
-            }
-        }
-        let store = Self {
-            db,
-            path,
-            lock_path,
-            seq_path,
-        };
-        store.with_write_lock(|store| store.ensure_schema())?;
-        Ok(store)
+            let store = Self {
+                db,
+                path: path.clone(),
+                lock_path: lock_path.clone(),
+                seq_path: seq_path.clone(),
+            };
+            store.ensure_schema()?;
+            Ok(store)
+        })
     }
 
     pub fn path(&self) -> &Path {
@@ -1638,9 +1646,21 @@ impl Store {
         &self,
         f: impl FnOnce(&Self) -> Result<T, StoreError>,
     ) -> Result<T, StoreError> {
-        let lock = self.open_lock_file()?;
+        Self::with_file_lock(&self.lock_path, || f(self))
+    }
+
+    // Acquire an exclusive advisory lock on `lock_path`, run `f`, then release
+    // the lock. Used both for write serialisation (via `with_write_lock`) and
+    // for the store-open sequence, so that `DbInstance::new` (which performs
+    // SQLite DDL) is also protected and cannot cause SQLITE_BUSY (code 5) when
+    // multiple processes initialise concurrently.
+    fn with_file_lock<T>(
+        lock_path: &Path,
+        f: impl FnOnce() -> Result<T, StoreError>,
+    ) -> Result<T, StoreError> {
+        let lock = Self::open_lock_file_at(lock_path)?;
         lock.lock_exclusive().map_err(StoreError::Io)?;
-        let result = f(self);
+        let result = f();
         let unlock_result = lock.unlock().map_err(StoreError::Io);
         match (result, unlock_result) {
             (Ok(value), Ok(())) => Ok(value),
@@ -1649,20 +1669,20 @@ impl Store {
         }
     }
 
-    fn open_lock_file(&self) -> Result<File, StoreError> {
+    fn open_lock_file_at(lock_path: &Path) -> Result<File, StoreError> {
         #[cfg(unix)]
         let f = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(false)
             .mode(0o600)
-            .open(&self.lock_path);
+            .open(lock_path);
         #[cfg(not(unix))]
         let f = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(false)
-            .open(&self.lock_path);
+            .open(lock_path);
         f.map_err(StoreError::Io)
     }
 
