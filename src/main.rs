@@ -204,10 +204,11 @@ Notes:
         label: Option<String>,
     },
 
-    /// Register explicit doubt about a claim or term. Read as 'dont trust' = 'do not trust it'.
-    #[command(after_help = "Examples:
-  dont trust claim:abc123 --reason \"No primary source cited\"
-  dont trust term:WB:P001 --reason \"Definition is ambiguous\"")]
+    /// Register doubt — marks a claim or term as Doubted (do not trust it).
+    #[command(
+        long_about = "Register doubt — marks a claim or term as Doubted (untrustworthy).\n\nNaming: 'dont trust' reads as 'do not trust it' — the 'dont' prefix inverts the verb.\nThis is the counterpart of 'undoubt'. For unambiguous positive phrasing use 'dt challenge'.",
+        after_help = "Examples:\n  dont trust claim:abc123 --reason \"No primary source cited\"\n  dont trust term:WB:P001 --reason \"Definition is ambiguous\""
+    )]
     Trust {
         /// Claim or term identifier (claim:... or term:...).
         #[arg(value_name = "entity-id")]

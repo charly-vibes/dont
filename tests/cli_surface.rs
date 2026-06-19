@@ -185,6 +185,29 @@ fn help_cmd_writes_to_stdout_with_usage_and_flags() {
     );
 }
 
+/// The `dont trust` help text must lead with the *effect* (Doubted) so users
+/// don't misread it as "establish trust". It must also explain the naming inversion.
+#[test]
+fn help_trust_makes_double_negative_semantic_explicit() {
+    let out = dont()
+        .args(["trust", "--help"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        text.contains("Doubted") || text.contains("doubted"),
+        "help trust must mention the Doubted outcome state, got: {text}"
+    );
+    assert!(
+        text.contains("do not trust"),
+        "help trust must spell out the double-negative: 'do not trust', got: {text}"
+    );
+}
+
 #[test]
 fn help_flag_mentions_dismiss_alias_and_term_support() {
     let out = dont()
