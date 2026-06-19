@@ -190,11 +190,11 @@ fn direct_flag_is_accepted_without_error() {
 }
 
 #[test]
-fn lock_without_project_emits_error_envelope() {
-    // lock is now a real alias for forget; without a project it fails with no-project-found
+fn forget_without_project_emits_error_envelope() {
+    // `forget` (dont-canonical lock equivalent) without a project fails with no-project-found
     let dir = TempDir::new().unwrap();
     let out = dont()
-        .args(["--json", "lock", "claim:123"])
+        .args(["--json", "forget", "claim:123"])
         .env("DONT_DIR", dir.path().join("nonexistent"))
         .assert()
         .code(1)
@@ -206,7 +206,7 @@ fn lock_without_project_emits_error_envelope() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["envelope_kind"], "error");
     assert_eq!(v["envelope_version"], "0.2");
-    // Error is about missing project, not deprecation
+    // Error is about missing project, not vocabulary
     assert!(!v["data"]["code"].as_str().unwrap_or("").is_empty());
 }
 

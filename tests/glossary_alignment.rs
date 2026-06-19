@@ -59,18 +59,14 @@ fn dismiss_appears_in_top_level_help() {
         .stdout(predicates::str::contains("dismiss"));
 }
 
-// ── Lifecycle verb: lock ─────────────────────────────────────────────────────
+// ── Lifecycle verb: forget (dont) / lock (dt) ────────────────────────────────
 
-/// The glossary spec (Requirement: Lifecycle verb) names the terminal-promotion
-/// lifecycle verb as `lock`.  The implementation must accept `dont lock` at the
-/// top level and use it to permanently preserve a verified claim.
-///
-/// NOTE: The current implementation exposes this operation as `forget` and
-/// actively rejects `lock`.  This test documents the required spec behaviour
-/// and is expected to fail until `lock` is restored as a supported alias or
-/// primary command.
+/// The glossary spec names the terminal-promotion lifecycle verb as `lock`.
+/// In the `dont` interface this is exposed as `forget` (positive-framing
+/// `dt lock` is the equivalent for the `dt` binary — see dont-kxg).
+/// Verify that `dont forget` permanently preserves a verified claim.
 #[test]
-fn lock_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
+fn forget_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
     use dont::store::{
         HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
     };
@@ -125,7 +121,7 @@ fn lock_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
         .unwrap();
 
     let out = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -134,10 +130,10 @@ fn lock_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
         .clone();
 
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(v["ok"], true, "lock should succeed on a verified claim");
+    assert_eq!(v["ok"], true, "forget should succeed on a verified claim");
     assert_eq!(
         v["data"]["status"], "locked",
-        "lock should transition claim to locked"
+        "forget should transition claim to locked"
     );
 }
 

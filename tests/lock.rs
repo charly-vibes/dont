@@ -332,14 +332,14 @@ fn lock_nonexistent_claim_returns_not_found() {
 }
 
 #[test]
-fn lock_command_rejects_unverified_claim() {
-    // lock is now a real alias for forget; locking an unverified claim must fail
+fn forget_command_rejects_unverified_claim() {
+    // `forget` is the dont-canonical lock verb; locking an unverified claim must fail
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
-    let id = conclude_claim(&dir, "Claim via lock command on unverified state");
+    let id = conclude_claim(&dir, "Claim via forget command on unverified state");
 
     let output = dont()
-        .args(["lock", &id, "--json"])
+        .args(["forget", &id, "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -348,7 +348,7 @@ fn lock_command_rejects_unverified_claim() {
         .clone();
 
     let v: Value = serde_json::from_slice(&output).unwrap();
-    assert_eq!(v["ok"], false, "lock on unverified claim must fail");
+    assert_eq!(v["ok"], false, "forget on unverified claim must fail");
     let code = v["data"]["code"].as_str().unwrap_or("");
     assert!(
         code.contains("verified") || code.contains("lockable") || code.contains("not-"),

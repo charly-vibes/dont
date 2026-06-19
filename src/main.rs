@@ -305,6 +305,31 @@ Notes:
         id: String,
     },
 
+    /// [dt] Introduce an unverified claim. Positive-framing alias for 'dt record' ≡ 'dont conclude'.
+    #[command(hide = true)]
+    Record {
+        /// Claim statement text.
+        #[arg(value_name = "statement")]
+        statement: String,
+        /// CURIE of a term this claim depends on. May be repeated.
+        #[arg(long)]
+        depends_on: Vec<String>,
+        /// LLM-authored confidence score (0.0–1.0).
+        #[arg(long)]
+        confidence: Option<f64>,
+    },
+
+    /// [dt] Register explicit doubt. Positive-framing alias for 'dt challenge' ≡ 'dont trust'.
+    #[command(hide = true)]
+    Challenge {
+        /// Claim or term identifier (claim:... or term:...).
+        #[arg(value_name = "entity-id")]
+        id: String,
+        /// Reason for doubt (required).
+        #[arg(long, short)]
+        reason: Option<String>,
+    },
+
     /// Restore an ignored claim or term to unverified status.
     #[command(after_help = "Examples:
   dont reopen claim:abc123
@@ -1126,6 +1151,36 @@ fn build_scope_value(since: Option<&str>, until: Option<&str>, now: &str) -> ser
 
 fn cwd() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+/// Return `"dt"` when invoked as the `dt` binary, `"dont"` otherwise.
+///
+/// Checked against the basename (without extension) of `argv[0]` so the
+/// binary can be installed as either a symlink or a separate copy.
+fn active_interface() -> &'static str {
+    let argv0 = std::env::args().next().unwrap_or_default();
+    let basename = std::path::Path::new(&argv0)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("dont");
+    if basename == "dt" { "dt" } else { "dont" }
+}
+
+/// Build a cross-vocabulary error for when the wrong interface's command is used.
+///
+/// Error format: "unknown command '<invoked>' for <interface>. Did you mean '<interface> <suggestion>'?"
+fn cross_vocab_refusal(invoked: &str, interface: &str, suggestion: &str) -> ErrorResult {
+    refusal(
+        "unknown-command",
+        &format!(
+            "unknown command '{invoked}' for {interface}. Did you mean '{interface} {suggestion}'?"
+        ),
+        None,
+        vec![RemediationEntry {
+            command: format!("{interface} {suggestion}"),
+            description: format!("Use '{suggestion}' when invoking as '{interface}'"),
+        }],
+    )
 }
 
 fn emit_json<T: serde::Serialize>(envelope: &T) {
@@ -3440,9 +3495,15 @@ fn main() {
         }
     };
 
-    // Normalize canonical-name aliases to implementation equivalents.
-    // `dismiss` is the spec-canonical fourth core verb (deprecated in v0.3 — use `flag`).
-    // `lock`    is the spec-canonical lifecycle verb;  `forget` is the implementation name.
+    // Detect which interface is active (dont vs dt) and enforce vocabulary separation.
+    let iface = active_interface();
+    let is_dt = iface == "dt";
+
+    // Normalize canonical-name aliases to implementation equivalents and enforce
+    // per-interface vocabulary. `dismiss` is the spec-canonical fourth core verb
+    // (deprecated in v0.3 — use `flag`). The dt/dont vocabulary split is enforced here:
+    // dont-exclusive: conclude, trust, forget
+    // dt-exclusive:   record, challenge, lock
     let command = match command {
         Command::Dismiss {
             id,
@@ -3465,7 +3526,60 @@ fn main() {
                 excerpt,
             }
         }
-        Command::Lock { id } => Command::Forget { id },
+        // dt-exclusive: record, challenge, lock
+        Command::Record {
+            statement,
+            depends_on,
+            confidence,
+        } => {
+            if !is_dt {
+                emit_error_and_exit(cross_vocab_refusal("record", "dont", "conclude"), vec![], 2);
+            }
+            Command::Conclude {
+                statement,
+                depends_on,
+                confidence,
+            }
+        }
+        Command::Challenge { id, reason } => {
+            if !is_dt {
+                emit_error_and_exit(cross_vocab_refusal("challenge", "dont", "trust"), vec![], 2);
+            }
+            Command::Trust { id, reason }
+        }
+        Command::Lock { id } => {
+            if !is_dt {
+                emit_error_and_exit(cross_vocab_refusal("lock", "dont", "forget"), vec![], 2);
+            }
+            Command::Forget { id }
+        }
+        // dont-exclusive: conclude, trust, forget (errors when invoked via dt)
+        Command::Conclude {
+            statement,
+            depends_on,
+            confidence,
+        } => {
+            if is_dt {
+                emit_error_and_exit(cross_vocab_refusal("conclude", "dt", "record"), vec![], 2);
+            }
+            Command::Conclude {
+                statement,
+                depends_on,
+                confidence,
+            }
+        }
+        Command::Trust { id, reason } => {
+            if is_dt {
+                emit_error_and_exit(cross_vocab_refusal("trust", "dt", "challenge"), vec![], 2);
+            }
+            Command::Trust { id, reason }
+        }
+        Command::Forget { id } => {
+            if is_dt {
+                emit_error_and_exit(cross_vocab_refusal("forget", "dt", "lock"), vec![], 2);
+            }
+            Command::Forget { id }
+        }
         other => other,
     };
 
@@ -5934,8 +6048,11 @@ fn main() {
         }
         // Dismiss and Lock are normalized to Flag and Forget above; these arms
         // are unreachable but required for exhaustiveness.
-        Command::Dismiss { .. } | Command::Lock { .. } => {
-            unreachable!("Dismiss/Lock aliases are normalized before this match")
+        Command::Dismiss { .. }
+        | Command::Lock { .. }
+        | Command::Record { .. }
+        | Command::Challenge { .. } => {
+            unreachable!("aliases and cross-vocab commands are normalized before this match")
         }
 
         // Help: agent-addressed help, tutorial, and how-to guides (dont-nolt).
