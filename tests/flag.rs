@@ -720,7 +720,7 @@ fn dismiss_deprecation_warning_does_not_appear_on_stdout() {
 /// `dont flag` must reject it at input time with a structured error,
 /// not silently store it for later failure.
 #[test]
-fn flag_malformed_evidence_uri_no_scheme_is_rejected() {
+fn flag_unreadable_evidence_path_is_rejected() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(
@@ -740,23 +740,25 @@ fn flag_malformed_evidence_uri_no_scheme_is_rejected() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(
         v["ok"], false,
-        "malformed evidence URI must be rejected: {v}"
+        "unreadable evidence path must be rejected: {v}"
     );
+    // Non-http/https strings are now treated as repo-relative paths.
+    // The file doesn't exist, so we get unreadable-evidence, not malformed-evidence-uri.
     assert_eq!(
-        v["data"]["code"], "malformed-evidence-uri",
-        "error code must be malformed-evidence-uri, got: {:?}",
+        v["data"]["code"], "unreadable-evidence",
+        "error code must be unreadable-evidence, got: {:?}",
         v["data"]["code"]
     );
     // Error message must mention the offending string so the user can act on it.
     let msg = v["data"]["message"].as_str().unwrap_or("");
     assert!(
         msg.contains("not-a-valid-locator"),
-        "error message must include the offending locator, got: {msg}"
+        "error message must include the offending path, got: {msg}"
     );
     // Must include remediation hints.
     assert!(
         !v["data"]["remediation"].as_array().unwrap().is_empty(),
-        "malformed-evidence-uri must include remediation hints"
+        "unreadable-evidence must include remediation hints"
     );
 }
 
@@ -787,6 +789,63 @@ fn flag_malformed_evidence_uri_does_not_change_claim_status() {
         v["data"]["status"], "unverified",
         "claim status must remain unverified after malformed-evidence rejection: {v}"
     );
+}
+
+/// F23: --evidence with an existing repo-relative file path works like --file.
+#[test]
+fn flag_evidence_accepts_repo_path() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    std::fs::write(dir.path().join("impl.rs"), "fn main() {}").unwrap();
+    let id = conclude_claim(&dir, "evidenced via path");
+
+    let out = dont()
+        .args(["flag", &id, "--evidence", "impl.rs", "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["status"], "verified");
+
+    // Evidence is stored as a structured repo-file locator.
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert_eq!(evidence[0]["kind"], "repo-file");
+    assert_eq!(evidence[0]["path"], "impl.rs");
+}
+
+/// F23: http/https --evidence still works unchanged.
+#[test]
+fn flag_evidence_url_still_works() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "evidenced via URL");
+
+    let out = dont()
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.com/doc",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    // URL evidence is still stored as a plain string.
+    assert!(evidence[0].as_str().is_some());
+    assert_eq!(evidence[0].as_str().unwrap(), "https://example.com/doc");
 }
 
 // --- Multi-file evidence accumulation ---

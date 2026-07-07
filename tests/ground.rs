@@ -186,6 +186,115 @@ fn ground_with_file_locator_returns_verified() {
     assert_eq!(v["data"]["status"], "verified");
 }
 
+/// F23: --evidence now accepts repo-relative file paths, not just URLs.
+#[test]
+fn ground_evidence_accepts_repo_path() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    dont()
+        .args(["init", "--json"])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success();
+
+    std::fs::write(root.join("src.rs"), "fn main() {}").unwrap();
+
+    let out = dont()
+        .args([
+            "ground",
+            "evidenced via path",
+            "--evidence",
+            "src.rs",
+            "--json",
+        ])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["status"], "verified");
+
+    // Evidence should be stored as a structured repo-file locator, not a string.
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert_eq!(evidence.len(), 1);
+    assert_eq!(evidence[0]["kind"], "repo-file");
+    assert_eq!(evidence[0]["path"], "src.rs");
+}
+
+/// F23: --evidence also accepts paths with --lines, same as --file.
+#[test]
+fn ground_evidence_path_with_lines() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    dont()
+        .args(["init", "--json"])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success();
+
+    std::fs::write(root.join("lib.rs"), "// line 1\n// line 2\n// line 3\n").unwrap();
+
+    let out = dont()
+        .args([
+            "ground",
+            "evidenced via path with lines",
+            "--evidence",
+            "lib.rs",
+            "--lines",
+            "1-3",
+            "--json",
+        ])
+        .env("DONT_DIR", root.join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["data"]["status"], "verified");
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert_eq!(evidence[0]["kind"], "repo-file");
+    assert_eq!(evidence[0]["path"], "lib.rs");
+    assert_eq!(evidence[0]["line_start"], 1);
+    assert_eq!(evidence[0]["line_end"], 3);
+}
+
+/// F23: http/https strings are still accepted as plain URI evidence.
+#[test]
+fn ground_evidence_url_still_works() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "evidenced via URL",
+            "--evidence",
+            "https://example.com/doc",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    // URL evidence is still stored as a plain string.
+    assert!(evidence[0].as_str().is_some());
+    assert_eq!(evidence[0].as_str().unwrap(), "https://example.com/doc");
+}
+
 #[test]
 fn ground_refuses_unreadable_file_locator_without_partial_claim() {
     let dir = TempDir::new().unwrap();
@@ -506,7 +615,7 @@ fn ground_accepts_prose_statement_with_slash() {
 /// `dont ground` must reject a bare string with no URI scheme at input time,
 /// not silently store it.
 #[test]
-fn ground_malformed_evidence_uri_no_scheme_is_rejected() {
+fn ground_unreadable_evidence_path_is_rejected() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
@@ -528,17 +637,19 @@ fn ground_malformed_evidence_uri_no_scheme_is_rejected() {
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(
         v["ok"], false,
-        "malformed evidence URI must be rejected: {v}"
+        "unreadable evidence path must be rejected: {v}"
     );
+    // Non-http/https strings are now treated as repo-relative paths.
+    // The file doesn't exist, so we get unreadable-evidence, not malformed-evidence-uri.
     assert_eq!(
-        v["data"]["code"], "malformed-evidence-uri",
-        "error code must be malformed-evidence-uri, got: {:?}",
+        v["data"]["code"], "unreadable-evidence",
+        "error code must be unreadable-evidence, got: {:?}",
         v["data"]["code"]
     );
     let msg = v["data"]["message"].as_str().unwrap_or("");
     assert!(
         msg.contains("not-a-valid-locator"),
-        "error message must include the offending locator, got: {msg}"
+        "error message must include the offending path, got: {msg}"
     );
 }
 

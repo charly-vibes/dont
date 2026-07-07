@@ -2225,13 +2225,32 @@ fn normalize_repo_path(
 /// Accepted schemes are `http://` and `https://`. Any other value — including
 /// bare strings, `file:` URIs, or strings with unsupported schemes — is
 /// rejected with an error that quotes the offending locator.
-fn validate_evidence_uri(uri: &str) -> Result<(), String> {
-    if uri.starts_with("http://") || uri.starts_with("https://") {
-        return Ok(());
+/// Classification of an evidence input string.
+#[derive(Debug, PartialEq, Eq)]
+enum EvidenceInputKind {
+    /// An http:// or https:// URL — store as a plain URI string.
+    Url,
+    /// A repo-relative file path — route through resolve_file_locator.
+    RepoPath,
+}
+
+/// Classify an evidence input as either a URL, a repo-relative path, or reject it.
+///
+/// - `http://` / `https://` → `Url` (stored as-is)
+/// - Any string without a `://` scheme → `RepoPath` (routed to file locator)
+/// - `file:///` or other unsupported schemes → `Err`
+fn classify_evidence_input(input: &str) -> Result<EvidenceInputKind, String> {
+    if input.starts_with("http://") || input.starts_with("https://") {
+        return Ok(EvidenceInputKind::Url);
     }
-    Err(format!(
-        "malformed evidence locator \"{uri}\": must be an http:// or https:// URI"
-    ))
+    // Strings with a :// scheme that isn't http/https are malformed.
+    if input.contains("://") {
+        return Err(format!(
+            "malformed evidence locator \"{input}\": must be an http:// or https:// URI or a repo-relative file path"
+        ));
+    }
+    // Everything else is treated as a repo-relative path.
+    Ok(EvidenceInputKind::RepoPath)
 }
 
 /// Parse a line span string like "10-18" or "42" into (start, end).
@@ -4247,10 +4266,10 @@ fn main() {
                 );
             }
 
-            // Validate all URI strings before opening the project so that a
-            // malformed locator fails fast without side effects.
+            // Classify evidence inputs before opening the project so that
+            // unsupported schemes (e.g. file://) are rejected fast without side effects.
             for uri in &evidence {
-                if let Err(msg) = validate_evidence_uri(uri) {
+                if let Err(msg) = classify_evidence_input(uri) {
                     emit_error_and_exit(
                         refusal(
                             "malformed-evidence-uri",
@@ -4259,7 +4278,7 @@ fn main() {
                             vec![RemediationEntry {
                                 command: format!("dont flag {id} --evidence <http://...>"),
                                 description:
-                                    "Use a valid http:// or https:// URI as the evidence reference"
+                                    "Use a valid http:// or https:// URI or a repo-relative file path"
                                         .to_string(),
                             }],
                         ),
@@ -4276,8 +4295,22 @@ fn main() {
                 .unwrap_or(&project.dont_dir)
                 .to_path_buf();
 
-            // Build the full evidence list, appending structured locator if --file or --url was given.
-            let mut all_evidence: Vec<Value> = evidence.into_iter().map(Value::String).collect();
+            // Build the full evidence list, classifying each input as URL or repo path.
+            let mut all_evidence: Vec<Value> = Vec::new();
+            for ev in evidence {
+                match classify_evidence_input(&ev).expect("validated above") {
+                    EvidenceInputKind::Url => all_evidence.push(Value::String(ev)),
+                    EvidenceInputKind::RepoPath => all_evidence.push(resolve_file_locator(
+                        &ev,
+                        lines.as_deref(),
+                        anchor.as_deref(),
+                        excerpt.as_deref(),
+                        &project_root,
+                        Some(&id),
+                        &format!("dont flag {id}"),
+                    )),
+                }
+            }
             if let Some(ref file_path) = file {
                 all_evidence.push(resolve_file_locator(
                     file_path,
@@ -5419,10 +5452,10 @@ fn main() {
                 );
             }
 
-            // Validate URI strings before opening the project so that a
-            // malformed locator fails without leaving a partial claim behind.
+            // Classify each evidence input before opening the project so that
+            // unsupported schemes (e.g. file://) are rejected early without side effects.
             for uri in &evidence {
-                if let Err(msg) = validate_evidence_uri(uri) {
+                if let Err(msg) = classify_evidence_input(uri) {
                     emit_error_and_exit(
                         refusal(
                             "malformed-evidence-uri",
@@ -5432,7 +5465,7 @@ fn main() {
                                 command: "dont ground \"<statement>\" --evidence <http://...>"
                                     .to_string(),
                                 description:
-                                    "Use a valid http:// or https:// URI as the evidence reference"
+                                    "Use a valid http:// or https:// URI or a repo-relative file path"
                                         .to_string(),
                             }],
                         ),
@@ -5449,7 +5482,21 @@ fn main() {
                 .unwrap_or(&project.dont_dir)
                 .to_path_buf();
 
-            let mut all_evidence: Vec<Value> = evidence.into_iter().map(Value::String).collect();
+            let mut all_evidence: Vec<Value> = Vec::new();
+            for ev in evidence {
+                match classify_evidence_input(&ev).expect("validated above") {
+                    EvidenceInputKind::Url => all_evidence.push(Value::String(ev)),
+                    EvidenceInputKind::RepoPath => all_evidence.push(resolve_file_locator(
+                        &ev,
+                        lines.as_deref(),
+                        anchor.as_deref(),
+                        excerpt.as_deref(),
+                        &project_root,
+                        None,
+                        "dont ground \"<statement>\"",
+                    )),
+                }
+            }
             if let Some(ref file_path) = file {
                 all_evidence.push(resolve_file_locator(
                     file_path,
