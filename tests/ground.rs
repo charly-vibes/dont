@@ -576,3 +576,211 @@ fn ground_malformed_evidence_uri_leaves_no_partial_claim() {
         claims
     );
 }
+
+// --- ground with --url (Option C: URL + commit-pinned locator) ---
+
+#[test]
+fn ground_with_url_returns_verified() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "a claim grounded via URL permalink",
+            "--url",
+            "https://github.com/owner/repo/blob/abc123def/file.rs",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["envelope_kind"], "claim");
+    assert_eq!(v["data"]["status"], "verified");
+
+    // Evidence should contain the structured url-permalink locator
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert_eq!(evidence.len(), 1);
+    assert_eq!(evidence[0]["kind"], "url-permalink");
+    assert_eq!(
+        evidence[0]["url"],
+        "https://github.com/owner/repo/blob/abc123def/file.rs"
+    );
+}
+
+#[test]
+fn ground_with_url_and_lines_stores_line_span() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "claim with line-specific URL permalink",
+            "--url",
+            "https://github.com/owner/repo/blob/abc123def/file.rs",
+            "--lines",
+            "10-18",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert_eq!(evidence[0]["kind"], "url-permalink");
+    assert_eq!(evidence[0]["line_start"], 10);
+    assert_eq!(evidence[0]["line_end"], 18);
+}
+
+#[test]
+fn ground_with_url_and_anchor_stores_anchor() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "claim with anchored URL permalink",
+            "--url",
+            "https://github.com/owner/repo/blob/abc123def/file.rs",
+            "--anchor",
+            "section-3",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert_eq!(evidence[0]["kind"], "url-permalink");
+    assert_eq!(evidence[0]["anchor"], "section-3");
+}
+
+#[test]
+fn ground_with_url_and_excerpt_stores_excerpt() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "claim with excerpted URL permalink",
+            "--url",
+            "https://github.com/owner/repo/blob/abc123def/file.rs",
+            "--excerpt",
+            "fn main() { println!(hello); }",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert_eq!(evidence[0]["kind"], "url-permalink");
+    assert_eq!(evidence[0]["excerpt"], "fn main() { println!(hello); }");
+}
+
+#[test]
+fn ground_without_evidence_file_or_url_is_refused() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args(["ground", "claim with nothing", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "no-evidence");
+    assert!(v["data"]["message"].as_str().unwrap().contains("--url"));
+}
+
+#[test]
+fn ground_with_url_rejects_file_flag_conflict() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    dont()
+        .args([
+            "ground",
+            "cannot use both file and url",
+            "--file",
+            "Cargo.toml",
+            "--url",
+            "https://example.com/doc",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure();
+}
+
+#[test]
+fn ground_with_url_and_evidence_stores_both() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    let out = dont()
+        .args([
+            "ground",
+            "claim with URL and URI evidence",
+            "--url",
+            "https://github.com/owner/repo/blob/abc123def/file.rs",
+            "--evidence",
+            "https://example.com/support",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    assert_eq!(
+        evidence.len(),
+        2,
+        "should have both URL locator and URI evidence"
+    );
+
+    // First item is the URI string
+    assert!(evidence[0].as_str().is_some());
+    assert_eq!(evidence[0].as_str().unwrap(), "https://example.com/support");
+
+    // Second item is the structured permalink
+    assert_eq!(evidence[1]["kind"], "url-permalink");
+    assert_eq!(
+        evidence[1]["url"],
+        "https://github.com/owner/repo/blob/abc123def/file.rs"
+    );
+}

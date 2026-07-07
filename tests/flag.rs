@@ -920,3 +920,112 @@ fn flag_file_scheme_uri_is_rejected_as_malformed() {
         v["data"]["code"]
     );
 }
+
+// --- flag with --url (Option C: URL + commit-pinned locator) ---
+
+#[test]
+fn flag_with_url_on_unverified_claim_produces_verified() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "a claim with URL evidence");
+    let out = flag(&dir, &id, "https://example.com/uri");
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["status"], "verified");
+
+    // Now add a URL permalink via flag --url
+    let out2 = dont()
+        .args([
+            "flag",
+            &id,
+            "--url",
+            "https://github.com/owner/repo/blob/abc123def/feature.rs",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v2: Value = serde_json::from_slice(&out2).unwrap();
+    assert_eq!(v2["ok"], true);
+    let evidence = v2["data"]["evidence"].as_array().unwrap();
+    let url_locator = evidence.iter().find(|e| e["kind"] == "url-permalink");
+    assert!(
+        url_locator.is_some(),
+        "should contain a url-permalink locator"
+    );
+    assert_eq!(
+        url_locator.unwrap()["url"],
+        "https://github.com/owner/repo/blob/abc123def/feature.rs"
+    );
+}
+
+#[test]
+fn flag_with_url_rejects_missing_evidence() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "naked claim");
+    let out = dont()
+        .args(["flag", &id, "--json"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["data"]["code"], "no-evidence");
+}
+
+#[test]
+fn flag_with_url_and_excerpt_stores_excerpt() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "excerpted URL claim");
+    let out = dont()
+        .args([
+            "flag",
+            &id,
+            "--url",
+            "https://github.com/owner/repo/blob/abc123def/main.rs",
+            "--excerpt",
+            "fn relevant() { }",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    let url_locator = evidence
+        .iter()
+        .find(|e| e["kind"] == "url-permalink")
+        .unwrap();
+    assert_eq!(url_locator["excerpt"], "fn relevant() { }");
+}
+
+#[test]
+fn flag_with_url_rejects_file_flag_conflict() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "conflicting flags");
+    dont()
+        .args([
+            "flag",
+            &id,
+            "--file",
+            "Cargo.toml",
+            "--url",
+            "https://example.com/doc",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        .assert()
+        .failure();
+}

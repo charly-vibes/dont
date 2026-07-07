@@ -236,11 +236,15 @@ Notes:
         #[arg(long)]
         file: Option<String>,
 
-        /// Line span within the file, e.g. "10-18" or "42".
+        /// URL permalink (e.g. GitHub blob URL with commit hash) for evidence outside the project root. Mutually exclusive with --file.
+        #[arg(long, conflicts_with = "file")]
+        url: Option<String>,
+
+        /// Line span within the file or URL, e.g. "10-18" or "42".
         #[arg(long)]
         lines: Option<String>,
 
-        /// Named anchor within the file.
+        /// Named anchor within the file or URL.
         #[arg(long)]
         anchor: Option<String>,
 
@@ -266,11 +270,15 @@ Notes:
         #[arg(long)]
         file: Option<String>,
 
-        /// Line span within the file, e.g. "10-18" or "42".
+        /// URL permalink (e.g. GitHub blob URL with commit hash) for evidence outside the project root. Mutually exclusive with --file.
+        #[arg(long, conflicts_with = "file")]
+        url: Option<String>,
+
+        /// Line span within the file or URL, e.g. "10-18" or "42".
         #[arg(long)]
         lines: Option<String>,
 
-        /// Named anchor within the file.
+        /// Named anchor within the file or URL.
         #[arg(long)]
         anchor: Option<String>,
 
@@ -511,7 +519,8 @@ Notes:
     /// Atomically ground a claim with its supporting evidence.
     #[command(after_help = "Examples:
   dont ground \"the sky is blue\" -e https://example.com/source
-  dont ground \"water boils at 100C\" --file docs/spec.md --lines 10-12")]
+  dont ground \"water boils at 100C\" --file docs/spec.md --lines 10-12
+  dont ground \"function returns AST\" --url https://github.com/owner/repo/blob/abc123def/lib.rs --lines 42-56")]
     Ground {
         /// Claim statement text.
         #[arg(value_name = "statement")]
@@ -525,11 +534,15 @@ Notes:
         #[arg(long)]
         file: Option<String>,
 
-        /// Line span within the file, e.g. "10-18" or "42".
+        /// URL permalink (e.g. GitHub blob URL with commit hash) for evidence outside the project root. Mutually exclusive with --file.
+        #[arg(long, conflicts_with = "file")]
+        url: Option<String>,
+
+        /// Line span within the file or URL, e.g. "10-18" or "42".
         #[arg(long)]
         lines: Option<String>,
 
-        /// Named anchor within the file.
+        /// Named anchor within the file or URL.
         #[arg(long)]
         anchor: Option<String>,
 
@@ -1490,6 +1503,14 @@ fn format_claim_detail(data: &Value) -> String {
                         .unwrap_or_default();
                     let display = format!("repo:{path}{anchor_suffix}");
                     format!("    {}", truncate_evidence_for_display(&display))
+                } else if ev.get("kind").and_then(Value::as_str) == Some("url-permalink") {
+                    let url = strip_control_chars(ev["url"].as_str().unwrap_or("?"));
+                    let anchor_suffix = ev["anchor"]
+                        .as_str()
+                        .map(|a| format!("#{}", strip_control_chars(a)))
+                        .unwrap_or_default();
+                    let display = format!("url:{url}{anchor_suffix}");
+                    format!("    {}", truncate_evidence_for_display(&display))
                 } else {
                     let raw = ev.to_string();
                     format!("    {}", truncate_evidence_for_display(&raw))
@@ -2125,6 +2146,14 @@ fn evidence_entry_source_key(v: &Value) -> String {
         .and_then(Value::as_str)
     {
         return format!("repo-file:{path}");
+    }
+    if let Some(url) = v
+        .as_object()
+        .filter(|obj| obj.get("kind").and_then(Value::as_str) == Some("url-permalink"))
+        .and_then(|obj| obj.get("url"))
+        .and_then(Value::as_str)
+    {
+        return evidence_source_key(url);
     }
     v.to_string()
 }
@@ -2793,6 +2822,51 @@ fn resolve_file_locator(
         }
     }
     locator
+}
+
+/// Build a structured URL-permalink locator as a JSON Value for evidence outside
+/// the project root. The URL should be a permanent link (e.g. a GitHub blob URL
+/// pinned to a specific commit hash) so the evidence remains reproducible.
+fn resolve_url_locator(
+    url: &str,
+    lines: Option<&str>,
+    anchor: Option<&str>,
+    excerpt: Option<&str>,
+) -> Value {
+    let line_span = match lines.map(parse_line_span) {
+        Some(Ok(span)) => Some(span),
+        Some(Err(msg)) => emit_error_and_exit(
+            refusal(
+                "invalid-line-span",
+                &format!("invalid --lines value: {msg}"),
+                None,
+                vec![RemediationEntry {
+                    command: format!("dont ground --url {url} --lines <start-end>"),
+                    description: "Use a format like \"10-18\" or \"42\"".to_string(),
+                }],
+            ),
+            vec![],
+            1,
+        ),
+        None => None,
+    };
+    let mut obj = serde_json::Map::new();
+    obj.insert(
+        "kind".to_string(),
+        Value::String("url-permalink".to_string()),
+    );
+    obj.insert("url".to_string(), Value::String(url.to_string()));
+    if let Some((start, end)) = line_span {
+        obj.insert("line_start".to_string(), Value::Number(start.into()));
+        obj.insert("line_end".to_string(), Value::Number(end.into()));
+    }
+    if let Some(a) = anchor {
+        obj.insert("anchor".to_string(), Value::String(a.to_string()));
+    }
+    if let Some(e) = excerpt {
+        obj.insert("excerpt".to_string(), Value::String(e.to_string()));
+    }
+    Value::Object(obj)
 }
 
 /// Build a typed not-found error based on the input form:
@@ -3510,6 +3584,7 @@ fn main() {
             id,
             evidence,
             file,
+            url,
             lines,
             anchor,
             excerpt,
@@ -3522,6 +3597,7 @@ fn main() {
                 id,
                 evidence,
                 file,
+                url,
                 lines,
                 anchor,
                 excerpt,
@@ -4150,15 +4226,16 @@ fn main() {
             id,
             evidence,
             file,
+            url,
             lines,
             anchor,
             excerpt,
         } => {
-            if evidence.is_empty() && file.is_none() {
+            if evidence.is_empty() && file.is_none() && url.is_none() {
                 emit_error_and_exit(
                     refusal(
                         "no-evidence",
-                        "--evidence: required; expected at least one URI or --file locator",
+                        "--evidence: required; expected at least one URI, --file locator, or --url permalink",
                         Some(&id),
                         vec![RemediationEntry {
                             command: format!("dont flag {id} --evidence <uri>"),
@@ -4199,7 +4276,7 @@ fn main() {
                 .unwrap_or(&project.dont_dir)
                 .to_path_buf();
 
-            // Build the full evidence list, appending structured locator if --file was given.
+            // Build the full evidence list, appending structured locator if --file or --url was given.
             let mut all_evidence: Vec<Value> = evidence.into_iter().map(Value::String).collect();
             if let Some(ref file_path) = file {
                 all_evidence.push(resolve_file_locator(
@@ -4210,6 +4287,14 @@ fn main() {
                     &project_root,
                     Some(&id),
                     &format!("dont flag {id}"),
+                ));
+            }
+            if let Some(ref url_str) = url {
+                all_evidence.push(resolve_url_locator(
+                    url_str,
+                    lines.as_deref(),
+                    anchor.as_deref(),
+                    excerpt.as_deref(),
                 ));
             }
             // Terms don't have depends_on fields so no dependency gate is needed here.
@@ -5270,6 +5355,7 @@ fn main() {
             statement,
             evidence,
             file,
+            url,
             lines,
             anchor,
             excerpt,
@@ -5317,11 +5403,11 @@ fn main() {
                 .filter(|e| !e.trim().is_empty())
                 .collect();
 
-            if evidence.is_empty() && file.is_none() {
+            if evidence.is_empty() && file.is_none() && url.is_none() {
                 emit_error_and_exit(
                     refusal(
                         "no-evidence",
-                        "--evidence: required; expected at least one URI or --file locator",
+                        "--evidence: required; expected at least one URI, --file locator, or --url permalink",
                         None,
                         vec![RemediationEntry {
                             command: "dont ground \"<statement>\" --evidence <uri>".to_string(),
@@ -5373,6 +5459,14 @@ fn main() {
                     &project_root,
                     None,
                     "dont ground \"<statement>\"",
+                ));
+            }
+            if let Some(ref url_str) = url {
+                all_evidence.push(resolve_url_locator(
+                    url_str,
+                    lines.as_deref(),
+                    anchor.as_deref(),
+                    excerpt.as_deref(),
                 ));
             }
 
