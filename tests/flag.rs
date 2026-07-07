@@ -820,7 +820,7 @@ fn flag_evidence_accepts_repo_path() {
 
 /// F23: http/https --evidence still works unchanged.
 #[test]
-fn flag_evidence_url_still_works() {
+fn flag_evidence_url_stored_as_plain_string() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     let id = conclude_claim(&dir, "evidenced via URL");

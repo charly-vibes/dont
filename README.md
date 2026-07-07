@@ -68,12 +68,7 @@ pre-push:
   parallel: true
   commands:
     check-claims:
-      run: |
-        if dont list --status unverified --json 2>/dev/null | grep -q '"status":"unverified"'; then
-          echo "✗ Blocked: ungrounded claims exist."
-          dont list --status unverified
-          exit 1
-        fi
+      run: dont check
       skip: merge
 ```
 
@@ -81,16 +76,10 @@ pre-push:
 
 ```yaml
 - name: Check grounded claims
-  run: |
-    if dont list --status unverified --json | grep -q '"status":"unverified"'; then
-      echo "✗ Blocked: ungrounded claims exist."
-      dont list --status unverified
-      exit 1
-    fi
+  run: dont check
 ```
 
-No `jq` or `python` required — the snippet greps for the status string directly
-in the JSON envelope.
+No `jq` or `python` required — `dont check` exits 1 when any claim is unverified, 0 otherwise.
 
 ---
 

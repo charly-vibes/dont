@@ -138,12 +138,7 @@ pre-push:
   parallel: true
   commands:
     check-claims:
-      run: |
-        if dont list --status unverified --json 2>/dev/null | grep -q '"status":"unverified"'; then
-          echo "✗ Blocked: ungrounded claims exist."
-          dont list --status unverified
-          exit 1
-        fi
+      run: dont check
       skip: merge
 ```
 
@@ -155,34 +150,25 @@ For projects without lefthook, a standalone script in `.githooks/pre-push` or
 ```bash
 #!/bin/sh
 # Pre-push gate: reject if any claims are ungrounded
-if dont list --status unverified --json 2>/dev/null | grep -q '"status":"unverified"'; then
+dont check || {
   echo "✗ Blocked: ungrounded claims exist."
   echo "Ground them with: dont flag <id> --evidence <url>"
   dont list --status unverified
   exit 1
-fi
+}
 ```
 
 ### CI pipeline
 
-Same pattern works in any CI step:
-
 ```yaml
 - name: Check grounded claims
-  run: |
-    if dont list --status unverified --json | grep -q '"status":"unverified"'; then
-      echo "✗ Blocked: ungrounded claims exist."
-      dont list --status unverified
-      exit 1
-    fi
+  run: dont check
 ```
 
 ### Why this works
 
-The pattern uses `dont list --status unverified --json` to output all unverified
-claims as JSON, then checks for the `"status":"unverified"` substring. When all
-claims are verified, locked, or ignored, the JSON contains no such string and the
-gate passes cleanly. No `jq`, `python`, or other runtime dependency required.
+`dont check` exits 0 when all claims are verified, locked, or ignored, and exits
+1 when any claim is unverified. No `jq`, `python`, or fragile `grep` required.
 
 > **Note**: This gate is most effective once the `--url` permalink locator is
 > available (Option C, shipped in `dont` v0.1.0+). External evidence (sibling

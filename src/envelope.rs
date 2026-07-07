@@ -40,6 +40,7 @@ pub enum EnvelopeKind {
     DontCompletions,
     Stats,
     EvalExport,
+    Check,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

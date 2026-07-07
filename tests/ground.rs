@@ -268,7 +268,7 @@ fn ground_evidence_path_with_lines() {
 
 /// F23: http/https strings are still accepted as plain URI evidence.
 #[test]
-fn ground_evidence_url_still_works() {
+fn ground_evidence_url_stored_as_plain_string() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 

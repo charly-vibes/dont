@@ -99,7 +99,7 @@ Command groups:
   Vocabulary and import:
     define, vocab, import
   Lists and project health:
-    list, prime, doctor
+    list, check, prime, doctor
   Structured workflows:
     atom (define, dismiss)
     hypothesis (add, assess)
@@ -585,6 +585,16 @@ Notes:
             allow_hyphen_values = true
         )]
         args: Vec<String>,
+    },
+
+    /// Check project health conditions: ungrounded claims, rule violations, etc.
+    #[command(after_help = "Examples:
+  dont check --ungrounded
+  dont check --ungrounded --json")]
+    Check {
+        /// Fail if any claims are in unverified state.
+        #[arg(long)]
+        ungrounded: bool,
     },
 
     /// Manage and inspect project rules.
@@ -5849,6 +5859,35 @@ fn main() {
                     1,
                 );
             }
+        }
+
+        Command::Check {
+            ungrounded: _ungrounded,
+        } => {
+            let project = open_project_or_exit();
+            let counts = match project.store.claim_counts_by_status() {
+                Ok(c) => c,
+                Err(err) => handle_store_error(err, None),
+            };
+            let unverified = counts.get("unverified").copied().unwrap_or(0);
+            let has_ungrounded = unverified > 0;
+
+            if cli.json || !human_mode() {
+                let payload = json!({
+                    "ungrounded": has_ungrounded,
+                    "unverified_count": unverified,
+                    "total_claims": counts.values().sum::<u64>(),
+                    "status_counts": counts,
+                });
+                let env = Envelope::success(EnvelopeKind::Check, payload, vec![], vec![]);
+                emit_json(&env);
+            } else if has_ungrounded {
+                println!("✗ {} ungrounded claim(s)", unverified);
+            } else {
+                println!("✓ all claims grounded");
+            }
+
+            process::exit(if has_ungrounded { 1 } else { 0 });
         }
 
         Command::Rules { action } => {
