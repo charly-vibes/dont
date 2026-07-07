@@ -123,3 +123,67 @@ Do **not** use the CURIE `local:rule-claim-type` directly — that triggers `unr
 
 > **Warning**: `rule-claim-type` is a stable anchor term. Doubting it triggers
 > `stale-cascade` warnings for all tagged rule claims simultaneously.
+
+## Gate Integration
+
+`dont` survives in a project only when wired into a failing gate. Without one,
+usage decays to zero — nothing breaks when claims go ungrounded.
+
+### Pre-push hook (lefthook)
+
+Add this to `lefthook.yml` to reject pushes with ungrounded claims:
+
+```yaml
+pre-push:
+  parallel: true
+  commands:
+    check-claims:
+      run: |
+        if dont list --status unverified --json 2>/dev/null | grep -q '"status":"unverified"'; then
+          echo "✗ Blocked: ungrounded claims exist."
+          dont list --status unverified
+          exit 1
+        fi
+      skip: merge
+```
+
+### Pre-push hook (shell script)
+
+For projects without lefthook, a standalone script in `.githooks/pre-push` or
+`scripts/gate.sh`:
+
+```bash
+#!/bin/sh
+# Pre-push gate: reject if any claims are ungrounded
+if dont list --status unverified --json 2>/dev/null | grep -q '"status":"unverified"'; then
+  echo "✗ Blocked: ungrounded claims exist."
+  echo "Ground them with: dont flag <id> --evidence <url>"
+  dont list --status unverified
+  exit 1
+fi
+```
+
+### CI pipeline
+
+Same pattern works in any CI step:
+
+```yaml
+- name: Check grounded claims
+  run: |
+    if dont list --status unverified --json | grep -q '"status":"unverified"'; then
+      echo "✗ Blocked: ungrounded claims exist."
+      dont list --status unverified
+      exit 1
+    fi
+```
+
+### Why this works
+
+The pattern uses `dont list --status unverified --json` to output all unverified
+claims as JSON, then checks for the `"status":"unverified"` substring. When all
+claims are verified, locked, or ignored, the JSON contains no such string and the
+gate passes cleanly. No `jq`, `python`, or other runtime dependency required.
+
+> **Note**: This gate is most effective once the `--url` permalink locator is
+> available (Option C, shipped in `dont` v0.1.0+). External evidence (sibling
+> repos, vendored paths) can be referenced without filesystem access.
