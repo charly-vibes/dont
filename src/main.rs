@@ -2643,7 +2643,6 @@ fn check_git_provenance(
     rel_path: &std::path::Path,
     project_root: &std::path::Path,
     entity_id: Option<&str>,
-    cmd_prefix: &str,
 ) -> Option<String> {
     let root = project_root.to_string_lossy();
     let rel = rel_path.to_string_lossy();
@@ -2722,19 +2721,20 @@ fn check_git_provenance(
     }
 
     if worktree_status != ' ' {
-        emit_error_and_exit(
-            refusal(
-                "dirty-file",
-                "file has unstaged modifications; SHA would not match current content",
-                entity_id,
-                vec![RemediationEntry {
-                    command: format!("{cmd_prefix} --file <committed-path>"),
-                    description: "Commit the modifications first".to_string(),
-                }],
-            ),
-            vec![],
-            1,
-        );
+        // Dirty tracked file: use git hash-object to compute a content-based SHA
+        let content_hash_out = std::process::Command::new("git")
+            .args(["-C", &root, "hash-object", &rel])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_WORK_TREE")
+            .output();
+        return match content_hash_out {
+            Ok(o) if o.status.success() => {
+                let sha = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                Some(format!("git:content:{sha}"))
+            }
+            _ => None,
+        };
     }
 
     // index_status is non-space, non-? → staged but not committed
@@ -2795,7 +2795,7 @@ fn resolve_file_locator(
             1,
         ),
     };
-    let commit_ref = check_git_provenance(&normalized, project_root, entity_id, cmd_prefix);
+    let commit_ref = check_git_provenance(&normalized, project_root, entity_id);
     let line_span = match lines.map(parse_line_span) {
         Some(Ok(span)) => Some(span),
         Some(Err(msg)) => emit_error_and_exit(
