@@ -488,7 +488,7 @@ impl Project {
                 "created_at": created_at,
             });
             let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
-            if let Err(e) = fs::OpenOptions::new()
+            if let Err(_e) = fs::OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(&events_path)
@@ -497,7 +497,8 @@ impl Project {
                     f.write_all(line.as_bytes())
                 })
             {
-                eprintln!("dont: warning: could not write mode baseline event: {e}");
+                // Mode tracking is best-effort; write failures are silently
+                // ignored to avoid polluting stderr on every command.
             }
             return;
         };
@@ -511,7 +512,7 @@ impl Project {
                 "created_at": created_at,
             });
             let line = format!("{}\n", serde_json::to_string(&event).unwrap_or_default());
-            if let Err(e) = fs::OpenOptions::new()
+            if let Err(_e) = fs::OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(&events_path)
@@ -520,7 +521,8 @@ impl Project {
                     f.write_all(line.as_bytes())
                 })
             {
-                eprintln!("dont: warning: could not write mode.changed event: {e}");
+                // Mode tracking is best-effort; write failures are silently
+                // ignored to avoid polluting stderr on every command.
             }
         }
     }
