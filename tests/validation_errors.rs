@@ -51,7 +51,7 @@ fn conclude_empty_statement_names_field() {
 fn conclude_metachar_statement_names_field() {
     let dir = init();
     let out = dont()
-        .args(["conclude", "bad;semicolon", "--json"])
+        .args(["conclude", "bad|pipe", "--json"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)

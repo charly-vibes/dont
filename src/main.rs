@@ -3366,7 +3366,9 @@ fn label_contains_sentence_verb(label: &str) -> bool {
 /// that are not shell metacharacters or path-construction tokens.
 fn validate_claim_statement(statement: &str, command: &str) -> Option<ErrorResult> {
     // Characters that are unambiguously dangerous in shell/path contexts.
-    const SHELL_META: &[char] = &[';', '|', '`', '$', '\\', '<', '>', '\0'];
+    // Semicolons (`;`) are excluded — they are common English prose characters
+    // and the statement is always received as a single quoted argument.
+    const SHELL_META: &[char] = &['|', '`', '$', '\\', '<', '>', '\0'];
     // Path separator sequences: `/` alone is allowed in prose (e.g., "TCP/IP"),
     // but `..` adjacent to a path separator signals traversal. We ban the
     // backslash (already in SHELL_META) and bare NUL.

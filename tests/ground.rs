@@ -575,7 +575,8 @@ fn ground_rejects_statement_with_shell_metacharacter() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    for statement in &["foo;bar", "foo|bar", "foo`bar`", "foo$bar", "foo\\bar"] {
+    // Semicolon is allowed in prose; only genuine injection vectors are blocked.
+    for statement in &["foo|bar", "foo`bar`", "foo$bar", "foo\\bar"] {
         let out = dont()
             .args([
                 "ground",
@@ -602,6 +603,65 @@ fn ground_rejects_statement_with_shell_metacharacter() {
             "statement {:?} should produce statement-contains-metacharacter, got: {:?}",
             statement, v["data"]["code"]
         );
+    }
+
+    // Semicolons are common English prose and must be accepted.
+    let out = dont()
+        .args([
+            "ground",
+            "foo;bar",
+            "--evidence",
+            "https://example.com/proof",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(
+        v["ok"], true,
+        "statement with semicolon should be accepted: {v}"
+    );
+    assert_eq!(v["data"]["status"], "verified");
+}
+
+#[test]
+fn ground_accepts_prose_punctuation() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+
+    // Semicolons, colons, and forward-slashes are common English prose
+    // and must be accepted in claim statements.
+    let tests = [
+        ("needs an adapter; the frontend is reused", "semicolon"),
+        ("ratio: 1/3 coverage", "colon and slash"),
+        ("A: B; C/D", "mixed punctuation"),
+    ];
+
+    for (statement, label) in &tests {
+        let out = dont()
+            .args([
+                "ground",
+                statement,
+                "--evidence",
+                "https://example.com/proof",
+                "--json",
+            ])
+            .env("DONT_DIR", dir.path())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(
+            v["ok"], true,
+            "statement with {label} ({statement:?}) should be accepted: {v}"
+        );
+        assert_eq!(v["data"]["status"], "verified");
     }
 }
 
