@@ -1270,10 +1270,16 @@ fn handle_store_error_code(err: StoreError, entity_id: Option<&str>) -> i32 {
                 "duplicate-refused",
                 &format!("claim with equivalent text already exists as {existing_id}"),
                 Some(&existing_id),
-                vec![RemediationEntry {
-                    command: format!("dont show {existing_id}"),
-                    description: "Inspect the existing claim".to_string(),
-                }],
+                vec![
+                    RemediationEntry {
+                        command: format!("dont show {existing_id}"),
+                        description: "Inspect the existing claim".to_string(),
+                    },
+                    RemediationEntry {
+                        command: format!("dont flag {existing_id} --evidence <locator>"),
+                        description: "Add supporting evidence to the existing claim".to_string(),
+                    },
+                ],
             ),
             vec![],
             1,

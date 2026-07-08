@@ -113,6 +113,25 @@ fn conclude_persists_claim_across_invocations() {
         v2["data"]["code"], "duplicate-refused",
         "duplicate conclude must use code duplicate-refused"
     );
+
+    // Remediation must include an actionable dont flag command
+    let remediation = v2["data"]["remediation"].as_array().unwrap();
+    let has_flag_remediation = remediation.iter().any(|r| {
+        r["command"]
+            .as_str()
+            .map_or(false, |cmd| cmd.contains("dont flag"))
+    });
+    assert!(
+        has_flag_remediation,
+        "duplicate conclude error must include a dont flag remediation; got: {remediation:?}"
+    );
+    let has_id_in_remediation = remediation
+        .iter()
+        .any(|r| r["command"].as_str().map_or(false, |cmd| cmd.contains(&id)));
+    assert!(
+        has_id_in_remediation,
+        "remediation must reference the existing claim ID {id}; got: {remediation:?}"
+    );
 }
 
 // --- Refusals ---

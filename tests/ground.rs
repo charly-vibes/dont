@@ -518,6 +518,27 @@ fn ground_duplicate_statement_follows_conclude_policy() {
         v2["data"]["code"], "duplicate-refused",
         "duplicate ground must use code duplicate-refused"
     );
+
+    // Remediation must include an actionable dont flag command
+    let remediation = v2["data"]["remediation"].as_array().unwrap();
+    let has_flag_remediation = remediation.iter().any(|r| {
+        r["command"]
+            .as_str()
+            .map_or(false, |cmd| cmd.contains("dont flag"))
+    });
+    assert!(
+        has_flag_remediation,
+        "duplicate ground error must include a dont flag remediation; got: {remediation:?}"
+    );
+    // The remediation must reference the existing claim ID
+    let id = v1["data"]["id"].as_str().unwrap();
+    let has_id_in_remediation = remediation
+        .iter()
+        .any(|r| r["command"].as_str().map_or(false, |cmd| cmd.contains(id)));
+    assert!(
+        has_id_in_remediation,
+        "remediation must reference the existing claim ID {id}; got: {remediation:?}"
+    );
 }
 
 #[test]
