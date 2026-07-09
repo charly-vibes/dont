@@ -119,7 +119,7 @@ fn conclude_persists_claim_across_invocations() {
     let has_flag_remediation = remediation.iter().any(|r| {
         r["command"]
             .as_str()
-            .map_or(false, |cmd| cmd.contains("dont flag"))
+            .is_some_and(|cmd| cmd.contains("dont flag"))
     });
     assert!(
         has_flag_remediation,
@@ -127,7 +127,7 @@ fn conclude_persists_claim_across_invocations() {
     );
     let has_id_in_remediation = remediation
         .iter()
-        .any(|r| r["command"].as_str().map_or(false, |cmd| cmd.contains(&id)));
+        .any(|r| r["command"].as_str().is_some_and(|cmd| cmd.contains(&id)));
     assert!(
         has_id_in_remediation,
         "remediation must reference the existing claim ID {id}; got: {remediation:?}"

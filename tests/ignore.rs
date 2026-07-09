@@ -282,9 +282,24 @@ fn prime_status_counts_includes_ignored() {
         .clone();
 
     let v: Value = serde_json::from_slice(&output).unwrap();
-    assert_eq!(v["data"]["status_counts"]["ignored"], 2);
+    // Ignored entities are excluded from status_counts
+    assert!(
+        !v["data"]["status_counts"]
+            .as_object()
+            .unwrap()
+            .contains_key("ignored"),
+        "ignored must not appear in status_counts"
+    );
     assert_eq!(v["data"]["status_counts"]["unverified"], 0);
     assert_eq!(v["data"]["status_counts"]["locked"], 0);
+    // The total count should be 0 when all entities are ignored
+    let total: u64 = v["data"]["status_counts"]
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|v| v.as_u64().unwrap_or(0))
+        .sum();
+    assert_eq!(total, 0, "total should be 0 when all entities are ignored");
 }
 
 // --- Locked-entity transition refusals ---

@@ -1617,9 +1617,8 @@ fn format_prime(data: &Value) -> String {
     let doubted = counts["doubted"].as_u64().unwrap_or(0);
     let verified = counts["verified"].as_u64().unwrap_or(0);
     let locked = counts["locked"].as_u64().unwrap_or(0);
-    let ignored = counts["ignored"].as_u64().unwrap_or(0);
     let mut out = format!(
-        "dont project  {mode} mode\n  unverified: {unverified}  doubted: {doubted}  verified: {verified}  locked: {locked}  ignored: {ignored}"
+        "dont project  {mode} mode\n  unverified: {unverified}  doubted: {doubted}  verified: {verified}  locked: {locked}"
     );
     if let Some(blocking) = data["blocking"].as_array().filter(|b| !b.is_empty()) {
         out.push_str("\n\nblocking:");
@@ -4666,7 +4665,6 @@ fn main() {
             let mut unverified = 0;
             let mut doubted = 0;
             let mut verified = 0;
-            let mut ignored = 0;
             let mut locked = 0;
             let mut blocking = Vec::new();
             let mut ac_stale = 0u32;
@@ -4687,7 +4685,10 @@ fn main() {
                         }));
                     }
                     Status::Verified => verified += 1,
-                    Status::Ignored => ignored += 1,
+                    Status::Ignored => {
+                        // Ignored claims are excluded from status counts
+                        // so they don't surface in reports.
+                    }
                     Status::Locked => locked += 1,
                 }
                 for a in derived_assessments_for_claim(claim, &project.store) {
@@ -4721,7 +4722,9 @@ fn main() {
                         }));
                     }
                     Status::Verified => verified += 1,
-                    Status::Ignored => ignored += 1,
+                    Status::Ignored => {
+                        // Ignored terms are excluded from status counts.
+                    }
                     Status::Locked => locked += 1,
                 }
                 let projected = project_evidence(collect_term_evidence(term), &project_root);
@@ -4742,7 +4745,6 @@ fn main() {
                     "doubted": doubted,
                     "verified": verified,
                     "locked": locked,
-                    "ignored": ignored,
                 },
                 "assessment_counts": {
                     "stale": ac_stale,

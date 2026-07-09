@@ -1769,6 +1769,11 @@ impl Store {
         let claims = self.list_claims()?;
         let mut counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
         for claim in claims {
+            // Ignored claims are excluded from counts so they don't surface in
+            // status reports, exports, and verification rates.
+            if claim.status == Status::Ignored {
+                continue;
+            }
             *counts.entry(claim.status.as_str().to_string()).or_insert(0) += 1;
         }
         Ok(counts)

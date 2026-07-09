@@ -251,3 +251,25 @@ fn stats_default_scope_since_is_today_not_epoch() {
         "default scope.since must be midnight UTC; got: {since}"
     );
 }
+
+/// Ignored claims must be excluded from total claim counts and verification rate.
+#[test]
+fn stats_excludes_ignored_claims_from_counts() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim to be ignored");
+    // Ignore the claim
+    dont()
+        .args(["ignore", &id, "--reason", "stray claim", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+    let v = stats(&dir);
+    let data = &v["data"];
+    // The claim_verification_rate should be null (no non-ignored claims)
+    assert!(
+        data["claim_verification_rate"].is_null(),
+        "claim_verification_rate must be null when all claims are ignored; got: {:?}",
+        data["claim_verification_rate"]
+    );
+}

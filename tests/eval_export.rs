@@ -120,6 +120,44 @@ fn eval_export_claims_by_status_reflects_store() {
     assert_eq!(by_status["verified"], 1, "one verified claim expected");
 }
 
+/// Ignored claims must not appear in claims_by_status counts.
+#[test]
+fn eval_export_claims_by_status_excludes_ignored() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    let id = conclude_claim(&dir, "claim to be ignored");
+    // Ignore the claim
+    dont()
+        .args([
+            "ignore",
+            &id,
+            "--reason",
+            "stray claim, not needed",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+    let v = eval_export(&dir);
+    let by_status = &v["data"]["claims_by_status"];
+    // Ignored status must NOT appear in claims_by_status
+    assert!(
+        !by_status.as_object().unwrap().contains_key("ignored"),
+        "claims_by_status must not contain 'ignored'; got: {by_status:?}"
+    );
+    // The claim should not appear in any status count
+    let total: u64 = by_status
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|v| v.as_u64().unwrap_or(0))
+        .sum();
+    assert_eq!(
+        total, 0,
+        "total claims should be 0 when the only claim is ignored"
+    );
+}
+
 #[test]
 fn eval_export_events_by_kind_reflects_store() {
     let dir = TempDir::new().unwrap();

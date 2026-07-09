@@ -545,7 +545,7 @@ fn prime_view_required_top_level_fields() {
 //    `unverified`, `doubted`, `verified`, `locked`, and `ignored` with integer counts)"
 
 #[test]
-fn prime_status_counts_has_all_five_keys() {
+fn prime_status_counts_has_all_four_keys() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
@@ -563,7 +563,7 @@ fn prime_status_counts_has_all_five_keys() {
     assert!(sc.is_object(), "status_counts must be an object");
 
     let obj = sc.as_object().unwrap();
-    for key in &["unverified", "doubted", "verified", "locked", "ignored"] {
+    for key in &["unverified", "doubted", "verified", "locked"] {
         assert!(
             obj.contains_key(*key),
             "status_counts must contain key '{}' (spec: dont-payload-types PrimeView)",
