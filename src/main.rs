@@ -2743,19 +2743,20 @@ fn check_git_provenance(
     }
 
     // index_status is non-space, non-? → staged but not committed
-    emit_error_and_exit(
-        refusal(
-            "staged-not-committed",
-            "file is staged but not yet committed; no SHA exists to reference",
-            entity_id,
-            vec![RemediationEntry {
-                command: "git commit".to_string(),
-                description: "Commit the staged file first".to_string(),
-            }],
-        ),
-        vec![],
-        1,
-    );
+    // Use git hash-object to compute a content-based SHA (same as dirty files).
+    let content_hash_out = std::process::Command::new("git")
+        .args(["-C", &root, "hash-object", &rel])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_WORK_TREE")
+        .output();
+    match content_hash_out {
+        Ok(o) if o.status.success() => {
+            let sha = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            Some(format!("git:content:{sha}"))
+        }
+        _ => None,
+    }
 }
 
 /// Validate and resolve a `--file` locator into a `Value` suitable for the evidence array.

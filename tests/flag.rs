@@ -481,7 +481,7 @@ fn flag_file_untracked_rejected() {
 }
 
 #[test]
-fn flag_file_staged_not_committed_rejected() {
+fn flag_file_staged_accepted() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
     init_git_repo(&dir);
@@ -494,11 +494,50 @@ fn flag_file_staged_not_committed_rejected() {
     let id = conclude_claim(&dir, "claim needing file evidence");
     let out = flag_file(&dir, &id, &["--file", "staged.md"]);
     let v: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(
-        v["ok"], false,
-        "staged-not-committed file should be rejected: {v}"
+    assert_eq!(v["ok"], true, "staged file should be accepted: {v}");
+    assert_eq!(v["data"]["status"], "verified");
+    // commit_ref should be present with content hash
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    let locator = evidence.iter().find(|e| e.is_object()).unwrap();
+    let commit_ref = locator["commit_ref"].as_str().unwrap();
+    assert!(
+        commit_ref.starts_with("git:content:"),
+        "commit_ref for staged file should start with 'git:content:': {commit_ref}"
     );
-    assert_eq!(v["data"]["code"], "staged-not-committed");
+}
+
+#[test]
+fn flag_file_staged_has_content_hash() {
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    init_git_repo(&dir);
+    std::fs::write(dir.path().join("initial.md"), "seed\n").unwrap();
+    git_add_commit(&dir, "initial.md");
+    let content = "staged content\n";
+    std::fs::write(dir.path().join("staged.md"), content).unwrap();
+    git_stage(&dir, "staged.md");
+    let id = conclude_claim(&dir, "claim needing file evidence");
+    let out = flag_file(&dir, &id, &["--file", "staged.md"]);
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    let locator = evidence.iter().find(|e| e.is_object()).unwrap();
+    let commit_ref = locator["commit_ref"].as_str().unwrap();
+    // Compute expected content hash via git hash-object
+    let hash_out = std::process::Command::new("git")
+        .args([
+            "-C",
+            dir.path().to_str().unwrap(),
+            "hash-object",
+            "staged.md",
+        ])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_WORK_TREE")
+        .output()
+        .unwrap();
+    let expected_hash = String::from_utf8_lossy(&hash_out.stdout).trim().to_string();
+    assert_eq!(commit_ref, format!("git:content:{expected_hash}"));
 }
 
 #[test]
