@@ -1,7 +1,15 @@
 [package]
-name = "dont"
+name = "dont-cli"
 version = "0.2.0"
 edition = "2024"
+description = "Epistemic discipline for autonomous LLM workflows — claims, evidence, and vocabulary tracked as an explicit state machine"
+license = "Apache-2.0"
+repository = "https://github.com/charly-vibes/dont"
+keywords = ["llm", "epistemic", "workflow", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[lib]
+name = "dont"
 
 [[bin]]
 name = "dont"
