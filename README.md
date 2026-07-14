@@ -26,13 +26,42 @@ This repository contains both:
 - user-facing docs in `docs/`
 - workflow context in `.wai/`
 
-## Quick start
+## Installation
+
+### Cargo (crates.io)
+
+```bash
+cargo install dont-cli
+```
+
+Installs the `dont` and `dt` binaries.
+
+### Homebrew (macOS & Linux)
+
+```bash
+brew tap charly-vibes/charly
+brew install dont
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add charly https://github.com/charly-vibes/scoop-charly.git
+scoop install dont
+```
+
+### From source
 
 ```bash
 git clone https://github.com/charly-vibes/dont.git
 cd dont
-cargo build
-cargo test
+cargo build --release
+```
+
+## Quick start
+
+```bash
+dont prime
 ```
 
 Common local commands:
