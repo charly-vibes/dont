@@ -1,0 +1,6 @@
+run_id: tdd-ro5-2026-07-08-dont-tp8f-silence-persistent-mode-baseline-event-warning
+pipeline: tdd-ro5
+topic: 'dont-tp8f: silence persistent mode baseline event warning'
+created_at: '2026-07-08T22:25:11.682250145+00:00'
+current_step: 7
+approvals: {}

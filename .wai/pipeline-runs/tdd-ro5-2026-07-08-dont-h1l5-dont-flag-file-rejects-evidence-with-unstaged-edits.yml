@@ -1,0 +1,6 @@
+run_id: tdd-ro5-2026-07-08-dont-h1l5-dont-flag-file-rejects-evidence-with-unstaged-edits
+pipeline: tdd-ro5
+topic: 'dont-h1l5: dont flag --file rejects evidence with unstaged edits'
+created_at: '2026-07-08T15:37:22.912724952+00:00'
+current_step: 7
+approvals: {}
