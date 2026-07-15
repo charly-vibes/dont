@@ -17,6 +17,8 @@ target/
 .dont/*
 !.dont/AGENTS.md
 !.dont/config.toml
+!.dont/events.jsonl
+!.dont/db.cozo
 !.dont/seed/
 !.dont/vocab/
 !.dont/rules/

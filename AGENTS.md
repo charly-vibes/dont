@@ -98,7 +98,7 @@ In permissive mode, `unverified` claims are allowed in CI. Only `doubted` claims
 
 **Success metric (30-day retrospective):** run `dont list --status=verified`. If fewer than 60% of architectural claims are verified after 30 days, simplify or drop the discipline. A claim with no evidence activity for 30+ days is a retirement candidate.
 
-## Issue Tracking
+## Beads Issue Tracker
 
 This project uses **bd** for issue tracking.
 
