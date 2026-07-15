@@ -30,7 +30,7 @@ jobs:
           sudo mv vale /usr/local/bin/vale
 
       - name: Install wai
-        run: cargo install --git https://github.com/charly-vibes/wai.git wai
+        run: cargo install --locked --git https://github.com/charly-vibes/wai.git wai-cli
 
       - name: Install mdBook
         uses: taiki-e/install-action@mdbook
