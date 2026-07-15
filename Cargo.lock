@@ -552,8 +552,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "dont"
-version = "0.1.0"
+name = "dont-cli"
+version = "0.2.0"
 dependencies = [
  "assert_cmd",
  "chrono",
