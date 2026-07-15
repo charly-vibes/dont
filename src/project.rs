@@ -244,10 +244,7 @@ fn find_dont_dir_by_walking(start: &Path) -> Option<PathBuf> {
         if candidate.is_dir() {
             return Some(candidate);
         }
-        match current.parent() {
-            Some(parent) => current = parent,
-            None => return None,
-        }
+        current = current.parent()?;
     }
 }
 
