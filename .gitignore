@@ -50,3 +50,6 @@ target/
 .beads/*
 !.beads/issues.jsonl
 !.beads/config.yaml
+
+# testaruda store (local SQLite DB)
+.testaruda/
