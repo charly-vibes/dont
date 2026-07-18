@@ -1,0 +1,6 @@
+id = "adding-a-sixth-primitive-requires-justification-and-version-bump"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

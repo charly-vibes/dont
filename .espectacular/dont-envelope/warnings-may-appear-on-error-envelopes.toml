@@ -1,0 +1,6 @@
+id = "warnings-may-appear-on-error-envelopes"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

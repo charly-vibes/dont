@@ -1,0 +1,6 @@
+id = "rule-claim-structure-warning-does-not-appear-when-rule-is-disabled"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

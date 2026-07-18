@@ -1,0 +1,6 @@
+id = "ground-rejects-stdin-id-bulk-mode"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

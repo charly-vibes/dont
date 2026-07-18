@@ -1,0 +1,6 @@
+id = "validators-fire-in-order-and-stop-at-first-failure"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

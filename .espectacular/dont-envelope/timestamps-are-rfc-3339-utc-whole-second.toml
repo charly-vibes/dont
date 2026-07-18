@@ -1,0 +1,6 @@
+id = "timestamps-are-rfc-3339-utc-whole-second"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

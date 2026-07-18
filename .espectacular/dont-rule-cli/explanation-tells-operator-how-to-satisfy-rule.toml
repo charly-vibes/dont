@@ -1,0 +1,6 @@
+id = "explanation-tells-operator-how-to-satisfy-rule"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

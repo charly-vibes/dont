@@ -1,0 +1,6 @@
+id = "exit-code-1-directs-caller-to-remediation"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

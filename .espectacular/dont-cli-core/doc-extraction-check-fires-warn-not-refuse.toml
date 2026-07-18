@@ -1,0 +1,6 @@
+id = "doc-extraction-check-fires-warn-not-refuse"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

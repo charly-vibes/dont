@@ -1,0 +1,6 @@
+id = "dont-can-operate-without-companion-tool-runtime-coupling"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

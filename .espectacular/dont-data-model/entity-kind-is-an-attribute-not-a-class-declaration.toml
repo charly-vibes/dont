@@ -1,0 +1,6 @@
+id = "entity-kind-is-an-attribute-not-a-class-declaration"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

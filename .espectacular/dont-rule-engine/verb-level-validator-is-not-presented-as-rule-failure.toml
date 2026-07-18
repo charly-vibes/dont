@@ -1,0 +1,6 @@
+id = "verb-level-validator-is-not-presented-as-rule-failure"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

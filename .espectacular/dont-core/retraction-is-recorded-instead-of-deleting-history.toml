@@ -1,0 +1,6 @@
+id = "retraction-is-recorded-instead-of-deleting-history"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

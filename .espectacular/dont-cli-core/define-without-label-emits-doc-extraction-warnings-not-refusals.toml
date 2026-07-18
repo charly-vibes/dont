@@ -1,0 +1,6 @@
+id = "define-without-label-emits-doc-extraction-warnings-not-refusals"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

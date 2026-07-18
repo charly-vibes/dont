@@ -1,0 +1,6 @@
+id = "derived-assessments-are-recomputed-after-status-changes"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

@@ -1,0 +1,6 @@
+id = "flag-verifies-an-eligible-claim-or-term-with-evidence"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"

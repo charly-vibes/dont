@@ -1,0 +1,6 @@
+id = "init-is-consistent-with-doctor-fix"
+description = ""
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.1.0"
