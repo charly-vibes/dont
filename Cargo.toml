@@ -1,6 +1,6 @@
 [package]
 name = "dont-cli"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 description = "Epistemic discipline for autonomous LLM workflows — claims, evidence, and vocabulary tracked as an explicit state machine"
 license = "Apache-2.0"
