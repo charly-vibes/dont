@@ -89,7 +89,7 @@ fn colorize_status(status: &str) -> String {
   dont flag claim:abc123 -e https://example.com/sky
   dont lock claim:abc123             # preserve a verified claim
   dont list --status unverified      # see all unverified claims
-  dont prime                         # session-start orientation
+  dont prime                         # session-start orientation (also mentions dont-grill skill pack)
 
 Command groups:
   Claim lifecycle:
@@ -788,16 +788,20 @@ const HELP_TUTORIAL: &[&str] = &[
     "## 3. Coin a term\n\n",
     "    dont define WB:P001 --label \"a repository commit\" --doc \"A single atomic change...\"\n\n",
     "Supply `--label '<a noun phrase>'` alongside `--doc`.\n\n",
-    "## 4. Record a claim\n\n",
+    "## 4. Grill before recording\n\n",
+    "Before recording a claim, invoke the `dont-grill` skill pack: `/dont-grill`.\n",
+    "The skill checks for near-duplicates, claim-worthiness, and proper evidence.\n\n",
+    "## 5. Record a claim\n\n",
     "    dont conclude \"claim text\"\n\n",
-    "Core four verbs: conclude, define, trust, dismiss. Lifecycle verbs: lock, reopen, ignore, verify-evidence.\n\n",
-    "## 5. Ground a documented fact (fast path)\n\n",
+    "Core four verbs: conclude, define, trust, dismiss. Lifecycle verbs: lock, reopen, ignore, verify-evidence.\n",
+    "Note: `dont lock` is currently unavailable (use `dont forget`).\n\n",
+    "## 6. Ground a documented fact (fast path)\n\n",
     "    dont ground \"documented fact\" --file README.md --lines 10-18\n\n",
-    "## 6. Handle refusals\n\n",
+    "## 7. Handle refusals\n\n",
     "When a command is refused, read `data.remediation[0].command`.\n\n",
-    "## 7. Spawn requests\n\n",
+    "## 8. Spawn requests\n\n",
     "When a refusal contains a spawn_request envelope, invoke the harness sub-agent.\n\n",
-    "## 8. Diagnose blockers\n\n",
+    "## 9. Diagnose blockers\n\n",
     "Run `dont trace <entity-id>` to see the causal path to the root blocker.\n\n",
     "## Further reading\n\n",
     "- `dont help <cmd>` -- per-command reference\n",
@@ -1618,7 +1622,8 @@ fn format_prime(data: &Value) -> String {
     let verified = counts["verified"].as_u64().unwrap_or(0);
     let locked = counts["locked"].as_u64().unwrap_or(0);
     let mut out = format!(
-        "dont project  {mode} mode\n  unverified: {unverified}  doubted: {doubted}  verified: {verified}  locked: {locked}"
+        "dont project  {mode} mode\n  unverified: {unverified}  doubted: {doubted}  verified: {verified}  locked: {locked}\
+\n  tip: run `/dont-grill` before `dont conclude` to verify claims are ready"
     );
     if let Some(blocking) = data["blocking"].as_array().filter(|b| !b.is_empty()) {
         out.push_str("\n\nblocking:");

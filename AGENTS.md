@@ -41,7 +41,8 @@ Detected workflow tools:
 
 1. `wai sync` — ensure agent tools are projected
 2. `wai status` — see active projects, phase, and suggestions
-3. `bd ready` — find available work items
+3. `dont prime` — see current claim status (open questions, unverified claims)
+4. `bd ready` — find available work items
 
 When context reaches ~40%: stop and tell the user — responses degrade past
 this point. Recommend `wai close` then `/clear` to resume cleanly.
@@ -89,6 +90,10 @@ context before starting research or creating tickets.
 2. Define any CURIEs used in the claim with `dont define`
 3. Add evidence: `dont flag <id> --file="<path>" --anchor="<section>"` or atomically: `dont ground "<assertion>" --file="..." --anchor="..."`
 4. Claims in `doubted` status block CI — `just check-claims` fails
+
+**Prefer `dont ground` as the fast path** when you already have the claim text and evidence in hand — it atomically composes `conclude` + `dismiss` in one command.
+
+**Before concluding, invoke `dont-grill`** (the structured interview skill pack) to verify the claim is ready. The skill checks for near-duplicates, claim-worthiness, and proper evidence before committing.
 
 In permissive mode, `unverified` claims are allowed in CI. Only `doubted` claims are blocking. In strict mode, the tool enforces grounding at `conclude` time.
 
