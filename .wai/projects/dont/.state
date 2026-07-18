@@ -1,4 +1,4 @@
-current: review
+current: archive
 history:
 - phase: research
   started: '2026-04-20T21:30:44.403649914Z'
@@ -11,3 +11,6 @@ history:
   completed: '2026-07-07T15:12:34.214284205Z'
 - phase: review
   started: '2026-07-07T15:12:34.214284205Z'
+  completed: '2026-07-18T21:54:27.257969212Z'
+- phase: archive
+  started: '2026-07-18T21:54:27.257969212Z'
