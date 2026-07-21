@@ -12,6 +12,10 @@ install:
 test:
   cargo test
 
+# Validate spec-test correspondence (requires espectacular)
+validate:
+  ah check
+
 run *args:
   cargo run -- {{args}}
 
