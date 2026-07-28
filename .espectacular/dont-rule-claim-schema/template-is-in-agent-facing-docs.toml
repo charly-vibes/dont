@@ -4,3 +4,6 @@ archetype = "PF"
 status = "active"
 superseded_by = ""
 authored_with = "0.1.0"
+
+[tests]
+cargo = [{flags = "dont_project_agents_md_includes_rule_claim_template"}]

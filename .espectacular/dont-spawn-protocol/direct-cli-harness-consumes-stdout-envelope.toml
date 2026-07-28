@@ -4,3 +4,6 @@ archetype = "PF"
 status = "active"
 superseded_by = ""
 authored_with = "0.1.0"
+
+[tests]
+cargo = [{flags = "cli_error_conclude_no_project_is_well_formed_envelope"}]

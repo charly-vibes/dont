@@ -4,3 +4,6 @@ archetype = "PF"
 status = "active"
 superseded_by = ""
 authored_with = "0.1.0"
+
+[tests]
+cargo = [{flags = "core_commands_work_without_external_database_process"}]

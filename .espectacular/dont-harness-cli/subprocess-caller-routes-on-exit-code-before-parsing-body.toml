@@ -4,3 +4,6 @@ archetype = "PF"
 status = "active"
 superseded_by = ""
 authored_with = "0.1.0"
+
+[tests]
+cargo = [{flags = "installed_pack_contains_router_and_all_sub_skills"}]

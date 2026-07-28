@@ -4,3 +4,6 @@ archetype = "PF"
 status = "active"
 superseded_by = ""
 authored_with = "0.1.0"
+
+[tests]
+cargo = [{flags = "all_core_four_verbs_appear_in_top_level_help"}]

@@ -10,6 +10,7 @@ LOV = "LOV"
 Asai = "Asai"
 Geometrie = "Geometrie"
 als = "als"
+defin = "defin"
 
 [files]
 extend-exclude = [

@@ -4,3 +4,6 @@ archetype = "PF"
 status = "active"
 superseded_by = ""
 authored_with = "0.1.0"
+
+[tests]
+cargo = [{flags = "ignore_and_reopen_form_a_left_inverse_on_ignorable_statuses"}]

@@ -1,7 +1,14 @@
-tool_version = "0.2.2"
+tool_version = "0.3.0"
 
 [paths]
 specs = "openspec/specs"
 changes = "openspec/changes"
 
 [runners]
+pytest = ["pytest"]
+
+[capabilities.property]
+enabled = true
+
+[tests]
+cargo = [{flags = "config_rules_rule_claim_structure_parses"}]
