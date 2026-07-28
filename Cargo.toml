@@ -38,7 +38,7 @@ ulid = "1.2.1"
 
 # Genesis suite — shared modules extracted from dont
 # https://github.com/charly-vibes/genesis
-genesis = { git = "https://github.com/charly-vibes/genesis", tag = "v0.1.0" }
+genesis = { git = "https://github.com/charly-vibes/genesis", tag = "v0.2.0" }
 
 [dev-dependencies]
 assert_cmd = "2.2.1"

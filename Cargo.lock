@@ -708,7 +708,7 @@ dependencies = [
 [[package]]
 name = "genesis"
 version = "0.1.0"
-source = "git+https://github.com/charly-vibes/genesis?tag=v0.1.0#613dc00041839e6a4dff1bbf2cb1f6b55e93ab5d"
+source = "git+https://github.com/charly-vibes/genesis?tag=v0.2.0#a59670bdc2ae6a8a15b6bec479a57bcbb1ffac47"
 dependencies = [
  "clap",
  "miette 7.6.0",
@@ -716,7 +716,9 @@ dependencies = [
  "serde",
  "serde_json",
  "strsim",
+ "tempfile",
  "thiserror 2.0.19",
+ "toml",
 ]
 
 [[package]]
@@ -2006,8 +2008,15 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
+ "toml_write",
  "winnow",
 ]
+
+[[package]]
+name = "toml_write"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
 
 [[package]]
 name = "twox-hash"
