@@ -3,8 +3,10 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process;
 
+use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
+use genesis::suggestions::{CommandRegistry, SuggestionEngine};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -1245,12 +1247,25 @@ fn emit_confirm_json<T: serde::Serialize>(envelope: &T) {
 
 fn emit_error_no_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> i32 {
     if human_mode() {
+        let is_unknown =
+            err.message.contains("unknown command") || err.message.contains("unrecognized");
         eprintln!("error: {}", err.message);
         for w in &warnings {
             eprintln!("warning: {}", w.message);
         }
         for r in &err.remediation {
             eprintln!("  run: {}", r.command);
+        }
+        // Try genesis suggestion engine for unknown-command errors
+        if is_unknown && err.remediation.is_empty() {
+            let engine = SuggestionEngine::new();
+            let registry = dont_command_registry();
+            if let Some(unknown) = extract_unknown_subcommand(&err.message)
+                && let Some(suggestion) = engine.suggest_typo(&unknown, &registry)
+                && let Some(footer) = suggestion.footer()
+            {
+                eprintln!("  {}", footer);
+            }
         }
     } else {
         let envelope = Envelope::error(err, warnings);
@@ -3556,8 +3571,98 @@ fn nonfunctional_label_warning(label: &str, cfg: &TermNonfunctionalConfig) -> Op
     }
 }
 
+/// Build a [`CommandRegistry`] with all dont top-level commands.
+fn dont_command_registry() -> CommandRegistry {
+    let mut reg = CommandRegistry::new();
+    reg.register(
+        "dont",
+        vec![
+            "init",
+            "conclude",
+            "define",
+            "trust",
+            "flag",
+            "dismiss",
+            "undoubt",
+            "forget",
+            "lock",
+            "record",
+            "challenge",
+            "reopen",
+            "ignore",
+            "show",
+            "why",
+            "verify-evidence",
+            "prime",
+            "doctor",
+            "list",
+            "vocab",
+            "trace",
+            "completions",
+            "stats",
+            "export",
+            "ground",
+            "atom",
+            "hypothesis",
+            "import",
+            "check",
+            "rules",
+            "explain",
+            "help",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect(),
+    );
+    reg
+}
+
+/// Extract an unknown subcommand name from a clap error message.
+///
+/// Clap error messages for unknown subcommands look like:
+/// `error: unrecognized subcommand 'defin'`
+fn extract_unknown_subcommand(msg: &str) -> Option<String> {
+    let prefix = "unrecognized subcommand '";
+    let start = msg.find(prefix)?;
+    let rest = &msg[start + prefix.len()..];
+    let end = rest.find('\'')?;
+    Some(rest[..end].to_string())
+}
+
 fn main() {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => match err.kind() {
+            ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                err.exit();
+            }
+            ErrorKind::UnknownArgument => {
+                let msg = err.to_string();
+                if msg.contains("a similar subcommand exists") {
+                    eprintln!("{msg}");
+                } else {
+                    let engine = SuggestionEngine::new();
+                    let registry = dont_command_registry();
+                    if let Some(unknown) = extract_unknown_subcommand(&msg)
+                        && let Some(suggestion) = engine.suggest_typo(&unknown, &registry)
+                    {
+                        eprintln!("error: unrecognized subcommand '{unknown}'");
+                        eprintln!();
+                        eprintln!("  Did you mean '{}'?", suggestion.message());
+                        eprintln!();
+                        eprintln!("Usage: {}", Cli::command().render_usage());
+                        eprintln!("For more information, try '--help'.");
+                        process::exit(2);
+                    }
+                    eprintln!("{msg}");
+                }
+                process::exit(2);
+            }
+            _ => {
+                err.exit();
+            }
+        },
+    };
 
     // Resolve author: explicit flag > $DONT_AUTHOR > $USER
     let author = cli
