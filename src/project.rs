@@ -13,8 +13,8 @@ use crate::managed_block::{
 use crate::skill_pack;
 
 use chrono::{SecondsFormat, Utc};
+use genesis::config::ConfigFile;
 use serde_json::json;
-use toml;
 
 use crate::store::{Store, StoreError};
 
@@ -294,23 +294,27 @@ impl Project {
     }
 
     pub fn load_config(&self) -> Config {
-        let text = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
-        toml::from_str(&text).unwrap_or_default()
+        // Delegate read + parse to genesis::config::ConfigFile. dont keeps
+        // the silent-default fallback so commands that read optional
+        // settings (e.g. [harness], [define]) still work against a partial
+        // config without propagating parse errors. We read from the explicit
+        // `.dont/config.toml` path (which may be a standalone DONT_DIR in
+        // tests) rather than `Config::read(repo_root)`, whose `path()` is
+        // expressed relative to a real repo root.
+        Config::read_from(&self.dont_dir.join("config.toml")).unwrap_or_default()
     }
 
     /// Load config.toml and validate all constrained fields. Returns
     /// `ConfigInvalid` if any field holds an out-of-range value so the
     /// caller can surface a structured error before any command logic runs.
     ///
-    /// Unlike `load_config`, this variant propagates TOML parse errors as
-    /// `ConfigInvalid` so that a malformed config.toml is surfaced to the
-    /// caller rather than silently replaced with defaults.
+    /// Read and parse are delegated to `genesis::config::ConfigFile::read_from`;
+    /// domain field validation runs via `Config::validate_fields`.
     pub fn load_validated_config(&self) -> Result<Config, ProjectError> {
-        let text = fs::read_to_string(self.dont_dir.join("config.toml")).unwrap_or_default();
-        let config: Config = toml::from_str(&text)
-            .map_err(|e| ProjectError::ConfigInvalid(format!("config.toml: {e}")))?;
+        let config = Config::read_from(&self.dont_dir.join("config.toml"))
+            .map_err(|e| ProjectError::ConfigInvalid(e.to_string()))?;
         config
-            .validate()
+            .validate_fields()
             .map_err(|e: ConfigValidationError| ProjectError::ConfigInvalid(e.message))?;
         Ok(config)
     }

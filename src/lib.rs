@@ -31,9 +31,11 @@
 
 /// Configuration types for `.dont/config.toml`.
 ///
-/// [`Config`](config::Config) is the root deserialisation target. Call
-/// [`Config::validate`](config::Config::validate) after loading to surface
-/// invalid field values before any command logic runs.
+/// [`Config`](config::Config) is the root deserialisation target and
+/// implements [`genesis::config::ConfigFile`]. Read/parse are delegated to
+/// genesis; call [`Config::validate_fields`](config::Config::validate_fields)
+/// after loading to surface invalid field values before any command logic
+/// runs.
 pub mod config;
 
 /// Structured JSON output envelope used by every `dont` command.

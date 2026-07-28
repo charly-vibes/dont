@@ -6,6 +6,7 @@ use std::process;
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
+use genesis::config::{ConfigRegistry, ConfigStore};
 use genesis::suggestions::{CommandRegistry, SuggestionEngine};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -3594,6 +3595,18 @@ fn nonfunctional_label_warning(label: &str, cfg: &TermNonfunctionalConfig) -> Op
     }
 }
 
+/// Build the [`genesis::config::ConfigRegistry`] registering dont's config
+/// struct at startup.
+///
+/// `Config` is registered under the `dont` tool name with the
+/// `.dont/config.toml` marker so a `ConfigStore` can discover and validate
+/// it alongside other suite tools.
+fn dont_config_store() -> ConfigStore {
+    let mut registry = ConfigRegistry::new();
+    registry.register::<dont::config::Config>("dont", ".dont/config.toml");
+    ConfigStore::new(registry)
+}
+
 /// Build a [`CommandRegistry`] with all dont top-level commands.
 fn dont_command_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::new();
@@ -4969,9 +4982,53 @@ fn main() {
             } else {
                 "linkml is not on PATH; import linkml uses in-process parsing only — install linkml for secondary validation".to_string()
             };
+
+            // Config check via genesis::config::ConfigStore. The store discovers
+            // the registered `.dont/config.toml` marker and runs domain
+            // validation (Config::validate_fields via the ConfigFile override).
+            // `open_project_or_exit` already rejects invalid configs, so this
+            // surfaces as pass in the normal case — but it exercises the
+            // ConfigStore wiring so cross-tool suite linting sees dont. In
+            // standalone-DONT_DIR layouts (tests) the marker is not at the
+            // repo root and validate_all skips it; config validity is still
+            // guaranteed by open_project_or_exit.
+            let config_store = dont_config_store();
+            let repo_root = project.project_root();
+            let discovered = ConfigStore::discover(&repo_root, config_store.registry());
+            let marker_found = discovered
+                .iter()
+                .find(|d| d.tool_name == "dont")
+                .map(|d| d.found)
+                .unwrap_or(false);
+            let config_validations = config_store.validate_all(&repo_root);
+            let config_errors: Vec<_> = config_validations
+                .iter()
+                .filter(|v| v.severity == genesis::config::ValidationSeverity::Error)
+                .collect();
+            let (config_status, config_detail) = if !config_errors.is_empty() {
+                (
+                    "fail",
+                    config_errors
+                        .iter()
+                        .map(|v| format!("{}: {}", v.field, v.message))
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                )
+            } else if marker_found {
+                (
+                    "pass",
+                    "config.toml registered with ConfigStore and valid".to_string(),
+                )
+            } else {
+                (
+                    "pass",
+                    "config.toml valid (registered; marker not at repo root)".to_string(),
+                )
+            };
             let checks = vec![
                 json!({"name": "substrate", "status": "pass", "detail": "store opened successfully"}),
                 json!({"name": "rules_compile", "status": "pass", "detail": "built-in rules available"}),
+                json!({"name": "config", "status": config_status, "detail": config_detail}),
                 json!({"name": "seed_snapshot", "status": seed_snapshot_status, "detail": seed_snapshot_detail}),
                 json!({"name": "pending_spawns", "status": "pass", "detail": if project.root_doc_paths().is_empty() { "no pending spawn audit implemented; direct DONT_DIR override skips separate root managed docs" } else { "no pending spawn audit implemented" }}),
                 json!({"name": "remediation_invariant", "status": "pass", "detail": "error remediation invariant available"}),

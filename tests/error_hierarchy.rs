@@ -78,7 +78,7 @@ fn transition_error_fields_accessible_without_downcast() {
 // ── ConfigValidationError field access without downcast ───────────────────────
 
 /// ConfigValidationError carries a message field directly accessible to callers.
-/// Config::validate() returns Result<(), ConfigValidationError> — fully typed.
+/// Config::validate_fields() returns Result<(), ConfigValidationError> — fully typed.
 #[test]
 fn config_validation_error_is_matchable_without_downcast() {
     use dont::config::Config;
@@ -98,7 +98,7 @@ default_timeout_s = 0
 "#;
 
     let config: Config = toml::from_str(toml_str).expect("TOML parses");
-    let err: ConfigValidationError = config.validate().unwrap_err();
+    let err: ConfigValidationError = config.validate_fields().unwrap_err();
 
     // Direct field access — no downcast
     assert!(

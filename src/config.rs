@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
+use genesis::config::{ConfigError, ConfigFile, ConfigValidation};
 use serde::Deserialize;
 
 /// Validation error returned when a config field holds an invalid value.
@@ -211,7 +213,11 @@ impl Config {
     /// the failing field and the invalid value so callers can surface it
     /// without ambiguity. Validation runs at load time — not deferred to
     /// individual call sites — so invalid values never reach runtime logic.
-    pub fn validate(&self) -> Result<(), ConfigValidationError> {
+    ///
+    /// This is the domain validator. The `genesis::config::ConfigFile`
+    /// `validate()` override delegates here so `ConfigStore::validate_all`
+    /// surfaces the same field errors.
+    pub fn validate_fields(&self) -> Result<(), ConfigValidationError> {
         // [project].mode is required: it governs permissive-vs-strict enforcement.
         // Absent means the project has no explicit mode, which silently defaults to
         // an undocumented behaviour — reject with a clear fix instruction instead.
@@ -310,5 +316,25 @@ impl Config {
         }
 
         Ok(())
+    }
+}
+
+// ── genesis::config::ConfigFile adoption ──────────────────────────────
+//
+// dont adopts `genesis::config` for shared config I/O: `read`/`parse` come
+// from the trait's blanket impl (delegated to genesis), and `validate`
+// forwards domain field checks so a `ConfigStore` can surface them across
+// the suite. The marker path is `.dont/config.toml` relative to repo root.
+
+impl ConfigFile for Config {
+    fn path(repo_root: &Path) -> PathBuf {
+        repo_root.join(".dont").join("config.toml")
+    }
+
+    fn validate(&self) -> Result<Vec<ConfigValidation>, ConfigError> {
+        match self.validate_fields() {
+            Ok(()) => Ok(Vec::new()),
+            Err(e) => Ok(vec![ConfigValidation::error("config", e.message)]),
+        }
     }
 }
