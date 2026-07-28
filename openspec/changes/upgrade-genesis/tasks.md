@@ -24,6 +24,6 @@
 - [x] `cargo test` passes with the new guide setup.
 
 ## 4. Clean up
-- [ ] `cargo test` passes.
-- [ ] `cargo clippy` introduces no new warnings.
-- [ ] `cargo fmt` is clean.
+- [x] `cargo test` passes.
+- [x] `cargo clippy` introduces no new warnings.
+- [x] `cargo fmt` is clean.
