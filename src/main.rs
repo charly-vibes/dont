@@ -6415,15 +6415,13 @@ fn main() {
                 );
             }
 
-            // Read the repository field from Cargo.toml
             // Read the repository field from Cargo.toml at compile time
             let repo = env!("CARGO_PKG_REPOSITORY").to_string();
 
-            // Strip https:// prefix for gh repo format
+            // Strip https://github.com/ prefix for gh repo format
             let repo_slug = repo
-                .trim_start_matches("https://")
-                .trim_start_matches("http://")
-                .trim_start_matches("github.com/")
+                .trim_start_matches("https://github.com/")
+                .trim_start_matches("http://github.com/")
                 .to_string();
 
             // Build the issue body
@@ -6464,10 +6462,19 @@ fn main() {
 
             if dry_run {
                 // Print the body and gh command without submitting
-                println!("{}", body);
-                println!();
-                println!("# To submit:");
-                println!("echo {:?} | {}", body, gh_cmd);
+                if cli.json {
+                    let payload = json!({
+                        "body": body,
+                        "gh_command": gh_cmd,
+                        "kind": kind,
+                    });
+                    println!("{}", serde_json::to_string(&payload).unwrap());
+                } else {
+                    println!("{}", body);
+                    println!();
+                    println!("# To submit:");
+                    println!("{}", gh_cmd);
+                }
                 process::exit(0);
             }
 
