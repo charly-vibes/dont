@@ -43,6 +43,9 @@ ready:
 bd-status:
   bd status
 
+fmt-check:
+  cargo fmt --all --check
+
 lint:
   cargo fmt --all --check
   cargo clippy --all-targets --all-features -- -D warnings
