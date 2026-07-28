@@ -1,20 +1,54 @@
+//! Structured CLI output envelope.
+//!
+//! Re-exports shared types from `genesis::envelope` while preserving
+//! dont's `envelope_version` ("0.2") contract and dont-specific
+//! `EnvelopeKind` variants.
+//!
+//! ## Contract (envelope_version 0.2)
+//!
+//! The JSON envelope shape is: `ok`, `envelope_version`, `cli_version`,
+//! `envelope_kind`, `data`, `warnings`, `hints`, `ephemeral`, `meta`.
+//! `envelope_version` must be `"0.2"` for backward compatibility with
+//! consumers that depend on the dont envelope shape.
+
+pub use genesis::envelope::{ErrorResult, HintEntry, Meta, RemediationEntry, UnmetClause, Warning};
+
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
+/// Local author tracking mirroring genesis's private `CURRENT_AUTHOR`.
+///
+/// Genesis's `current_author()` is private, so we maintain a local copy
+/// for constructing [`Meta`] in our wrapper types. If genesis ever makes
+/// `current_author()` public, this local copy and the wrapper `set_author`
+/// can be removed in favor of a direct re-export.
 static CURRENT_AUTHOR: OnceLock<String> = OnceLock::new();
 
+/// Wrap genesis's `set_author` to also set the local copy.
+///
+/// Both copies are set so that code using `genesis::envelope::set_author`
+/// directly (if any) stays in sync.
 pub fn set_author(author: String) {
-    let _ = CURRENT_AUTHOR.set(author);
+    let _ = CURRENT_AUTHOR.set(author.clone());
+    genesis::envelope::set_author(author);
 }
 
 fn current_author() -> Option<String> {
     CURRENT_AUTHOR.get().cloned()
 }
 
+/// Envelope protocol version — dont maintains "0.2" for backward compatibility.
 pub const ENVELOPE_VERSION: &str = "0.2";
+
+/// CLI version, injected at compile time from dont's `Cargo.toml`.
 pub const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Discriminator for the kind of data carried in the envelope.
+///
+/// dont-specific variants preserved for backward compatibility with
+/// the existing command surface. Genesis's generic `EnvelopeKind`
+/// is not used directly; this local enum is the canonical one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvelopeKind {
@@ -43,73 +77,10 @@ pub enum EnvelopeKind {
     Check,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Warning {
-    pub rule_name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_id: Option<String>,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub suggested_remediation: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RemediationEntry {
-    pub command: String,
-    pub description: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UnmetClause {
-    pub clause: String,
-    pub fix: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Meta {
-    pub duration_ms: u64,
-    pub tx: Option<u64>,
-    pub request_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub author: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorResult {
-    pub code: String,
-    pub message: String,
-    pub rule_name: Option<String>,
-    pub spec_ref: Option<String>,
-    pub entity_id: Option<String>,
-    pub unmet_clauses: Vec<UnmetClause>,
-    pub remediation: Vec<RemediationEntry>,
-}
-
-impl ErrorResult {
-    pub fn new(
-        code: &str,
-        message: &str,
-        rule_name: Option<&str>,
-        spec_ref: Option<&str>,
-        entity_id: Option<&str>,
-        unmet_clauses: Vec<UnmetClause>,
-        remediation: Vec<RemediationEntry>,
-    ) -> Result<Self, &'static str> {
-        if remediation.is_empty() {
-            return Err("remediation must be non-empty (Invariant 3.2.5)");
-        }
-        Ok(Self {
-            code: code.to_string(),
-            message: message.to_string(),
-            rule_name: rule_name.map(str::to_string),
-            spec_ref: spec_ref.map(str::to_string),
-            entity_id: entity_id.map(str::to_string),
-            unmet_clauses,
-            remediation,
-        })
-    }
-}
-
+/// The universal CLI output envelope.
+///
+/// Structurally identical to `genesis::envelope::Envelope` but uses
+/// dont's local `EnvelopeKind` enum and version constants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Envelope<T: Serialize> {
     pub ok: bool,
@@ -123,12 +94,6 @@ pub struct Envelope<T: Serialize> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ephemeral: Option<bool>,
     pub meta: Meta,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HintEntry {
-    pub command: String,
-    pub description: String,
 }
 
 impl<T: Serialize> Envelope<T> {
