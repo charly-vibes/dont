@@ -41,7 +41,7 @@ warn() { echo "⚠ $1"; }
 ground() {
   local claim="$1" file="$2" anchor="$3"
   # Sanitize multi-byte/control chars that dont rejects
-  claim="$(echo "$claim" | sed 's/[→⇒←⇐↔⇔─━│┃]/->/g; s/[|]/,/g; s/[$]//g; s/[`]//g; s/—/ -- /g')"
+  claim="$(echo "$claim" | sed 's/[→⇒←⇐↔⇔─━│┃]/->/g; s/[|]/,/g; s/[$]//g; s/[`]//g; s/—/ -- /g; s/^[[:space:]-]*//')"
   local short="${claim:0:120}"
   [ "${#claim}" -gt 120 ] && short="${short}…"
 
@@ -85,7 +85,7 @@ mine_git_commits() {
     body="$(git log --format="%b" -1 "$hash" 2>/dev/null | head -10 | tr '\n' ' ' | sed 's/^ *//;s/ *$//')"
     [ -z "$body" ] && body="$subject"
     [ "${#body}" -lt 40 ] && continue
-    body="$(echo "$body" | sed 's/[→⇒←⇐↔⇔─━│┃]/->/g; s/[|]/,/g; s/[$]//g; s/[`]//g; s/—/ -- /g')"
+    body="$(echo "$body" | sed 's/[→⇒←⇐↔⇔─━│┃]/->/g; s/[|]/,/g; s/[$]//g; s/[`]//g; s/—/ -- /g; s/^[[:space:]-]*//')"
     ground "$body" "$evfile" "commit $hash" || true
   done
 }
