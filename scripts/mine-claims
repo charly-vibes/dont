@@ -8,10 +8,7 @@
 #   2. README.md (key features, design decisions, documented behavior)
 #   3. CHANGELOG.md (notable additions and assertions)
 #   4. docs/src/status.md (implementation status assertions)
-#   5. Whisper notes (~/.whisper/repos/<namespace>/branches/main/notes.md)
-#
-# Each claim is registered with `dont ground` — the fast path that
-# atomically creates a claim and verifies it with file-line evidence.
+#   5. Whisper notes (~/.whisper/.../notes.md) — concluded (unverified)
 #
 set -euo pipefail
 
@@ -19,54 +16,32 @@ DRY_RUN=false
 FORCE=false
 REPO=""
 
-# ── Option parsing ──────────────────────────────────────────────────────────
+# ── Options ─────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=true; shift ;;
     --force)   FORCE=true; shift ;;
     *)
-      if [ -z "$REPO" ]; then
-        REPO="$1"
-      else
-        echo "✗ Unexpected argument: $1"
-        exit 1
-      fi
-      shift
-      ;;
+      [ -z "$REPO" ] && REPO="$1" || { echo "✗ Unexpected arg: $1"; exit 1; }
+      shift ;;
   esac
 done
 
 [ -z "$REPO" ] && REPO="."
-
-# Resolve repo path
-REPO="$(cd "$REPO" 2>/dev/null && pwd)" || {
-  echo "✗ Cannot access repo: $REPO"
-  exit 1
-}
-
+REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "✗ Cannot access repo: $REPO"; exit 1; }
 cd "$REPO"
 
-# ── Prerequisites ───────────────────────────────────────────────────────────
-if ! command -v dont &>/dev/null; then
-  echo "✗ 'dont' not found in PATH"
-  exit 1
-fi
-
-if [ ! -f ".dont/config.toml" ]; then
-  echo "✗ No .dont/ directory. Run 'dont init' first."
-  exit 1
-fi
+command -v dont &>/dev/null || { echo "✗ 'dont' not found"; exit 1; }
+[ -f ".dont/config.toml" ] || { echo "✗ No .dont/ — run 'dont init'"; exit 1; }
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
-log()  { echo "  $1"; }
 info() { echo "• $1"; }
 warn() { echo "⚠ $1"; }
 
 ground() {
-  # Sanitize: dont rejects shell metacharacters and path separators
-  local claim="$1"
-  claim=$(echo "$claim" | sed 's/[→⇒←⇐↔⇔]/->/g; s/[|]/,/g; s/[$]//g; s/[`]//g; s/—/ -- /g')
-  local file="$2" anchor="$3"
+  local claim="$1" file="$2" anchor="$3"
+  # Sanitize multi-byte/control chars that dont rejects
+  claim="$(echo "$claim" | sed 's/[→⇒←⇐↔⇔─━│┃]/->/g; s/[|]/,/g; s/[$]//g; s/[`]//g; s/—/ -- /g')"
   local short="${claim:0:120}"
   [ "${#claim}" -gt 120 ] && short="${short}…"
 
@@ -75,47 +50,43 @@ ground() {
     return 0
   fi
 
-  # De-dupe: skip if a similar claim already exists
-  if [ "$FORCE" != true ]; then
-    local keyterms
-    keyterms=$(echo "$claim" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-zA-Z0-9 ]//g' | awk '{for(i=1;i<=NF;i++) if(length($i)>4) print $i}' | head -5 | paste -sd'|' -)
-    if [ -n "$keyterms" ]; then
-      if (cd "$REPO" && dont list --plain 2>/dev/null | rg -qi "$keyterms" 2>/dev/null); then
-        echo "    ⏭ Skipped: similar claim already exists"
-        return 0
-      fi
-    fi
-  fi
-
   (cd "$REPO" && dont ground "$claim" --file "$file" --anchor "$anchor" 2>&1) | head -1 || {
-    warn "Failed to ground claim (may be duplicate)"
+    warn "Failed to ground claim: ${short}"
     return 1
   }
 }
 
-# ── Source 1: Git commit messages ───────────────────────────────────────────
+conclude_unverified() {
+  local claim="$1"
+  claim="$(echo "$claim" | sed 's/[→⇒←⇐↔⇔─━│┃]/->/g; s/[|]/,/g; s/[$]//g; s/[`]//g; s/—/ -- /g')"
+  local short="${claim:0:120}"
+  [ "${#claim}" -gt 120 ] && short="${short}…"
+
+  if [ "$DRY_RUN" = true ]; then
+    echo "    [DRY-RUN] dont conclude \"${short}\""
+    return 0
+  fi
+
+  (cd "$REPO" && dont conclude "$claim" 2>&1) | head -1 || true
+}
+
+# ── Source 1: Git commits (design-significant bodies) ───────────────────────
 mine_git_commits() {
   info "Mining git commit messages…"
+  # Pick a file that exists in every repo for evidence anchoring
+  local evfile="README.md"
+  [ -f "$evfile" ] || evfile="CHANGELOG.md"
+  [ -f "$evfile" ] || evfile="LICENSE"
+  [ -f "$evfile" ] || evfile=".gitignore"
+  [ -f "$evfile" ] || evfile="justfile"
 
   git log --format="%H|%ai|%s" -100 -- . 2>/dev/null | while IFS='|' read -r hash date subject; do
-    # Skip trivial subjects
-    case "$subject" in
-      "chore:"*) continue ;;
-      "style:"*) continue ;;
-      "Merge"*) continue ;;
-    esac
-
-    # Read the full body for this commit
-    body=$(git log --format="%b" -1 "$hash" 2>/dev/null | head -10 | tr '\n' ' ' | sed 's/^ *//;s/ *$//')
+    case "$subject" in "chore:"*|"style:"*|"Merge"*) continue ;; esac
+    body="$(git log --format="%b" -1 "$hash" 2>/dev/null | head -10 | tr '\n' ' ' | sed 's/^ *//;s/ *$//')"
     [ -z "$body" ] && body="$subject"
-
-    # Skip one-liners and non-descriptive bodies
     [ "${#body}" -lt 40 ] && continue
-
-    # Sanitize: dont rejects shell metacharacters and path separators
-    body=$(echo "$body" | sed 's/[→⇒←⇐↔⇔]/->/g; s/[|]/,/g; s/[$]//g; s/[`]/\n/g')
-
-    ground "$body" "CHANGELOG.md" "commit $hash" || true
+    body="$(echo "$body" | sed 's/[→⇒←⇐↔⇔─━│┃]/->/g; s/[|]/,/g; s/[$]//g; s/[`]//g; s/—/ -- /g')"
+    ground "$body" "$evfile" "commit $hash" || true
   done
 }
 
@@ -123,30 +94,19 @@ mine_git_commits() {
 mine_readme() {
   [ ! -f "README.md" ] && return 0
   info "Mining README.md…"
-
+  local name; name="$(basename "$REPO")"
   local in_features=false
   while IFS= read -r line; do
-    if [[ "$line" == "## Key Features" ]]; then
-      in_features=true
-      continue
-    fi
-    if $in_features; then
-      [[ "$line" =~ ^## ]] && { in_features=false; continue; }
-      [[ "$line" =~ ^--- ]] && { in_features=false; continue; }
-
-      # "- **Name** — description"
-      if [[ "$line" =~ ^-[[:space:]]*\*\*([^*]+)\*\* ]]; then
-        local feature="${BASH_REMATCH[1]}"
-        local desc="${line#*${feature}**}"
-        desc="${desc#\*\*}"
-        desc="${desc# — }"
-        desc="${desc#— }"
-        desc="${desc%%.*}"
-        desc="$(echo "$desc" | xargs)"
-        local claim="Tray.jl provides $feature"
-        [ -n "$desc" ] && claim="$claim: $desc"
-        ground "$claim" "README.md" "$feature"
-      fi
+    [[ "$line" == "## Key Features" ]] && { in_features=true; continue; }
+    $in_features || continue
+    [[ "$line" =~ ^##|^--- ]] && { in_features=false; continue; }
+    if [[ "$line" =~ ^-[[:space:]]*\*\*([^*]+)\*\* ]]; then
+      local feat="${BASH_REMATCH[1]}"
+      local desc="${line#*${feat}**}"
+      desc="${desc#\*\*}"; desc="${desc# -- }"; desc="${desc%%.*}"; desc="$(echo "$desc" | xargs)"
+      local claim="$name provides $feat"
+      [ -n "$desc" ] && claim="$claim: $desc"
+      ground "$claim" "README.md" "$feat" || true
     fi
   done < "README.md"
 }
@@ -155,30 +115,20 @@ mine_readme() {
 mine_changelog() {
   [ ! -f "CHANGELOG.md" ] && return 0
   info "Mining CHANGELOG.md…"
-
+  local name; name="$(basename "$REPO")"
   local in_added=false
   while IFS= read -r line; do
-    if [[ "$line" == "### Added" ]]; then
-      in_added=true
-      continue
-    fi
-    if $in_added; then
-      [[ "$line" =~ ^## ]] && { in_added=false; continue; }
-      [[ -z "${line// /}" ]] && continue
-
-      # "- **Name** — description"
-      if [[ "$line" =~ ^-[[:space:]]*\*\*([^*]+)\*\* ]]; then
-        local feature="${BASH_REMATCH[1]}"
-        local desc="${line#*${feature}**}"
-        desc="${desc#\*\*}"
-        desc="${desc# — }"
-        desc="${desc#— }"
-        desc="${desc%%.*}"
-        desc="$(echo "$desc" | xargs)"
-        local claim="Tray.jl $feature"
-        [ -n "$desc" ] && claim="$claim: $desc"
-        ground "$claim" "CHANGELOG.md" "$feature"
-      fi
+    [[ "$line" == "### Added" ]] && { in_added=true; continue; }
+    $in_added || continue
+    [[ "$line" =~ ^## ]] && { in_added=false; continue; }
+    [[ -z "${line// /}" ]] && continue
+    if [[ "$line" =~ ^-[[:space:]]*\*\*([^*]+)\*\* ]]; then
+      local feat="${BASH_REMATCH[1]}"
+      local desc="${line#*${feat}**}"
+      desc="${desc#\*\*}"; desc="${desc# -- }"; desc="${desc%%.*}"; desc="$(echo "$desc" | xargs)"
+      local claim="$name $feat"
+      [ -n "$desc" ] && claim="$claim: $desc"
+      ground "$claim" "CHANGELOG.md" "$feat" || true
     fi
   done < "CHANGELOG.md"
 }
@@ -188,40 +138,30 @@ mine_status_doc() {
   local f="docs/src/status.md"
   [ ! -f "$f" ] && return 0
   info "Mining $f…"
-
+  local name; name="$(basename "$REPO")"
   while IFS='|' read -r _ behavior status _; do
-    behavior="$(echo "$behavior" | xargs)"
-    status="$(echo "$status" | xargs)"
+    behavior="$(echo "$behavior" | xargs)"; status="$(echo "$status" | xargs)"
     [[ "$behavior" == "Behavior" || "$behavior" =~ ^--- ]] && continue
     [[ -z "$behavior" || -z "$status" ]] && continue
-    if [[ "$status" == "✅"*"Implemented"* ]]; then
-      ground "Tray.jl: $behavior — implemented and tested" "$f" "$behavior" || true
-    fi
+    [[ "$status" == "✅"*"Implemented"* ]] || continue
+    ground "$name: $behavior -- implemented and tested" "$f" "$behavior" || true
   done < <(grep '|' "$f" | grep -v '^$')
 }
 
-# ── Source 5: Whisper notes ────────────────────────────────────────────────
+# ── Source 5: Whisper notes (conclude only, external to repo) ───────────────
 mine_whisper() {
-  local repo_name
-  repo_name="$(basename "$REPO")"
-
-  # Search through whisper directories for matching repo names
+  local repo_name; repo_name="$(basename "$REPO")"
   local whisper_paths=()
-  while IFS= read -r f; do
-    whisper_paths+=("$f")
-  done < <(find "$HOME/.whisper/repos/" -name "notes.md" -o -name "env.md" 2>/dev/null | grep -i "$repo_name" || true)
-
+  while IFS= read -r f; do whisper_paths+=("$f"); done < \
+    <(find "$HOME/.whisper/repos/" -name "notes.md" -o -name "env.md" 2>/dev/null | grep -i "$repo_name" || true)
   for wpath in "${whisper_paths[@]}"; do
     [ ! -f "$wpath" ] && continue
     info "Mining whisper notes: $wpath"
-
     while IFS= read -r line; do
-      # Design-significant patterns: bug fixes, refactors, extracted functions, gotchas
       line="$(echo "$line" | sed 's/^  *//')"
       if echo "$line" | grep -qE '^- +(Fixed|Completed|Refactored|Extracted|Key|Bug|Supposition gotcha|Rule of 5)'; then
-        local claim_text
-        claim_text=$(echo "$line" | sed 's/^- //' | xargs)
-        [ -n "$claim_text" ] && ground "$claim_text" "$wpath" "$(echo "$claim_text" | cut -c1-50)" || true
+        local ct; ct="$(echo "$line" | sed 's/^- //' | xargs)"
+        [ -n "$ct" ] && conclude_unverified "$ct"
       fi
     done < "$wpath"
     return 0
@@ -232,7 +172,7 @@ mine_whisper() {
 echo "═══════════════════════════════════════════════════════════════"
 echo "📋 Mining claims from: $(basename "$REPO")"
 echo "═══════════════════════════════════════════════════════════════"
-[ "$DRY_RUN" = true ] && echo "⚠  DRY RUN — no claims will be registered"
+[ "$DRY_RUN" = true ] && echo "⚠  DRY RUN — no claims registered"
 echo ""
 
 mine_git_commits
@@ -244,7 +184,4 @@ mine_whisper
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✅ Mining complete"
-if [ "$DRY_RUN" = true ]; then
-  echo "⚠  DRY RUN — no claims were registered"
-  echo "   Run without --dry-run to register claims"
-fi
+[ "$DRY_RUN" = true ] && echo "⚠  DRY RUN — no claims registered"

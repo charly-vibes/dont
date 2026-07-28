@@ -1522,6 +1522,19 @@ fn format_human(v: &Value) -> String {
     }
 }
 
+fn char_safe_truncate(s: &str, max_chars: usize) -> &str {
+    if s.len() <= max_chars {
+        return s;
+    }
+    let boundary = s
+        .char_indices()
+        .take_while(|(i, _)| *i < max_chars)
+        .last()
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    &s[..boundary]
+}
+
 fn format_claims_list(data: &Value) -> String {
     let items = match data["claims"].as_array().or_else(|| data.as_array()) {
         Some(arr) => arr,
@@ -1536,7 +1549,7 @@ fn format_claims_list(data: &Value) -> String {
             let id = item["id"].as_str().unwrap_or("?");
             let status = item["status"].as_str().unwrap_or("?");
             let stmt = item["statement"].as_str().unwrap_or("?");
-            let truncated = if stmt.len() > 70 { &stmt[..70] } else { stmt };
+            let truncated = char_safe_truncate(stmt, 70);
             let pad = " ".repeat(12usize.saturating_sub(status.len()));
             format!("{}{}  {id}  {truncated}", colorize_status(status), pad)
         })
@@ -1699,7 +1712,7 @@ fn format_prime(data: &Value) -> String {
         for item in blocking {
             let id = item["id"].as_str().unwrap_or("?");
             if let Some(stmt) = item["statement"].as_str() {
-                let truncated = if stmt.len() > 60 { &stmt[..60] } else { stmt };
+                let truncated = char_safe_truncate(stmt, 60);
                 out.push_str(&format!("\n  {id}  [doubted]  {truncated}"));
             } else if let Some(curie) = item["curie"].as_str() {
                 out.push_str(&format!("\n  {id}  [doubted]  {curie}"));
