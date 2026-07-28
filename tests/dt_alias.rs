@@ -66,7 +66,12 @@ fn seed_lockable_claim(dir: &TempDir) -> String {
 }
 
 fn dt() -> Command {
-    Command::cargo_bin("dt").unwrap()
+    // Redirect XDG_CACHE_HOME so dt's error-scratch writes don't pollute the
+    // developer's real ~/.cache/dont/ during cargo test (see tests/common/mod.rs).
+    let cache = std::env::temp_dir().join("dont-test-cache");
+    let mut cmd = Command::cargo_bin("dt").unwrap();
+    cmd.env("XDG_CACHE_HOME", &cache);
+    cmd
 }
 
 // ── dt record (≡ dont conclude) ────────────────────────────────────────────

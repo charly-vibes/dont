@@ -7,6 +7,8 @@ use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 use genesis::config::{ConfigRegistry, ConfigStore};
+use genesis::feedback::scratch;
+use genesis::guide::Guide;
 use genesis::suggestions::{CommandRegistry, SuggestionEngine};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -1265,7 +1267,19 @@ fn emit_confirm_json<T: serde::Serialize>(envelope: &T) {
     emit_json(envelope);
 }
 
+/// ISO 8601 timestamp for error scratch records.
+///
+/// Mirrors the `chrono_now()` format used by `genesis::guide::ErrorSink` so
+/// scratch records written here are shape-compatible with the Guide's.
+fn scratch_timestamp() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
 fn emit_error_no_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> i32 {
+    // Capture fields needed for the scratch record up front; `err` is moved
+    // into the JSON envelope below.
+    let err_code = err.code.clone();
+    let scratch_footer = err.remediation.first().map(|r| r.command.clone());
     if human_mode() {
         let is_unknown =
             err.message.contains("unknown command") || err.message.contains("unrecognized");
@@ -1294,6 +1308,22 @@ fn emit_error_no_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> i3
     } else {
         let envelope = Envelope::error(err, warnings);
         emit_json(&envelope);
+    }
+    // Adopt the genesis::guide::ErrorSink scratch contract: persist the last
+    // error on non-zero exits so `dont feedback bug --from-last-error` has a
+    // record to read. This is the same `write_scratch_best_effort` the
+    // Guide's ErrorSink calls; we invoke it directly here because dont's
+    // error printing is envelope-aware (human vs JSON) and must not be
+    // replaced by the ErrorSink's plain `{tool}: {message}` print.
+    if code != 0 {
+        let record = scratch::ErrorRecord {
+            ts: scratch_timestamp(),
+            argv: std::env::args().collect(),
+            exit: code,
+            footer: scratch_footer,
+            kind: err_code,
+        };
+        scratch::write_scratch_best_effort("dont", &record);
     }
     code
 }
@@ -3608,48 +3638,53 @@ fn dont_config_store() -> ConfigStore {
 }
 
 /// Build a [`CommandRegistry`] with all dont top-level commands.
+/// All dont top-level command names.
+///
+/// Single source of truth shared by [`dont_command_registry`] (typo
+/// detection in error envelopes) and the [`genesis::guide::Guide`] built at
+/// startup (CLI scaffold + command registry).
+const DONT_COMMANDS: &[&str] = &[
+    "init",
+    "conclude",
+    "define",
+    "trust",
+    "flag",
+    "dismiss",
+    "undoubt",
+    "forget",
+    "lock",
+    "record",
+    "challenge",
+    "reopen",
+    "ignore",
+    "show",
+    "why",
+    "verify-evidence",
+    "prime",
+    "doctor",
+    "list",
+    "vocab",
+    "trace",
+    "completions",
+    "stats",
+    "export",
+    "ground",
+    "atom",
+    "hypothesis",
+    "import",
+    "check",
+    "rules",
+    "explain",
+    "feedback",
+    "help",
+];
+
+/// Build a [`CommandRegistry`] with all dont top-level commands.
 fn dont_command_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::new();
     reg.register(
         "dont",
-        vec![
-            "init",
-            "conclude",
-            "define",
-            "trust",
-            "flag",
-            "dismiss",
-            "undoubt",
-            "forget",
-            "lock",
-            "record",
-            "challenge",
-            "reopen",
-            "ignore",
-            "show",
-            "why",
-            "verify-evidence",
-            "prime",
-            "doctor",
-            "list",
-            "vocab",
-            "trace",
-            "completions",
-            "stats",
-            "export",
-            "ground",
-            "atom",
-            "hypothesis",
-            "import",
-            "check",
-            "rules",
-            "explain",
-            "feedback",
-            "help",
-        ]
-        .into_iter()
-        .map(String::from)
-        .collect(),
+        DONT_COMMANDS.iter().map(|s| s.to_string()).collect(),
     );
     reg
 }
@@ -3667,6 +3702,14 @@ fn extract_unknown_subcommand(msg: &str) -> Option<String> {
 }
 
 fn main() {
+    // CLI scaffold from genesis::guide. The Guide bundles dont's name/version,
+    // a CommandRegistry (for typo detection), and an ErrorSink (self-healing
+    // error footer + feedback scratch). dont keeps its bespoke envelope/exit
+    // handling for domain commands; the Guide provides the shared CLI shell.
+    let guide = Guide::builder("dont", CLI_VERSION)
+        .commands(DONT_COMMANDS)
+        .build();
+
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(err) => match err.kind() {
@@ -3679,9 +3722,9 @@ fn main() {
                     eprintln!("{msg}");
                 } else {
                     let engine = SuggestionEngine::new();
-                    let registry = dont_command_registry();
+                    let registry = guide.registry();
                     if let Some(unknown) = extract_unknown_subcommand(&msg)
-                        && let Some(suggestion) = engine.suggest_typo(&unknown, &registry)
+                        && let Some(suggestion) = engine.suggest_typo(&unknown, registry)
                     {
                         eprintln!("error: unrecognized subcommand '{unknown}'");
                         eprintln!();
@@ -3691,7 +3734,12 @@ fn main() {
                         eprintln!("For more information, try '--help'.");
                         process::exit(2);
                     }
-                    eprintln!("{msg}");
+                    // No typo match: route through the Guide's ErrorSink so the
+                    // error is recorded in the feedback scratch (for `dont
+                    // feedback bug --from-last-error`) with a self-healing footer.
+                    let sink = guide.error_sink().with_suggest(false);
+                    let mut stderr = std::io::stderr();
+                    sink.handle(&std::io::Error::other(msg.clone()), &mut stderr);
                 }
                 process::exit(2);
             }

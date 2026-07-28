@@ -11,8 +11,15 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 /// Return a `Command` pointing at the `dont` binary under test.
+///
+/// Redirects `XDG_CACHE_HOME` to a temp dir so error-scratch writes (the
+/// genesis::guide::ErrorSink contract, written on every non-zero exit) do
+/// not pollute the developer's real `~/.cache/dont/` during `cargo test`.
 pub fn dont() -> Command {
-    Command::cargo_bin("dont").unwrap()
+    let cache = std::env::temp_dir().join("dont-test-cache");
+    let mut cmd = Command::cargo_bin("dont").unwrap();
+    cmd.env("XDG_CACHE_HOME", &cache);
+    cmd
 }
 
 /// Initialise a temporary directory as a dont project.
