@@ -1,0 +1,9 @@
+id = "errorsink-for-self-healing-errors"
+description = "ErrorSink writes the error scratch on every non-zero exit so feedback --from-last-error has a record to read"
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.2.2"
+
+[tests]
+cargo = [{flags = "feedback_from_last_error_reads_scratch_written_on_error"}]

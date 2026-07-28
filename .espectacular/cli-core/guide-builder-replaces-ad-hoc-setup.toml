@@ -1,0 +1,9 @@
+id = "guide-builder-replaces-ad-hoc-setup"
+description = "main.rs uses genesis::guide::Guide::builder() for CLI scaffold and command registry"
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.2.2"
+
+[tests]
+cargo = [{flags = "dt_conclude_is_rejected_with_record_suggestion"}]

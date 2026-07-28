@@ -1,0 +1,9 @@
+id = "config-registered-at-startup"
+description = "Config is registered with ConfigRegistry at startup; doctor exercises ConfigStore discover + validate_all"
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.2.2"
+
+[tests]
+cargo = [{flags = "doctor_report_structure"}]

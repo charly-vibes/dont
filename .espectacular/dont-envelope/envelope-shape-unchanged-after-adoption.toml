@@ -1,0 +1,9 @@
+id = "envelope-shape-unchanged-after-adoption"
+description = "dont prime --json envelope shape unchanged after adopting genesis::envelope"
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.2.2"
+
+[tests]
+cargo = [{flags = "prime_json_emits_prime_envelope"}]

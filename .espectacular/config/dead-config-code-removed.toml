@@ -1,0 +1,9 @@
+id = "dead-config-code-removed"
+description = "Adopting genesis::config removed dead config parsing code; cargo clippy introduces no new warnings"
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.2.2"
+
+[tests]
+shell = [{command = "cargo clippy --all-targets 2>&1 | grep -v 'found to be present in multiple build targets' | (! grep -q '^warning:')"}]

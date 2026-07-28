@@ -1,0 +1,9 @@
+id = "config-struct-implements-configfile"
+description = "Config implements genesis::config::ConfigFile; read/parse delegate to genesis"
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.2.2"
+
+[tests]
+cargo = [{flags = "config_validation_error_is_matchable_without_downcast"}]

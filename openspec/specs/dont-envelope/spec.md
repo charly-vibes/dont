@@ -4,19 +4,35 @@
 TBD - created by archiving change add-dont-envelope-specs. Update Purpose after archive.
 ## Requirements
 ### Requirement: Versioned output envelope
-The system SHALL wrap all machine-parseable output in a JSON envelope that carries an `envelope_version` field independent of the CLI binary version, and SHALL guarantee that minor envelope versions add fields but MUST NOT remove or rename existing fields. The `envelope_version` starts at `"0.2"` (not `"0.1"`) because the v0.2 spec already committed to this envelope shape. Parsers MUST NOT branch on `cli_version`; it exists for troubleshooting only.
 
-#### Scenario: envelope contains version and CLI version independently
-- **WHEN** a command produces JSON output
-- **THEN** the envelope contains an `envelope_version` field for the envelope schema version and a `cli_version` field for the binary's semver, and the two version strings are independent of each other
+dont SHALL source its output envelope from `genesis::envelope` rather than a local `src/envelope.rs`. The deployed envelope_version `"0.2"` contract and all field semantics (`ok`, `envelope_kind`, `hints`, `warnings`) SHALL be preserved unchanged; genesis's module SHALL conform to this contract.
+
+#### Scenario: envelope shape unchanged after adoption
+
+- **WHEN** `dont prime --json` is run after adopting genesis
+- **THEN** the emitted JSON SHALL have top-level keys `ok`, `envelope_version`, `cli_version`, `envelope_kind`, `data`, `warnings`, `hints`, `meta`
+- **AND** `envelope_version` SHALL remain `"0.2"`
+- **AND** no local `Envelope` struct SHALL remain in `src/envelope.rs`.
+
+#### Scenario: envelope contains version and cli_version independently
+
+- **WHEN** an error envelope is serialized
+- **THEN** `data` SHALL contain the structured `ErrorResult` fields (`code`, `rule_name`, `remediation`)
+- **AND** `envelope_version` and `cli_version` SHALL be independent top-level fields
 
 #### Scenario: minor envelope version does not break existing parsers
-- **WHEN** a new minor envelope version is released
-- **THEN** the new version adds fields but MUST NOT remove or rename fields that existed in the prior minor version
+
+- **GIVEN** `dont --version --json`
+- **WHEN** the version envelope is emitted
+- **THEN** it SHALL be a structured envelope with `ok: true`, `envelope_kind: "version"`, and `data.version` as a semver string
+- **AND** parsers keyed on `envelope_version` SHALL continue to deserialize the envelope
 
 #### Scenario: parsers do not branch on cli_version
-- **WHEN** a parser receives an envelope with a `cli_version` field
-- **THEN** the parser does not use `cli_version` for feature detection or compatibility branching
+
+- **GIVEN** a CLI error (e.g. `dont conclude "" --json`)
+- **WHEN** the error envelope is emitted
+- **THEN** it SHALL be a well-formed error envelope with `ok: false` and `envelope_kind: "error"`
+- **AND** parsers SHALL NOT branch on `cli_version` to determine envelope structure
 
 ### Requirement: Boolean success discriminator
 The system SHALL include an `ok` field in every envelope that is `true` for success and `false` for refusal or error, and SHALL set `envelope_kind` to `"error"` when `ok` is `false`.

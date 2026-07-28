@@ -1,0 +1,9 @@
+id = "error-with-no-self-healing-fix"
+description = "Non-zero exits with no suggestion print a feedback hint pointing to dont feedback bug --from-last-error; the scratch read is best-effort when empty"
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.2.2"
+
+[tests]
+cargo = [{flags = "feedback_from_last_error_with_no_prior_error_reports_absence"}]

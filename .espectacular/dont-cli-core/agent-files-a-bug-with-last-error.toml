@@ -1,0 +1,9 @@
+id = "agent-files-a-bug-with-last-error"
+description = "dont feedback bug --from-last-error reads the error scratch written by ErrorSink on non-zero exits"
+archetype = "PF"
+status = "active"
+superseded_by = ""
+authored_with = "0.2.2"
+
+[tests]
+cargo = [{flags = "feedback_from_last_error_reads_scratch_written_on_error"}]
