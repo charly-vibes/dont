@@ -1,3 +1,13 @@
+> *"Don't speak*
+> *I know just what you're sayin'*
+> *So please stop explainin'*
+> *Don't tell me 'cause it hurts*
+> *Don't speak*
+> *I know what you're thinkin'*
+> *I don't need your reasons*
+> *Don't tell me 'cause it hurts"*
+> — No Doubt
+
 # dont
 
 `dont` is a Rust CLI for forcing epistemic discipline in autonomous LLM workflows.

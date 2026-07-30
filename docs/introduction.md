@@ -1,3 +1,13 @@
+> *"Don't speak*
+> *I know just what you're sayin'*
+> *So please stop explainin'*
+> *Don't tell me 'cause it hurts*
+> *Don't speak*
+> *I know what you're thinkin'*
+> *I don't need your reasons*
+> *Don't tell me 'cause it hurts"*
+> — No Doubt
+
 # Introduction
 
 `dont` is a command-line tool for autonomous LLM harnesses. Its job is narrow and opinionated: stop an agent from turning ungrounded text into asserted project truth.
