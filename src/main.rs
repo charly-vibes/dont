@@ -6,7 +6,6 @@ use std::process;
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
-use genesis::config::{ConfigRegistry, ConfigStore};
 use genesis::feedback::scratch;
 use genesis::guide::Guide;
 use genesis::suggestions::{CommandRegistry, SuggestionEngine};
@@ -26,7 +25,7 @@ use dont::model::{
 };
 use dont::project::{Project, ProjectError, ProjectMode};
 use dont::rules::{RuleError, shipped_rule_names};
-use dont::skill_pack;
+
 use dont::store::{
     AppendResult, ClaimRecord, CurieResolution, EntityResolution, EventRecord, HypothesisRecord,
     Store, StoreError, StoreEvent, StoreEventKind, TermRecord,
@@ -935,22 +934,6 @@ fn contains_hedge(reason: &str, extra: &[String]) -> bool {
 
 /// Return `true` if a `linkml` binary is reachable on the current `PATH`.
 ///
-/// Searches each directory in `PATH` (from the environment) for a file named
-/// `linkml` (or `linkml.exe` on Windows) that is executable.  No subprocess
-/// is spawned — this is a pure filesystem probe so it is fast and testable.
-fn linkml_is_on_path() -> bool {
-    let path_var = std::env::var_os("PATH").unwrap_or_default();
-    let name = if cfg!(target_os = "windows") {
-        "linkml.exe"
-    } else {
-        "linkml"
-    };
-    std::env::split_paths(&path_var).any(|dir| {
-        let candidate = dir.join(name);
-        candidate.is_file()
-    })
-}
-
 fn canonical_source_id_for_local_file(
     schema_path: &Path,
     content: &str,
@@ -986,7 +969,7 @@ fn handle_linkml_import(args: &[String], project: &Project) {
     if std::env::var_os("PATH")
         .as_deref()
         .is_some_and(|p| p.is_empty())
-        && !linkml_is_on_path()
+        && !dont::linkml::linkml_is_on_path()
     {
         emit_error_and_exit(
             refusal(
@@ -3638,18 +3621,6 @@ fn nonfunctional_label_warning(label: &str, cfg: &TermNonfunctionalConfig) -> Op
     }
 }
 
-/// Build the [`genesis::config::ConfigRegistry`] registering dont's config
-/// struct at startup.
-///
-/// `Config` is registered under the `dont` tool name with the
-/// `.dont/config.toml` marker so a `ConfigStore` can discover and validate
-/// it alongside other suite tools.
-fn dont_config_store() -> ConfigStore {
-    let mut registry = ConfigRegistry::new();
-    registry.register::<dont::config::Config>("dont", ".dont/config.toml");
-    ConfigStore::new(registry)
-}
-
 /// Build a [`CommandRegistry`] with all dont top-level commands.
 /// All dont top-level command names.
 ///
@@ -4981,137 +4952,61 @@ fn main() {
 
         Command::Doctor { strict, fix } => {
             let project = open_project_or_exit();
-            if fix && let Err(err) = project.refresh_managed_docs() {
-                emit_project_error_and_exit(&err);
-            }
-            if fix && let Err(err) = project.refresh_managed_skill_packs() {
-                emit_project_error_and_exit(&err);
-            }
-
-            let (managed_clean, managed_details) = match project.managed_docs_status() {
-                Ok(status) => status,
-                Err(err) => emit_project_error_and_exit(&err),
-            };
-            let pack_health = match project.managed_skill_packs_status() {
-                Ok(h) => h,
-                Err(err) => emit_project_error_and_exit(&err),
-            };
-
-            let managed_status = if managed_clean { "pass" } else { "warn" };
-            let managed_detail = if managed_clean {
-                "managed docs are current".to_string()
-            } else {
-                managed_details.join("; ")
-            };
-            let skills_all_pass = pack_health
-                .iter()
-                .all(|h| h.state == skill_pack::PackState::Pass);
-            let skills_status = if skills_all_pass {
-                "pass"
-            } else if pack_health
-                .iter()
-                .any(|h| h.state == skill_pack::PackState::Missing)
-            {
-                "missing"
-            } else {
-                "stale"
-            };
-            let skills_detail = if skills_all_pass || pack_health.is_empty() {
-                "managed skill packs are current".to_string()
-            } else {
-                pack_health
-                    .iter()
-                    .filter(|h| h.state != skill_pack::PackState::Pass)
-                    .map(|h| h.detail.as_str())
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            };
-            let seed_snapshot_exists = project.seed_snapshot_path().is_file();
-            let seed_snapshot_status = if seed_snapshot_exists { "pass" } else { "warn" };
-            let seed_snapshot_detail = if seed_snapshot_exists {
-                "seed snapshot is present".to_string()
-            } else {
-                format!(
-                    "seed snapshot {} is missing; run dont init to repair the project layout",
-                    project.seed_snapshot_path().display()
-                )
-            };
-            let linkml_available = linkml_is_on_path();
-            let linkml_available_status = if linkml_available { "pass" } else { "warn" };
-            let linkml_available_detail = if linkml_available {
-                "linkml is available on PATH".to_string()
-            } else {
-                "linkml is not on PATH; import linkml uses in-process parsing only — install linkml for secondary validation".to_string()
-            };
-
-            // Config check via genesis::config::ConfigStore. The store discovers
-            // the registered `.dont/config.toml` marker and runs domain
-            // validation (Config::validate_fields via the ConfigFile override).
-            // `open_project_or_exit` already rejects invalid configs, so this
-            // surfaces as pass in the normal case — but it exercises the
-            // ConfigStore wiring so cross-tool suite linting sees dont. In
-            // standalone-DONT_DIR layouts (tests) the marker is not at the
-            // repo root and validate_all skips it; config validity is still
-            // guaranteed by open_project_or_exit.
-            let config_store = dont_config_store();
             let repo_root = project.project_root();
-            let discovered = ConfigStore::discover(&repo_root, config_store.registry());
-            let marker_found = discovered
-                .iter()
-                .find(|d| d.tool_name == "dont")
-                .map(|d| d.found)
-                .unwrap_or(false);
-            let config_validations = config_store.validate_all(&repo_root);
-            let config_errors: Vec<_> = config_validations
-                .iter()
-                .filter(|v| v.severity == genesis::config::ValidationSeverity::Error)
-                .collect();
-            let (config_status, config_detail) = if !config_errors.is_empty() {
-                (
-                    "fail",
-                    config_errors
-                        .iter()
-                        .map(|v| format!("{}: {}", v.field, v.message))
-                        .collect::<Vec<_>>()
-                        .join("; "),
-                )
-            } else if marker_found {
-                (
-                    "pass",
-                    "config.toml registered with ConfigStore and valid".to_string(),
-                )
-            } else {
-                (
-                    "pass",
-                    "config.toml valid (registered; marker not at repo root)".to_string(),
-                )
+            let project_arc = std::sync::Arc::new(project);
+
+            // Build checks using genesis DoctorCheck trait.
+            let runner = genesis::doctor::DoctorRunner::new(vec![
+                Box::new(dont::doctor_checks::SubstrateCheck),
+                Box::new(dont::doctor_checks::RulesCompileCheck),
+                Box::new(dont::doctor_checks::ConfigCheck),
+                Box::new(dont::doctor_checks::SeedSnapshotCheck::new(
+                    std::sync::Arc::clone(&project_arc),
+                )),
+                Box::new(dont::doctor_checks::PendingSpawnsCheck::new(
+                    std::sync::Arc::clone(&project_arc),
+                )),
+                Box::new(dont::doctor_checks::RemediationInvariantCheck),
+                Box::new(dont::doctor_checks::ManagedDocsCheck::new(
+                    std::sync::Arc::clone(&project_arc),
+                )),
+                Box::new(dont::doctor_checks::ManagedSkillsCheck::new(
+                    std::sync::Arc::clone(&project_arc),
+                )),
+                Box::new(dont::doctor_checks::LinkmlAvailableCheck),
+            ])
+            .with_tool_name("dont");
+
+            let report = match runner.run(&repo_root, fix) {
+                Ok(r) => r,
+                Err(e) => {
+                    emit_error_and_exit(
+                        refusal(
+                            "internal",
+                            &format!("doctor runner failed: {e}"),
+                            None,
+                            vec![],
+                        ),
+                        vec![],
+                        4,
+                    );
+                }
             };
-            let checks = vec![
-                json!({"name": "substrate", "status": "pass", "detail": "store opened successfully"}),
-                json!({"name": "rules_compile", "status": "pass", "detail": "built-in rules available"}),
-                json!({"name": "config", "status": config_status, "detail": config_detail}),
-                json!({"name": "seed_snapshot", "status": seed_snapshot_status, "detail": seed_snapshot_detail}),
-                json!({"name": "pending_spawns", "status": "pass", "detail": if project.root_doc_paths().is_empty() { "no pending spawn audit implemented; direct DONT_DIR override skips separate root managed docs" } else { "no pending spawn audit implemented" }}),
-                json!({"name": "remediation_invariant", "status": "pass", "detail": "error remediation invariant available"}),
-                json!({"name": "managed_docs", "status": managed_status, "detail": managed_detail}),
-                json!({"name": "managed_skills", "status": skills_status, "detail": skills_detail}),
-                json!({"name": "linkml_available", "status": linkml_available_status, "detail": linkml_available_detail}),
-            ];
-            let pass = checks.iter().filter(|c| c["status"] == "pass").count();
-            let warn = checks.iter().filter(|c| c["status"] == "warn").count();
-            let fail = checks.iter().filter(|c| c["status"] == "fail").count();
-            let payload = json!({
-                "cli_version": CLI_VERSION,
-                "checks": checks,
-                "summary": {"pass": pass, "warn": warn, "fail": fail},
-            });
+
+            let payload = dont::doctor_checks::doctor_payload_from_report(&report);
             let env = Envelope::success(EnvelopeKind::Doctor, payload, vec![], vec![]);
             emit_json(&env);
+
             // Emit ungrounded rejection events when DONT_EMIT_EVENTS=1.
-            emit_ungrounded_events_if_enabled(&project);
+            emit_ungrounded_events_if_enabled(&project_arc);
+
             let exit_code = if strict {
-                if warn > 0 || fail > 0 { 1 } else { 0 }
-            } else if fail > 0 {
+                if report.summary.warn > 0 || report.summary.fail > 0 {
+                    1
+                } else {
+                    0
+                }
+            } else if report.summary.fail > 0 {
                 1
             } else {
                 0

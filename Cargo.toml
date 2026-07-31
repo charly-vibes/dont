@@ -37,7 +37,7 @@ toml = { version = "0.8", default-features = false, features = ["parse"] }
 ulid = "1.2.1"
 
 # Genesis suite — shared modules extracted from dont
-genesis-vibes = "0.2"
+genesis-vibes = "0.4"
 
 [dev-dependencies]
 assert_cmd = "2.2.1"

@@ -101,6 +101,9 @@ pub mod events;
 /// fingerprint used for staleness detection by `dont doctor`.
 pub mod skill_pack;
 
+/// Genesis `DoctorCheck` implementations.
+pub mod doctor_checks;
+
 /// CozoDB-backed persistence layer.
 ///
 /// [`Store`](store::Store) is the single entry point for all database

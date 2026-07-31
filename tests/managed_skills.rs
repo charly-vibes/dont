@@ -136,8 +136,8 @@ fn doctor_reports_missing_when_pack_configured_but_absent() {
     let v = doctor_json(&root);
     let check = managed_skills_check(&v);
     assert_eq!(
-        check["status"], "missing",
-        "should report missing when pack dir absent: {check}"
+        check["status"], "warn",
+        "should report warn when pack missing: {check}"
     );
     assert!(
         check["detail"]
@@ -181,8 +181,8 @@ fn doctor_reports_stale_when_pack_file_is_modified() {
     let v = doctor_json(&root);
     let check = managed_skills_check(&v);
     assert_eq!(
-        check["status"], "stale",
-        "should report stale after manual edit: {check}"
+        check["status"], "warn",
+        "should report warn after manual edit: {check}"
     );
 }
 
@@ -245,7 +245,7 @@ fn doctor_fix_removes_extra_files_not_in_generated_set() {
     // Before fix, ghost file causes stale
     let v_before = doctor_json(&root);
     let check_before = managed_skills_check(&v_before);
-    assert_eq!(check_before["status"], "stale");
+    assert_eq!(check_before["status"], "warn");
 
     // After fix, ghost file is removed and hash converges
     doctor_fix(&root);

@@ -338,3 +338,10 @@ impl ConfigFile for Config {
         }
     }
 }
+
+/// Create a [`ConfigRegistry`] with dont's config registered.
+pub fn dont_config_registry() -> genesis::config::ConfigRegistry {
+    let mut registry = genesis::config::ConfigRegistry::new();
+    registry.register::<Config>("dont", ".dont/config.toml");
+    registry
+}

@@ -66,6 +66,27 @@ pub struct LinkmlUnsupportedError {
     pub offending: Vec<String>,
 }
 
+/// Check whether the `linkml` CLI is available on PATH.
+pub fn linkml_is_on_path() -> bool {
+    find_bin_in_path("linkml")
+}
+
+/// Check whether a binary name is on PATH.
+pub(crate) fn find_bin_in_path(name: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|paths| {
+        std::env::split_paths(&paths).any(|dir| {
+            let candidate = dir.join(name);
+            if cfg!(windows) {
+                candidate.with_extension("exe").is_file()
+                    || candidate.with_extension("bat").is_file()
+                    || candidate.is_file()
+            } else {
+                candidate.is_file()
+            }
+        })
+    })
+}
+
 impl LinkmlUnsupportedError {
     fn new(offending: Vec<String>) -> Self {
         let list = offending.join(", ");
