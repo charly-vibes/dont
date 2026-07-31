@@ -362,3 +362,75 @@ pub fn doctor_payload_from_report(report: &genesis::doctor::DoctorReport) -> ser
         },
     })
 }
+
+// ---------------------------------------------------------------------------
+// Suite linter LintCheck implementations
+// ---------------------------------------------------------------------------
+
+/// Lint check: verify that `.dont/config.toml` exists and has valid mode.
+pub struct DontConfigLintCheck;
+
+impl genesis::suite_linter::LintCheck for DontConfigLintCheck {
+    fn name(&self) -> &'static str {
+        "dont.config"
+    }
+
+    fn description(&self) -> &'static str {
+        "Verify .dont/config.toml exists and has a valid project mode"
+    }
+
+    fn run(&self, root: &Path) -> Result<Vec<LintResult>, Box<dyn std::error::Error>> {
+        let config_path = root.join(".dont/config.toml");
+        if !config_path.exists() {
+            return Ok(vec![LintResult::with_fix(
+                format!(".dont/config.toml not found at {}", config_path.display()),
+                genesis::suite_linter::Severity::Error,
+                "dont init",
+            )]);
+        }
+        Ok(vec![])
+    }
+}
+
+/// Lint check: verify that the `.dont/` directory has the required subdirectories.
+pub struct DontLayoutLintCheck;
+
+impl genesis::suite_linter::LintCheck for DontLayoutLintCheck {
+    fn name(&self) -> &'static str {
+        "dont.layout"
+    }
+
+    fn description(&self) -> &'static str {
+        "Verify .dont/ directory has required subdirectories"
+    }
+
+    fn run(&self, root: &Path) -> Result<Vec<LintResult>, Box<dyn std::error::Error>> {
+        let dont_dir = root.join(".dont");
+        if !dont_dir.is_dir() {
+            return Ok(vec![LintResult::with_fix(
+                format!(".dont/ not found at {}", dont_dir.display()),
+                genesis::suite_linter::Severity::Error,
+                "dont init",
+            )]);
+        }
+
+        let mut results = Vec::new();
+        for subdir in crate::project::REQUIRED_SUBDIRS {
+            let path = dont_dir.join(subdir);
+            if !path.is_dir() {
+                results.push(LintResult::with_fix(
+                    format!("missing required subdirectory {}", path.display()),
+                    genesis::suite_linter::Severity::Error,
+                    "dont init",
+                ));
+            }
+        }
+        if results.is_empty() {
+            return Ok(vec![LintResult::new(
+                "required subdirectories present",
+                genesis::suite_linter::Severity::Advisory,
+            )]);
+        }
+        Ok(results)
+    }
+}

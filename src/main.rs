@@ -5548,7 +5548,9 @@ fn main() {
                     vec![],
                 ));
             } else {
-                clap_complete::generate(shell, &mut cmd, "dont", &mut std::io::stdout());
+                genesis::cli::generate_completions(&mut cmd, shell).unwrap_or_else(|e| {
+                    eprintln!("error generating completions: {e}");
+                });
             }
         }
 

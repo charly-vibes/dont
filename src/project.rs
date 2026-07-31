@@ -1,9 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[cfg(unix)]
-use std::os::unix::fs::DirBuilderExt;
-
 use crate::config::{Config, ConfigValidationError};
 use crate::fs_util::write_restricted;
 use crate::managed_block::{
@@ -540,11 +537,54 @@ impl Project {
             return Err(ProjectError::AlreadyInitialised(dont_dir));
         }
 
-        mkdir_restricted(&dont_dir).map_err(|err| io_error("create", &dont_dir, err))?;
+        // Use genesis::scaffold::Scaffold for directory creation and .gitignore.
+        // File writes use dont's restricted-permission helpers for security.
+        // Scaffold uses default umask for directories; we fix permissions after.
+        let mut scaffold = genesis::scaffold::Scaffold::new(&dont_dir);
+        scaffold = scaffold.dir(""); // create .dont/
         for subdir in REQUIRED_SUBDIRS {
-            let path = dont_dir.join(subdir);
-            mkdir_restricted(&path).map_err(|err| io_error("create", &path, err))?;
+            scaffold = scaffold.dir(subdir);
         }
+        let scaffold_result = scaffold
+            .build()
+            .map_err(|err| io_error("create", &dont_dir, err))?;
+
+        // Gitignore entry at the project root (separate scaffold at cwd).
+        if std::env::var("DONT_DIR").is_err() {
+            genesis::scaffold::Scaffold::new(cwd)
+                .gitignore_entry(".dont/")
+                .build()
+                .map_err(|err| io_error("write", cwd.join(".gitignore"), err))?;
+        }
+
+        // Register dont in the .genesis/tools.toml manifest for cross-tool discovery.
+        if std::env::var("DONT_DIR").is_err() {
+            let _ = genesis::discovery::register(
+                cwd,
+                "dont",
+                "Epistemic discipline for autonomous LLM workflows — grounded-claim state machine",
+                "directory",
+                ".dont",
+            );
+        }
+
+        // Set restricted permissions on all created directories (Scaffold uses default umask).
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for path in &scaffold_result.created {
+                if path.is_dir()
+                    && let Ok(metadata) = std::fs::metadata(path)
+                {
+                    let perms = metadata.permissions();
+                    if perms.mode() & 0o777 != 0o700 {
+                        let _ =
+                            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+                    }
+                }
+            }
+        }
+
         let config_path = dont_dir.join("config.toml");
         write_restricted(&config_path, minimal_config(mode).as_bytes())
             .map_err(|err| io_error("write", &config_path, err))?;
@@ -554,9 +594,6 @@ impl Project {
         let events_path = dont_dir.join("events.jsonl");
         write_restricted(&events_path, init_event(mode).as_bytes())
             .map_err(|err| io_error("write", &events_path, err))?;
-        if std::env::var("DONT_DIR").is_err() {
-            ensure_dont_gitignore_entry(cwd)?;
-        }
 
         let store = Store::open_dont_dir(&dont_dir)?;
         let project = Self { dont_dir, store };
@@ -573,30 +610,4 @@ fn init_event(mode: ProjectMode) -> String {
         mode.as_str(),
         created_at,
     )
-}
-
-/// Create `path` as a directory (recursively) with mode 0o700 on Unix.
-fn mkdir_restricted(path: &Path) -> std::io::Result<()> {
-    #[cfg(unix)]
-    std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(path)?;
-    #[cfg(not(unix))]
-    fs::create_dir_all(path)?;
-    Ok(())
-}
-
-fn ensure_dont_gitignore_entry(project_root: &Path) -> Result<(), ProjectError> {
-    let path = project_root.join(".gitignore");
-    let mut content = fs::read_to_string(&path).unwrap_or_default();
-    if content.lines().any(|line| line.trim() == ".dont/") {
-        return Ok(());
-    }
-    if !content.is_empty() && !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(".dont/\n");
-    fs::write(&path, content).map_err(|err| io_error("write", &path, err))?;
-    Ok(())
 }

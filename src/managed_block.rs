@@ -18,8 +18,11 @@ pub const START_MARKER: &str = "<!-- DONT:START -->";
 pub const END_MARKER: &str = "<!-- DONT:END -->";
 
 /// Render the DONT managed block around the given body.
+///
+/// Delegates to `genesis::aix::agents_block` for consistent managed block
+/// generation across the genesis suite.
 pub fn render_root_block(body: &str) -> String {
-    format!("{START_MARKER}\n{body}\n{END_MARKER}")
+    genesis::aix::agents_block("DONT", body)
 }
 
 /// Normalize text for comparison (strip trailing whitespace, unify line endings).
