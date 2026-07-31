@@ -357,9 +357,9 @@ fn show_human_output_strips_ansi_escape_from_anchor() {
         .assert()
         .success();
 
-    // `dont show` in human mode (no --json flag) must not emit raw ESC bytes.
+    // `dont show` in human mode must not emit raw ESC bytes.
     let output = dont()
-        .args(["show", &id])
+        .args(["show", &id, "--human"])
         .env("DONT_DIR", root.join(".dont"))
         .assert()
         .success()

@@ -12,7 +12,7 @@ fn conclude_quiet_produces_no_stdout() {
     init_dir(&dir);
 
     dont()
-        .args(["conclude", "quiet test claim", "--quiet"])
+        .args(["conclude", "quiet test claim", "--quiet", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -24,7 +24,7 @@ fn init_quiet_produces_no_stdout() {
     let dir = TempDir::new().unwrap();
 
     dont()
-        .args(["init", "--quiet"])
+        .args(["init", "--quiet", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -38,7 +38,14 @@ fn flag_quiet_produces_no_stdout() {
     let id = conclude_claim(&dir, "quiet flag test");
 
     dont()
-        .args(["flag", &id, "--evidence", "https://example.com", "--quiet"])
+        .args([
+            "flag",
+            &id,
+            "--evidence",
+            "https://example.com",
+            "--quiet",
+            "--human",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -53,7 +60,7 @@ fn quiet_does_not_suppress_validation_errors() {
     init_dir(&dir);
 
     dont()
-        .args(["conclude", "", "--quiet"])
+        .args(["conclude", "", "--quiet", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -66,7 +73,12 @@ fn quiet_does_not_suppress_unknown_entity_errors() {
     init_dir(&dir);
 
     dont()
-        .args(["show", "claim:nonexistent00000000000000", "--quiet"])
+        .args([
+            "show",
+            "claim:nonexistent00000000000000",
+            "--quiet",
+            "--human",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -81,7 +93,13 @@ fn quiet_with_json_still_emits_json_envelope() {
     init_dir(&dir);
 
     let out = dont()
-        .args(["conclude", "quiet json test", "--quiet", "--json"])
+        .args([
+            "conclude",
+            "quiet json test",
+            "--quiet",
+            "--json",
+            "--human",
+        ])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -89,7 +107,7 @@ fn quiet_with_json_still_emits_json_envelope() {
         .stdout
         .clone();
 
-    // --json takes precedence: full envelope must appear on stdout
+    // --json takes precedence even with --human: full envelope must appear on stdout
     let v: serde_json::Value =
         serde_json::from_slice(&out).expect("--json must emit valid JSON even with --quiet");
     assert_eq!(v["ok"], true);

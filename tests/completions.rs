@@ -157,7 +157,7 @@ fn completions_json_envelope_kind_is_dont_completions_for_all_shells() {
 fn completions_plain_output_is_not_json_when_no_json_flag() {
     for shell in &["bash", "zsh", "fish", "powershell", "elvish"] {
         let output = dont()
-            .args(["completions", shell])
+            .args(["completions", shell, "--human"])
             .assert()
             .success()
             .get_output()

@@ -165,7 +165,7 @@ fn dt_conclude_is_rejected_with_record_suggestion() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    dt().args(["conclude", "some claim"])
+    dt().args(["conclude", "some claim", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -178,7 +178,7 @@ fn dt_trust_is_rejected_with_challenge_suggestion() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    dt().args(["trust", "claim:abc", "--reason", "x"])
+    dt().args(["trust", "claim:abc", "--reason", "x", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -191,7 +191,7 @@ fn dt_forget_is_rejected_with_lock_suggestion() {
     let dir = TempDir::new().unwrap();
     init_dir(&dir);
 
-    dt().args(["forget", "claim:abc"])
+    dt().args(["forget", "claim:abc", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -207,7 +207,7 @@ fn dont_record_is_rejected_with_conclude_suggestion() {
     init_dir(&dir);
 
     dont()
-        .args(["record", "some claim"])
+        .args(["record", "some claim", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -221,7 +221,7 @@ fn dont_challenge_is_rejected_with_trust_suggestion() {
     init_dir(&dir);
 
     dont()
-        .args(["challenge", "claim:abc", "--reason", "x"])
+        .args(["challenge", "claim:abc", "--reason", "x", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -235,7 +235,7 @@ fn dont_lock_is_rejected_with_forget_suggestion() {
     init_dir(&dir);
 
     dont()
-        .args(["lock", "claim:abc"])
+        .args(["lock", "claim:abc", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()

@@ -32,19 +32,21 @@ use dont::store::{
 };
 
 thread_local! {
-    static HUMAN_MODE: Cell<bool> = const { Cell::new(false) };
+    static OUTPUT_FORMAT: Cell<genesis::guide::OutputFormat> =
+        const { Cell::new(genesis::guide::OutputFormat::Json) };
+    static VERBOSITY: Cell<genesis::guide::Verbosity> =
+        const { Cell::new(genesis::guide::Verbosity::Normal) };
     static PLAIN_MODE: Cell<bool> = const { Cell::new(false) };
     static FORCE_COLOR_MODE: Cell<bool> = const { Cell::new(false) };
-    static QUIET_MODE: Cell<bool> = const { Cell::new(false) };
     static NO_PERSIST_MODE: Cell<bool> = const { Cell::new(false) };
 }
 
 fn human_mode() -> bool {
-    HUMAN_MODE.with(|m| m.get())
+    OUTPUT_FORMAT.with(|m| m.get() == genesis::guide::OutputFormat::Human)
 }
 
 fn quiet_mode() -> bool {
-    QUIET_MODE.with(|m| m.get())
+    VERBOSITY.with(|m| m.get() == genesis::guide::Verbosity::Quiet)
 }
 
 fn no_persist_mode() -> bool {
@@ -87,6 +89,7 @@ fn colorize_status(status: &str) -> String {
 #[command(disable_version_flag = true)]
 #[command(disable_help_subcommand = true)]
 #[command(about = "Epistemic forcing-function CLI for grounded claims")]
+#[command(next_help_heading = "Global options")]
 #[command(after_help = "Examples:
   dont init                          # initialise a new project
   dont conclude \"the sky is blue\"    # add an unverified claim
@@ -115,13 +118,21 @@ struct Cli {
     #[arg(long, global = true)]
     version: bool,
 
-    /// Output JSON envelope on stdout.
-    #[arg(long, short = 'j', global = true)]
+    /// Output machine-readable JSON (default when stdout is not a TTY).
+    #[arg(short = 'j', long, global = true)]
     json: bool,
 
-    /// Output human-readable text instead of JSON (--json takes precedence).
+    /// Output human-readable text (default when stdout is a TTY). --json takes precedence.
     #[arg(long, global = true)]
     human: bool,
+
+    /// Increase output verbosity (-v, -vv, -vvv).
+    #[arg(short, long, global = true, action = clap::ArgAction::Count)]
+    verbose: u8,
+
+    /// Suppress non-error output.
+    #[arg(short, long, global = true)]
+    quiet: bool,
 
     /// Output human-readable text without ANSI colours (for logging to files).
     #[arg(long, global = true, conflicts_with = "color")]
@@ -134,10 +145,6 @@ struct Cli {
     /// Disable ANSI colour output for this invocation.
     #[arg(long = "no-color", global = true, conflicts_with_all = ["plain", "color"])]
     no_color: bool,
-
-    /// Suppress confirmatory output; errors and data output are unaffected.
-    #[arg(long, short = 'q', global = true)]
-    quiet: bool,
 
     /// Author identifier for this invocation. Overrides $DONT_AUTHOR.
     #[arg(long, short = 'a', global = true)]
@@ -1243,8 +1250,15 @@ fn emit_json<T: serde::Serialize>(envelope: &T) {
 
 /// Like `emit_json` but suppresses output in `--quiet` mode.
 /// Use for write/mutation commands whose stdout is confirmatory, not data.
+/// In JSON mode (`--json` or pipe), output is always emitted since
+/// JSON envelopes are data, not confirmatory.
 fn emit_confirm_json<T: serde::Serialize>(envelope: &T) {
-    if quiet_mode() {
+    if quiet_mode()
+        && !matches!(
+            OUTPUT_FORMAT.with(|m| m.get()),
+            genesis::guide::OutputFormat::Json
+        )
+    {
         return;
     }
     emit_json(envelope);
@@ -3743,17 +3757,34 @@ fn main() {
         set_author(a);
     }
 
-    if !cli.json {
-        HUMAN_MODE.with(|m| m.set(true));
-    }
-    if (cli.plain || cli.no_color) && !cli.json {
+    // Resolve output format via genesis::guide helpers (auto-detects TTY vs pipe).
+    let fmt = {
+        use genesis::guide::CliFormat;
+        let fmt = CliFormat {
+            json: cli.json,
+            human: cli.human,
+        };
+        fmt.format()
+    };
+    OUTPUT_FORMAT.with(|m| m.set(fmt));
+    // Resolve verbosity via genesis::guide helpers (-v count, -q override).
+    let verbosity = {
+        use genesis::guide::CliVerbosity;
+        let cv = CliVerbosity {
+            verbose: cli.verbose,
+            quiet: cli.quiet,
+        };
+        cv.verbosity()
+    };
+    VERBOSITY.with(|m| m.set(verbosity));
+
+    // ANSI colour mode is separate from output format.
+    let is_json = matches!(fmt, genesis::guide::OutputFormat::Json);
+    if (cli.plain || cli.no_color) && !is_json {
         PLAIN_MODE.with(|m| m.set(true));
     }
-    if cli.color && !cli.json {
+    if cli.color && !is_json {
         FORCE_COLOR_MODE.with(|m| m.set(true));
-    }
-    if cli.quiet && !cli.json {
-        QUIET_MODE.with(|m| m.set(true));
     }
     if cli.no_persist || std::env::var("DONT_NO_PERSIST").as_deref() == Ok("1") {
         NO_PERSIST_MODE.with(|m| m.set(true));
@@ -5532,7 +5563,7 @@ fn main() {
 
         Command::Completions { shell } => {
             let mut cmd = Cli::command();
-            if !human_mode() {
+            if cli.json {
                 let mut script_buf = Vec::new();
                 clap_complete::generate(shell, &mut cmd, "dont", &mut script_buf);
                 let script = String::from_utf8_lossy(&script_buf);
@@ -5971,7 +6002,7 @@ fn main() {
         Command::Import { adapter, args } => {
             // --json may be captured as trailing var-arg if placed after the schema path
             if args.iter().any(|a| a == "--json") {
-                HUMAN_MODE.with(|m| m.set(false));
+                OUTPUT_FORMAT.with(|m| m.set(genesis::guide::OutputFormat::Json));
             }
             let project = open_project_or_exit();
             let config = project.load_config();
@@ -6032,7 +6063,7 @@ fn main() {
             let unverified = counts.get("unverified").copied().unwrap_or(0);
             let has_ungrounded = unverified > 0;
 
-            if cli.json || !human_mode() {
+            if cli.json {
                 let payload = json!({
                     "ungrounded": has_ungrounded,
                     "unverified_count": unverified,

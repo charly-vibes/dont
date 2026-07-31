@@ -195,7 +195,7 @@ fn list_default_emits_human_not_json() {
     conclude_json(&dir, "water is wet");
 
     let out = dont()
-        .args(["list"])
+        .args(["list", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -220,7 +220,7 @@ fn conclude_default_emits_human_not_json() {
     init_dir(&dir);
 
     let out = dont()
-        .args(["conclude", "the sky is blue"])
+        .args(["conclude", "the sky is blue", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -298,7 +298,7 @@ fn clicolor_force_enables_ansi() {
     conclude_json(&dir, "constants are constant");
 
     let out = dont()
-        .args(["list"])
+        .args(["list", "--human"])
         .env("DONT_DIR", dir.path())
         .env("CLICOLOR_FORCE", "1")
         .env("NO_COLOR", "")
@@ -345,7 +345,7 @@ fn color_flag_enables_ansi_even_when_no_color_env_is_set() {
     conclude_json(&dir, "flag overrides no_color env");
 
     let out = dont()
-        .args(["list", "--color"])
+        .args(["list", "--color", "--human"])
         .env("DONT_DIR", dir.path())
         .env("NO_COLOR", "1")
         .assert()
@@ -376,7 +376,7 @@ fn show_human_renders_atoms_section() {
         .success();
 
     let out = dont()
-        .args(["show", &id])
+        .args(["show", &id, "--human"])
         .env("DONT_DIR", dir.path())
         .env("NO_COLOR", "1")
         .assert()
@@ -416,7 +416,7 @@ fn show_human_renders_hypotheses_section() {
         .success();
 
     let out = dont()
-        .args(["show", &id])
+        .args(["show", &id, "--human"])
         .env("DONT_DIR", dir.path())
         .env("NO_COLOR", "1")
         .assert()

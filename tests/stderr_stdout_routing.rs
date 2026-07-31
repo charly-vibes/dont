@@ -28,7 +28,7 @@ fn validation_error_without_json_goes_to_stderr_only() {
 
     // empty statement is a validation error
     dont()
-        .args(["conclude", ""])
+        .args(["conclude", "", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
@@ -69,7 +69,7 @@ fn unknown_entity_error_goes_to_stderr_not_stdout() {
     init_dir(&dir);
 
     dont()
-        .args(["show", "claim:nonexistent00000000000000"])
+        .args(["show", "claim:nonexistent00000000000000", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()

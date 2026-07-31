@@ -371,7 +371,7 @@ fn why_claim_default_output_is_plain_text_not_json() {
     let id = conclude_claim(&dir, "water boils at 100 celsius");
 
     let out = dont()
-        .args(["why", &id])
+        .args(["why", &id, "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
@@ -382,7 +382,7 @@ fn why_claim_default_output_is_plain_text_not_json() {
     let text = String::from_utf8(out).unwrap();
     assert!(
         !text.trim_start().starts_with('{'),
-        "default why output must not be JSON, got: {text}"
+        "human output must not be JSON, got: {text}"
     );
 }
 
@@ -515,7 +515,7 @@ fn why_term_default_output_is_plain_text_not_json() {
     let id = define_term(&dir, "WB:P003");
 
     let out = dont()
-        .args(["why", &id])
+        .args(["why", &id, "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()

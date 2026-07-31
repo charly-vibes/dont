@@ -434,3 +434,26 @@ impl genesis::suite_linter::LintCheck for DontLayoutLintCheck {
         Ok(results)
     }
 }
+
+// ---------------------------------------------------------------------------
+// StatusContributor via DoctorStatusBridge
+// ---------------------------------------------------------------------------
+
+/// Build a [`genesis::doctor::DoctorRunner`] with all dont checks registered,
+/// suitable for wrapping in a [`genesis::status::DoctorStatusBridge`].
+/// This lets cross-tool dashboards (e.g. `wai status`) include dont's health.
+pub fn dont_status_runner() -> genesis::doctor::DoctorRunner {
+    genesis::doctor::DoctorRunner::new(vec![
+        Box::new(SubstrateCheck),
+        Box::new(RulesCompileCheck),
+        Box::new(ConfigCheck),
+        Box::new(RemediationInvariantCheck),
+        Box::new(LinkmlAvailableCheck),
+    ])
+    .with_tool_name("dont")
+}
+
+/// Create a [`genesis::status::DoctorStatusBridge`] for dont.
+pub fn dont_status_bridge() -> genesis::status::DoctorStatusBridge {
+    genesis::status::DoctorStatusBridge::new("dont", dont_status_runner())
+}

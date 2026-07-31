@@ -74,7 +74,7 @@ fn conclude_metachar_statement_names_field() {
 fn conclude_empty_statement_stderr_contains_field() {
     let dir = init();
     dont()
-        .args(["conclude", ""])
+        .args(["conclude", "", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -111,7 +111,7 @@ fn define_missing_doc_names_field() {
 fn define_missing_doc_stderr_contains_field() {
     let dir = init();
     dont()
-        .args(["define", "ex:Foo"])
+        .args(["define", "ex:Foo", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)

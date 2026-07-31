@@ -103,7 +103,7 @@ fn check_human_output_shows_summary() {
 
     // Without --json, human output is plain text; exit code signals status
     let out = dont()
-        .args(["check"])
+        .args(["check", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .code(1)
@@ -124,7 +124,7 @@ fn check_passes_human_on_empty_project() {
     init_dir(&dir);
 
     let out = dont()
-        .args(["check"])
+        .args(["check", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .success()
