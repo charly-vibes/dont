@@ -129,6 +129,47 @@ fn conclude_persists_claim_across_invocations() {
 
 // --- Refusals ---
 
+/// dont-mt4j: confidence must be validated to 0.0..=1.0 at the CLI level.
+#[test]
+fn conclude_rejects_out_of_range_confidence() {
+    let dir = init_project();
+    for (i, bad) in ["1.5", "-0.1", "2"].iter().enumerate() {
+        let out = dont()
+            .args([
+                "conclude",
+                &format!("range check {i}"),
+                &format!("--confidence={bad}"),
+                "--json",
+            ])
+            .env("DONT_DIR", dir.path())
+            .assert()
+            .code(1)
+            .get_output()
+            .stdout
+            .clone();
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(v["ok"], false, "confidence {bad} must be rejected");
+        assert_eq!(v["data"]["code"], "invalid-confidence");
+    }
+}
+
+#[test]
+fn conclude_accepts_boundary_confidence_values() {
+    let dir = init_project();
+    for (i, good) in ["0.0", "1.0", "0.85"].iter().enumerate() {
+        dont()
+            .args([
+                "conclude",
+                &format!("boundary claim {i}"),
+                &format!("--confidence={good}"),
+                "--json",
+            ])
+            .env("DONT_DIR", dir.path())
+            .assert()
+            .success();
+    }
+}
+
 #[test]
 fn conclude_empty_statement_returns_validation_error_exit_1() {
     let dir = init_project();

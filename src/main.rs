@@ -3987,6 +3987,25 @@ fn main() {
                 emit_error_and_exit(err, vec![], 1);
             }
 
+            // dont-mt4j: confidence is authored as 0.0–1.0; reject out-of-range values
+            // before any store interaction.
+            if let Some(c) = confidence.filter(|c| !(0.0..=1.0).contains(c)) {
+                emit_error_and_exit(
+                    refusal(
+                        "invalid-confidence",
+                        &format!("confidence: {c} is out of range; expected 0.0–1.0"),
+                        None,
+                        vec![RemediationEntry {
+                            command: "dont conclude \"<claim text>\" --confidence 0.85".to_string(),
+                            description: "Provide a confidence score between 0.0 and 1.0"
+                                .to_string(),
+                        }],
+                    ),
+                    vec![],
+                    1,
+                );
+            }
+
             let mut resolved_depends_on: Vec<String> = vec![];
             let mut unresolved: Vec<String> = vec![];
             for dep in &depends_on {
