@@ -101,17 +101,18 @@ fn agents_md_includes_spawn_harness_guidance() {
     );
 }
 
-/// Spec requirement: orientation text MUST recommend `dont suggest-term` before
-/// `define`, and MUST recommend `--label "<a noun phrase>"` alongside `--doc`.
+/// Spec requirement: orientation text MUST recommend `dont vocab --status
+/// unverified` before `define`, and MUST recommend `--label "<a noun phrase>"`
+/// alongside `--doc`. (Updated by dont-12cp: `suggest-term` never existed.)
 #[test]
-fn agents_md_includes_suggest_term_and_label_guidance() {
+fn agents_md_includes_vocab_check_and_label_guidance() {
     let dir = TempDir::new().unwrap();
     init_in(&dir).success();
 
     let agents = fs::read_to_string(dir.path().join("AGENTS.md")).unwrap();
     assert!(
-        agents.contains("suggest-term"),
-        "AGENTS.md orientation should recommend dont suggest-term before define: {agents}"
+        agents.contains("dont vocab --status unverified"),
+        "AGENTS.md orientation should recommend dont vocab --status unverified before define: {agents}"
     );
     assert!(
         agents.contains("--label"),
