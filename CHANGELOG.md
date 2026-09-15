@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.0] — 2026-07-31
+
+### Changed
+- Adopt ALL genesis v0.4.0 shared modules — stop reimplementing shared infrastructure (dont-ctrh):
+  - `genesis::config` for shared config I/O
+  - `genesis::guide` for CLI scaffold and ErrorSink
+  - `genesis::doctor` — doctor command refactored onto the `DoctorCheck` trait
+  - `genesis::scaffold`, `discovery`, `aix`, `suite_linter`, `cli` (completions, version JSON)
+  - `genesis::guide`/`status` — `CliVerbosity`, `CliFormat`, `DoctorStatusBridge`
+- Depend on published `genesis-vibes` crate from crates.io instead of path deps.
+
+### Added
+- `mine-claims` script — extract epistemic claims from repo artifacts.
+- `wasm-claims-query` openspec change proposal.
+
+### Fixed
+- Safe UTF-8 truncation in `dont list` output (dont-edoc).
+
+### Internal
+- Seed repo with mined claims; ignore stale unverified claims.
+- Archive genesis openspec changes; resolve spec-test drift.
+- Test coverage for ErrorSink scratch and `feedback --from-last-error` loop.
+- Refresh wai managed blocks to 2026.7.29.
+- Add epigraph quote to README and docs homepage.
+
 ## [0.2.2] — 2026-07-18
 
 ### Internal
