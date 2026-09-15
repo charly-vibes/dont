@@ -825,7 +825,7 @@ const HELP_TUTORIAL: &[&str] = &[
     "## 5. Record a claim\n\n",
     "    dont conclude \"claim text\"\n\n",
     "Core four verbs: conclude, define, trust, dismiss. Lifecycle verbs: lock, reopen, ignore, verify-evidence.\n",
-    "Note: `dont lock` is currently unavailable (use `dont forget`).\n\n",
+    "Note: `dont lock` and `dont forget` are aliases — both freeze a mature verified claim.\n\n",
     "## 6. Ground a documented fact (fast path)\n\n",
     "    dont ground \"documented fact\" --file README.md --lines 10-18\n\n",
     "## 7. Handle refusals\n\n",
@@ -3876,12 +3876,7 @@ fn main() {
             }
             Command::Trust { id, reason }
         }
-        Command::Lock { id } => {
-            if !is_dt {
-                emit_error_and_exit(cross_vocab_refusal("lock", "dont", "forget"), vec![], 2);
-            }
-            Command::Forget { id }
-        }
+        Command::Lock { id } => Command::Forget { id },
         // dont-exclusive: conclude, trust, forget (errors when invoked via dt)
         Command::Conclude {
             statement,

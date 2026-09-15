@@ -97,6 +97,31 @@ fn lock_verified_claim_with_sufficient_hypotheses_and_evidence_succeeds() {
     assert_eq!(v["data"]["hypotheses"].as_array().unwrap().len(), 3);
 }
 
+/// dont-tdx4: the tutorial, --help, README, and docs all teach `dont lock`,
+/// but the cross-vocab guard refused it on the dont interface. It must work
+/// as the documented spelling of the forget/lock operation.
+#[test]
+fn lock_command_on_dont_interface_locks_verified_claim() {
+    let dir = init_project();
+    let id = conclude_claim(&dir, "Independent evidence converges on this claim");
+    dismiss_claim(&dir, &id, "https://source-one.example/evidence");
+    dismiss_claim(&dir, &id, "https://source-two.example/evidence");
+    seed_assessed_hypotheses(&dir, &id, 3);
+
+    let output = dont()
+        .args(["lock", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["status"], "locked");
+}
+
 #[test]
 fn lock_unverified_claim_is_refused() {
     let dir = init_project();

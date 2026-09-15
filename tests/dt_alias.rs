@@ -218,15 +218,29 @@ fn dont_challenge_is_rejected_with_trust_suggestion() {
         .stderr(predicate::str::contains("trust"));
 }
 
-/// "unknown command 'lock' for dont. Did you mean 'dont forget'?"
+/// dont-tdx4: `dont lock` is a documented alias for the lock/forget operation
+/// (--help, tutorial, agent-guide, status.md all teach it). It must not be
+/// rejected with a cross-vocab refusal; on a nonexistent entity it fails with
+/// the ordinary entity-not-found error instead.
 #[test]
-fn dont_lock_is_rejected_with_forget_suggestion() {
+fn dont_lock_is_not_rejected_with_cross_vocab_refusal() {
     let dir = init_project();
 
-    dont()
+    let output = dont()
         .args(["lock", "claim:abc", "--human"])
         .env("DONT_DIR", dir.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains("forget"));
+        .get_output()
+        .stderr
+        .clone();
+    let stderr = String::from_utf8(output).unwrap();
+    assert!(
+        !stderr.contains("unknown command 'lock'"),
+        "dont lock must not be refused as unknown command: {stderr}"
+    );
+    assert!(
+        !stderr.contains("Did you mean 'dont forget'"),
+        "dont lock must not be redirected to forget: {stderr}"
+    );
 }
