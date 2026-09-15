@@ -601,13 +601,9 @@ Notes:
 
     /// Check project health conditions: ungrounded claims, rule violations, etc.
     #[command(after_help = "Examples:
-  dont check --ungrounded
-  dont check --ungrounded --json")]
-    Check {
-        /// Fail if any claims are in unverified state.
-        #[arg(long)]
-        ungrounded: bool,
-    },
+  dont check
+  dont check --json")]
+    Check {},
 
     /// Manage and inspect project rules.
     #[command(after_help = "Examples:
@@ -6092,16 +6088,16 @@ fn main() {
             }
         }
 
-        Command::Check {
-            ungrounded: _ungrounded,
-        } => {
+        Command::Check {} => {
             let project = open_project_or_exit();
             let counts = match project.store.claim_counts_by_status() {
                 Ok(c) => c,
                 Err(err) => handle_store_error(err, None),
             };
             let unverified = counts.get("unverified").copied().unwrap_or(0);
-            let has_ungrounded = unverified > 0;
+            // Doubted claims block: grounding did not merely pend, it failed.
+            let doubted = counts.get("doubted").copied().unwrap_or(0);
+            let has_ungrounded = unverified > 0 || doubted > 0;
 
             if cli.json {
                 let payload = json!({
@@ -6114,7 +6110,12 @@ fn main() {
                     Envelope::success(CLI_VERSION, EnvelopeKind::Check, payload, vec![], vec![]);
                 emit_json(&env);
             } else if has_ungrounded {
-                println!("✗ {} ungrounded claim(s)", unverified);
+                if doubted > 0 {
+                    println!("✗ {} doubted claim(s) block this gate", doubted);
+                }
+                if unverified > 0 {
+                    println!("✗ {} ungrounded claim(s)", unverified);
+                }
             } else {
                 println!("✓ all claims grounded");
             }

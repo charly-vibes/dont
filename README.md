@@ -118,7 +118,7 @@ pre-push:
   run: dont check
 ```
 
-No `jq` or `python` required — `dont check` exits 1 when any claim is unverified, 0 otherwise.
+No `jq` or `python` required — `dont check` exits 1 when any claim is unverified or doubted, 0 otherwise.
 
 ---
 

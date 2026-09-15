@@ -37,6 +37,43 @@ fn check_fails_on_unverified_claim() {
         .code(1);
 }
 
+/// dont-ap30: doubted claims block CI — grounding failed, not merely pending.
+#[test]
+fn check_fails_on_doubted_claim() {
+    let dir = init_project();
+    let id = conclude_claim(&dir, "a claim that will be doubted");
+    dont()
+        .args([
+            "trust",
+            &id,
+            "--reason",
+            "contradicted by evidence",
+            "--json",
+        ])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success();
+
+    dont()
+        .args(["check", "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .code(1);
+}
+
+/// dont-toy4: --ungrounded was accepted but silently ignored (default already
+/// fails on unverified). The flag is removed from the CLI surface.
+#[test]
+fn check_rejects_ungrounded_flag() {
+    let dir = init_project();
+
+    dont()
+        .args(["check", "--ungrounded"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .failure();
+}
+
 #[test]
 fn check_json_reports_unverified_count() {
     let dir = init_project();
