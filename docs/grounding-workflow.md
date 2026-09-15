@@ -27,6 +27,8 @@ Plain URI evidence is still supported for external sources:
 dont flag <id> --evidence https://example.org/source
 ```
 
+Note: URL evidence is not liveness-checked. `dont verify-evidence` reports URL outcomes as `unchecked` — live HTTP reachability checks are not yet implemented. File and git locators are fully checked.
+
 ## Diagnose blockers with trace
 
 If `show`, `why`, or `prime` reports stale dependencies, unresolved terms, or blocker labels without enough context, run:

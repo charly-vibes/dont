@@ -402,7 +402,10 @@ Notes:
     /// Check liveness of attached evidence references without changing status.
     #[command(after_help = "Examples:
   dont verify-evidence claim:abc123
-  dont verify-evidence term:WB:P001 --timeout-seconds 5")]
+  dont verify-evidence term:WB:P001 --timeout-seconds 5
+
+Note: URL evidence is reported as 'unchecked' — live HTTP reachability
+checks are not yet implemented. File and git locators are fully checked.")]
     VerifyEvidence {
         /// Entity identifier (claim:... or term:...).
         #[arg(value_name = "entity-id")]

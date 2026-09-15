@@ -4,6 +4,28 @@ use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::{Store, StoreEvent, StoreEventKind};
 use serde_json::Value;
 
+/// dont-rzh0: URL evidence is reported as "unchecked" because live HTTP
+/// checks are not implemented; the limitation must be documented in --help.
+#[test]
+fn verify_evidence_help_documents_http_limitation() {
+    let out = dont()
+        .args(["verify-evidence", "--help"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        text.contains("unchecked"),
+        "--help must document that URL evidence stays unchecked: {text}"
+    );
+    assert!(
+        text.contains("not yet implemented"),
+        "--help must state that HTTP checks are not yet implemented: {text}"
+    );
+}
+
 fn dismiss_claim(dir: &TestProject, id: &str, evidence: &str) {
     dont()
         .args(["flag", id, "--evidence", evidence, "--json"])
