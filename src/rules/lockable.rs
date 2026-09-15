@@ -13,8 +13,8 @@ const MIN_INDEPENDENT_EVIDENCE: usize = 2;
 
 /// Fires for claims that do not yet meet the gate conditions required before locking.
 ///
-/// Intended as a pre-lock gate check, not a background lint — run with
-/// `dont check --lock-readiness`.
+/// Intended as a pre-lock gate check, not a background lint — surfaced per
+/// claim via `dont why <id>` remediation.
 ///
 /// Conditions: ≥3 assessed hypotheses, ≥2 independent evidence sources, and all
 /// dependencies verified or resolvable.

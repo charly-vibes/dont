@@ -2193,7 +2193,7 @@ fn build_claim_why_view(record: &ClaimRecord, store: &Store) -> Value {
     } else {
         vec![json!({
             "rule_name": "lockable",
-            "command": format!("dont check --lock-readiness {}", record.id),
+            "command": format!("dont show {}", record.id),
             "description": unmet.iter().map(|c| c.fix.as_str()).collect::<Vec<_>>().join("; "),
         })]
     };

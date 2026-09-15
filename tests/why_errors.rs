@@ -168,6 +168,42 @@ fn why_existing_claim_returns_ok_true_with_required_fields() {
     );
 }
 
+/// dont-dbmi: remediation commands emitted by `why` must reference real CLI
+/// surface. The `--lock-readiness` flag never existed on `dont check`.
+#[test]
+fn why_remediation_commands_do_not_reference_nonexistent_flags() {
+    let dir = init_project();
+    let id = conclude_claim(&dir, "the earth orbits the sun");
+
+    let out = dont()
+        .args(["why", &id, "--json"])
+        .env("DONT_DIR", dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    let data = &v["data"];
+    let cmds: Vec<&str> = data["remediation"]
+        .as_array()
+        .expect("remediation must be an array")
+        .iter()
+        .filter_map(|r| r["command"].as_str())
+        .collect();
+    assert!(
+        !cmds.is_empty(),
+        "a fresh claim should carry lockable remediation, got: {data:?}"
+    );
+    for cmd in &cmds {
+        assert!(
+            !cmd.contains("--lock-readiness"),
+            "remediation references nonexistent flag: {cmd}"
+        );
+    }
+}
+
 /// The `entity` object embedded in the `why` response for a claim must
 /// contain the canonical claim fields: id, entity_kind, statement, status,
 /// evidence, created_at.
