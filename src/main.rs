@@ -815,7 +815,7 @@ const HELP_TUTORIAL: &[&str] = &[
     "## 1. Orient\n\n",
     "Run `dont prime --json` at session start.\n\n",
     "## 2. Search before coining\n\n",
-    "Before coining a new term run `dont suggest-term \"<rough concept>\"`.\n\n",
+    "Before coining a new term run `dont vocab --status unverified` to check for an existing term.\n\n",
     "## 3. Coin a term\n\n",
     "    dont define WB:P001 --label \"a repository commit\" --doc \"A single atomic change...\"\n\n",
     "Supply `--label '<a noun phrase>'` alongside `--doc`.\n\n",

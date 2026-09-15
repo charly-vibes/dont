@@ -31,6 +31,23 @@ fn help_tutorial_exits_successfully_with_tutorial_content() {
         .stdout(predicates::str::contains("tutorial").or(predicates::str::contains("Tutorial")));
 }
 
+/// dont-12cp: the tutorial must not reference commands that do not exist.
+#[test]
+fn help_tutorial_does_not_reference_unimplemented_commands() {
+    let out = dont()
+        .args(["help", "--tutorial"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        !text.contains("suggest-term"),
+        "tutorial references unimplemented command `dont suggest-term`"
+    );
+}
+
 /// Spec scenario: "help topics listing"
 /// WHEN the caller runs `dont help --topics`
 /// THEN the output lists the available tutorial and how-to entry points.

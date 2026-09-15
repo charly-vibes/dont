@@ -59,6 +59,19 @@ fn init_agents_teaches_repository_grounding_workflow() {
     );
 }
 
+/// dont-12cp: seeded docs must not reference commands that do not exist.
+#[test]
+fn init_agents_does_not_reference_unimplemented_commands() {
+    let dir = TempDir::new().unwrap();
+    init_in(&dir).success();
+
+    let agents = fs::read_to_string(dir.path().join("AGENTS.md")).unwrap();
+    assert!(
+        !agents.contains("suggest-term"),
+        "seeded AGENTS.md references unimplemented command `dont suggest-term`"
+    );
+}
+
 #[test]
 fn init_config_toml_has_required_sections() {
     let dir = TempDir::new().unwrap();

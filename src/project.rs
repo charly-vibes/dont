@@ -198,7 +198,7 @@ When a command returns `"ok": false`, read `data.remediation[0].command` from th
 
 ## Defining terms
 
-Before running `dont define`, run `dont suggest-term "<description>"` to check for an existing term that fits. When defining, always supply both `--label "<a noun phrase>"` and `--doc "<definition text>"` together.
+Before running `dont define`, run `dont vocab --status unverified` to check for an existing term that fits. When defining, always supply both `--label "<a noun phrase>"` and `--doc "<definition text>"` together.
 
 ## Spawn
 
