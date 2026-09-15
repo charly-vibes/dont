@@ -623,6 +623,25 @@ fn list_derived_assessment_filter_returns_only_stale_claims() {
 
 // --- list --as-of (dont-tk0t) ---
 
+/// dont-z8sr: --as-of is not yet implemented; it must not be advertised in help.
+#[test]
+fn help_does_not_advertise_unimplemented_as_of_flag() {
+    for cmd in ["list", "vocab"] {
+        let out = dont()
+            .args([cmd, "--help"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let text = String::from_utf8(out).unwrap();
+        assert!(
+            !text.contains("--as-of"),
+            "{cmd} --help advertises unimplemented --as-of flag"
+        );
+    }
+}
+
 #[test]
 fn list_as_of_flag_is_accepted_not_unexpected_argument() {
     let dir = init_project();

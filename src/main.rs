@@ -435,8 +435,7 @@ Notes:
     /// List entities.
     #[command(after_help = "Examples:
   dont list
-  dont list --status unverified
-  dont list --kind terms --as-of 2026-05-01")]
+  dont list --status unverified")]
     List {
         /// Filter entities by status.
         #[arg(long)]
@@ -455,7 +454,8 @@ Notes:
         all: bool,
 
         /// Evaluate entity state at a historical timestamp (ISO 8601 / RFC 3339 or YYYY-MM-DD).
-        #[arg(long, value_name = "TIMESTAMP")]
+        /// Not yet implemented — hidden from help until it works (dont-z8sr).
+        #[arg(long, value_name = "TIMESTAMP", hide = true)]
         as_of: Option<String>,
     },
 
@@ -469,7 +469,8 @@ Notes:
         status: Option<String>,
 
         /// Evaluate term state at a historical timestamp (ISO 8601 / RFC 3339 or YYYY-MM-DD).
-        #[arg(long, value_name = "TIMESTAMP")]
+        /// Not yet implemented — hidden from help until it works (dont-z8sr).
+        #[arg(long, value_name = "TIMESTAMP", hide = true)]
         as_of: Option<String>,
     },
 
