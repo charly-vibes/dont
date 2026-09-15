@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
 #[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
@@ -190,6 +192,24 @@ pub struct TrustEventRow {
     pub kind: String,
     pub note: Option<String>,
     pub created_at: String,
+}
+
+/// Process-wide registry of in-process store locks, keyed by lock-file path.
+///
+/// flock(2) alone cannot serialise same-process threads on platforms where
+/// it is per-process (BSD/macOS); this registry provides the missing
+/// intra-process mutual exclusion (dont-regm).
+static IN_PROCESS_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
+
+fn in_process_lock(lock_path: &Path) -> Arc<Mutex<()>> {
+    let registry = IN_PROCESS_LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = match registry.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    map.entry(lock_path.to_path_buf())
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone()
 }
 
 #[derive(Debug)]
@@ -1658,6 +1678,17 @@ impl Store {
         lock_path: &Path,
         f: impl FnOnce() -> Result<T, StoreError>,
     ) -> Result<T, StoreError> {
+        // Serialize same-process access first. flock(2) is per-open-file-description
+        // on Linux (separate FDs conflict even within one process) but per-process
+        // on BSD/macOS, where two threads can both "hold" it — leading to
+        // SQLITE_BUSY on the shared SQLite file (dont-regm). The in-process
+        // mutex keyed by lock path guarantees mutual exclusion within the
+        // process on every platform; flock still guards cross-process access.
+        let in_process = in_process_lock(lock_path);
+        let _guard = match in_process.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         let lock = Self::open_lock_file_at(lock_path)?;
         lock.lock_exclusive().map_err(StoreError::Io)?;
         let result = f();
