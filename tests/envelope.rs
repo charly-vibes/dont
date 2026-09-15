@@ -7,9 +7,45 @@ use tempfile::TempDir;
 
 // --- Envelope<T> construction and serialization ---
 
+// genesis v0.6.0 contract: cli_version is caller-supplied (genesis-5gf)
+#[test]
+fn success_envelope_preserves_caller_cli_version() {
+    let env = Envelope::success(
+        "dont/9.9.9-test",
+        EnvelopeKind::Version,
+        "1.0.0".to_string(),
+        vec![],
+        vec![],
+    );
+    let v: Value = serde_json::to_value(&env).unwrap();
+    assert_eq!(v["cli_version"], "dont/9.9.9-test");
+}
+
+#[test]
+fn error_envelope_preserves_caller_cli_version() {
+    let err = ErrorResult {
+        code: "internal".to_string(),
+        message: "boom".to_string(),
+        rule_name: None,
+        spec_ref: None,
+        entity_id: None,
+        unmet_clauses: vec![],
+        remediation: vec![],
+    };
+    let env = Envelope::error("dont/9.9.9-test", err, vec![]);
+    let v: Value = serde_json::to_value(&env).unwrap();
+    assert_eq!(v["cli_version"], "dont/9.9.9-test");
+}
+
 #[test]
 fn success_envelope_has_required_fields() {
-    let env = Envelope::success(EnvelopeKind::Version, "1.0.0".to_string(), vec![], vec![]);
+    let env = Envelope::success(
+        "dont-test",
+        EnvelopeKind::Version,
+        "1.0.0".to_string(),
+        vec![],
+        vec![],
+    );
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["envelope_version"], "0.2");
@@ -23,7 +59,7 @@ fn success_envelope_has_required_fields() {
 
 #[test]
 fn success_envelope_has_meta_fields() {
-    let env = Envelope::success(EnvelopeKind::Empty, (), vec![], vec![]);
+    let env = Envelope::success("dont-test", EnvelopeKind::Empty, (), vec![], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     let meta = &v["meta"];
     assert!(meta["duration_ms"].is_number());
@@ -34,7 +70,7 @@ fn success_envelope_has_meta_fields() {
 #[test]
 fn success_envelope_no_hints_key_means_empty() {
     // Hints are always present on success envelopes
-    let env = Envelope::success(EnvelopeKind::Empty, (), vec![], vec![]);
+    let env = Envelope::success("dont-test", EnvelopeKind::Empty, (), vec![], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert!(v["hints"].is_array());
 }
@@ -53,7 +89,7 @@ fn error_envelope_has_ok_false_and_no_hints() {
             description: "Run doctor".to_string(),
         }],
     };
-    let env = Envelope::error(err, vec![]);
+    let env = Envelope::error("dont-test", err, vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["envelope_kind"], "error");
@@ -80,7 +116,7 @@ fn error_envelope_data_contains_error_result_fields() {
             description: "Dismiss the blocking claim".to_string(),
         }],
     };
-    let env = Envelope::error(err, vec![]);
+    let env = Envelope::error("dont-test", err, vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     let data = &v["data"];
     assert_eq!(data["code"], "rule-not-met");
@@ -142,7 +178,7 @@ fn warnings_can_appear_on_success_envelope() {
         message: "URI is malformed".to_string(),
         suggested_remediation: None,
     };
-    let env = Envelope::success(EnvelopeKind::Empty, (), vec![w], vec![]);
+    let env = Envelope::success("dont-test", EnvelopeKind::Empty, (), vec![w], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["ok"], true);
     assert_eq!(v["warnings"].as_array().unwrap().len(), 1);
@@ -169,7 +205,7 @@ fn warnings_can_appear_on_error_envelope() {
         message: "stale evidence".to_string(),
         suggested_remediation: None,
     };
-    let env = Envelope::error(err, vec![w]);
+    let env = Envelope::error("dont-test", err, vec![w]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["ok"], false);
     assert_eq!(v["warnings"].as_array().unwrap().len(), 1);
@@ -219,14 +255,21 @@ fn envelope_rejects_unknown_kind_on_deserialize() {
 
 #[test]
 fn mutating_envelope_has_tx_set() {
-    let env = Envelope::success_with_tx(EnvelopeKind::Empty, (), vec![], vec![], Some(42));
+    let env = Envelope::success_with_tx(
+        "dont-test",
+        EnvelopeKind::Empty,
+        (),
+        vec![],
+        vec![],
+        Some(42),
+    );
     let v: Value = serde_json::to_value(&env).unwrap();
     assert_eq!(v["meta"]["tx"], 42u64);
 }
 
 #[test]
 fn readonly_envelope_has_null_tx() {
-    let env = Envelope::success(EnvelopeKind::Empty, (), vec![], vec![]);
+    let env = Envelope::success("dont-test", EnvelopeKind::Empty, (), vec![], vec![]);
     let v: Value = serde_json::to_value(&env).unwrap();
     assert!(v["meta"]["tx"].is_null());
 }

@@ -41,9 +41,6 @@ fn current_author() -> Option<String> {
 /// Envelope protocol version — dont maintains "0.2" for backward compatibility.
 pub const ENVELOPE_VERSION: &str = "0.2";
 
-/// CLI version, injected at compile time from dont's `Cargo.toml`.
-pub const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// Discriminator for the kind of data carried in the envelope.
 ///
 /// dont-specific variants preserved for backward compatibility with
@@ -98,6 +95,7 @@ pub struct Envelope<T: Serialize> {
 
 impl<T: Serialize> Envelope<T> {
     pub fn success(
+        cli_version: &str,
         kind: EnvelopeKind,
         data: T,
         warnings: Vec<Warning>,
@@ -106,7 +104,7 @@ impl<T: Serialize> Envelope<T> {
         Self {
             ok: true,
             envelope_version: ENVELOPE_VERSION.to_string(),
-            cli_version: CLI_VERSION.to_string(),
+            cli_version: cli_version.to_string(),
             envelope_kind: kind,
             data,
             warnings,
@@ -122,24 +120,25 @@ impl<T: Serialize> Envelope<T> {
     }
 
     pub fn success_with_tx(
+        cli_version: &str,
         kind: EnvelopeKind,
         data: T,
         warnings: Vec<Warning>,
         hints: Vec<HintEntry>,
         tx: Option<u64>,
     ) -> Self {
-        let mut env = Self::success(kind, data, warnings, hints);
+        let mut env = Self::success(cli_version, kind, data, warnings, hints);
         env.meta.tx = tx;
         env
     }
 }
 
 impl Envelope<ErrorResult> {
-    pub fn error(err: ErrorResult, warnings: Vec<Warning>) -> Self {
+    pub fn error(cli_version: &str, err: ErrorResult, warnings: Vec<Warning>) -> Self {
         Self {
             ok: false,
             envelope_version: ENVELOPE_VERSION.to_string(),
-            cli_version: CLI_VERSION.to_string(),
+            cli_version: cli_version.to_string(),
             envelope_kind: EnvelopeKind::Error,
             data: err,
             warnings,

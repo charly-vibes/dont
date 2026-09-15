@@ -29,6 +29,13 @@
 //! assert_eq!(id.as_str(), "term:dont:Claim");
 //! ```
 
+/// CLI version of this crate, injected at compile time from `Cargo.toml`.
+///
+/// Lives at the crate root (the caller) per the genesis v0.6.0 envelope
+/// contract: `cli_version` is caller-supplied, not injected by the envelope
+/// module (genesis-5gf).
+pub const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Configuration types for `.dont/config.toml`.
 ///
 /// [`Config`](config::Config) is the root deserialisation target and

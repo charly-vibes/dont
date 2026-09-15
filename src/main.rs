@@ -13,10 +13,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+use dont::CLI_VERSION;
 use dont::config::{DefineShapeConfig, TermNonfunctionalConfig};
 use dont::envelope::{
-    CLI_VERSION, Envelope, EnvelopeKind, ErrorResult, HintEntry, RemediationEntry, UnmetClause,
-    Warning, set_author,
+    Envelope, EnvelopeKind, ErrorResult, HintEntry, RemediationEntry, UnmetClause, Warning,
+    set_author,
 };
 use dont::linkml as linkml_adapter;
 use dont::model::{
@@ -1131,7 +1132,8 @@ fn handle_linkml_import(args: &[String], project: &Project) {
                 "canonical_source_id": canonical_source_id,
                 "stored": stored,
             });
-            let env = Envelope::success(EnvelopeKind::Empty, payload, warnings, vec![]);
+            let env =
+                Envelope::success(CLI_VERSION, EnvelopeKind::Empty, payload, warnings, vec![]);
             emit_json(&env);
         }
     }
@@ -1303,7 +1305,7 @@ fn emit_error_no_exit(err: ErrorResult, warnings: Vec<Warning>, code: i32) -> i3
             eprintln!("  Feedback: dont feedback bug --from-last-error");
         }
     } else {
-        let envelope = Envelope::error(err, warnings);
+        let envelope = Envelope::error(CLI_VERSION, err, warnings);
         emit_json(&envelope);
     }
     // Adopt the genesis::guide::ErrorSink scratch contract: persist the last
@@ -3096,6 +3098,7 @@ fn suggest_alternative_curie(curie: &str) -> String {
 fn emit_claim_view(record: &ClaimRecord, result: &AppendResult, store: &Store) {
     let payload = build_claim_view(record, store);
     let env = Envelope::success_with_tx(
+        CLI_VERSION,
         EnvelopeKind::Claim,
         payload,
         vec![],
@@ -3116,6 +3119,7 @@ fn emit_term_view(
 ) {
     let payload = build_term_view(record, store);
     let env = Envelope::success_with_tx(
+        CLI_VERSION,
         EnvelopeKind::Term,
         payload,
         warnings,
@@ -3794,6 +3798,7 @@ fn main() {
     if cli.version {
         if cli.json {
             let env = Envelope::success(
+                CLI_VERSION,
                 EnvelopeKind::Version,
                 json!({
                     "version": CLI_VERSION,
@@ -3917,6 +3922,7 @@ fn main() {
             match Project::init(&cwd(), mode) {
                 Ok(_) => {
                     let env = Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::Empty,
                         json!({ "mode": mode.as_str() }),
                         vec![],
@@ -4082,7 +4088,8 @@ fn main() {
                     "applicable_rules": {},
                     "created_at": now,
                 });
-                let env = Envelope::success(EnvelopeKind::Claim, payload, warnings, vec![]);
+                let env =
+                    Envelope::success(CLI_VERSION, EnvelopeKind::Claim, payload, warnings, vec![]);
                 emit_confirm_json(&env);
             } else {
                 match project
@@ -4104,6 +4111,7 @@ fn main() {
                             "created_at": result.created_at,
                         });
                         let env = Envelope::success_with_tx(
+                            CLI_VERSION,
                             EnvelopeKind::Claim,
                             payload,
                             warnings,
@@ -4654,6 +4662,7 @@ fn main() {
                 Ok(Some(EntityResolution::Claim(record))) => {
                     let payload = build_claim_show_view(&record, &project.store, history);
                     let env = Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::Claim,
                         payload,
                         vec![],
@@ -4668,6 +4677,7 @@ fn main() {
                 Ok(Some(EntityResolution::Term(record))) => {
                     let payload = build_term_view(&record, &project.store);
                     let env = Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::Term,
                         payload,
                         vec![],
@@ -4693,6 +4703,7 @@ fn main() {
                 Ok(Some(EntityResolution::Claim(record))) => {
                     let payload = build_claim_why_view(&record, &project.store);
                     let env = Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::Why,
                         payload,
                         vec![],
@@ -4707,6 +4718,7 @@ fn main() {
                 Ok(Some(EntityResolution::Term(record))) => {
                     let payload = build_term_why_view(&record, &project.store);
                     let env = Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::Why,
                         payload,
                         vec![],
@@ -4850,6 +4862,7 @@ fn main() {
                 "results": results,
             });
             let env = Envelope::success(
+                CLI_VERSION,
                 EnvelopeKind::EvidenceCheck,
                 payload,
                 warnings,
@@ -4974,7 +4987,7 @@ fn main() {
                     "Verified entities must not depend on unresolved terms"
                 ],
             });
-            let env = Envelope::success(EnvelopeKind::Prime, payload, vec![], vec![]);
+            let env = Envelope::success(CLI_VERSION, EnvelopeKind::Prime, payload, vec![], vec![]);
             emit_json(&env);
             if !blocking.is_empty() {
                 std::process::exit(1);
@@ -5025,7 +5038,7 @@ fn main() {
             };
 
             let payload = dont::doctor_checks::doctor_payload_from_report(&report);
-            let env = Envelope::success(EnvelopeKind::Doctor, payload, vec![], vec![]);
+            let env = Envelope::success(CLI_VERSION, EnvelopeKind::Doctor, payload, vec![], vec![]);
             emit_json(&env);
 
             // Emit ungrounded rejection events when DONT_EMIT_EVENTS=1.
@@ -5180,7 +5193,13 @@ fn main() {
                         "count": count,
                         "claims": views,
                     });
-                    let env = Envelope::success(EnvelopeKind::Claims, payload, vec![], hints);
+                    let env = Envelope::success(
+                        CLI_VERSION,
+                        EnvelopeKind::Claims,
+                        payload,
+                        vec![],
+                        hints,
+                    );
                     emit_json(&env);
                 }
                 ListKind::Terms => {
@@ -5200,7 +5219,13 @@ fn main() {
                         .iter()
                         .map(|term| build_term_view(term, &project.store))
                         .collect();
-                    let env = Envelope::success(EnvelopeKind::TermList, views, vec![], vec![]);
+                    let env = Envelope::success(
+                        CLI_VERSION,
+                        EnvelopeKind::TermList,
+                        views,
+                        vec![],
+                        vec![],
+                    );
                     emit_json(&env);
                 }
                 ListKind::All => {
@@ -5241,7 +5266,8 @@ fn main() {
                         "claims": claim_views,
                         "terms": term_views,
                     });
-                    let env = Envelope::success(EnvelopeKind::All, payload, vec![], vec![]);
+                    let env =
+                        Envelope::success(CLI_VERSION, EnvelopeKind::All, payload, vec![], vec![]);
                     emit_json(&env);
                 }
             }
@@ -5324,7 +5350,7 @@ fn main() {
                 .iter()
                 .map(|term| build_term_view(term, &project.store))
                 .collect();
-            let env = Envelope::success(EnvelopeKind::TermList, views, vec![], vec![]);
+            let env = Envelope::success(CLI_VERSION, EnvelopeKind::TermList, views, vec![], vec![]);
             emit_json(&env);
         }
 
@@ -5338,7 +5364,13 @@ fn main() {
                             "blockers": [],
                             "as_of": chrono::Utc::now().to_rfc3339(),
                         });
-                        let env = Envelope::success(EnvelopeKind::Events, payload, vec![], vec![]);
+                        let env = Envelope::success(
+                            CLI_VERSION,
+                            EnvelopeKind::Events,
+                            payload,
+                            vec![],
+                            vec![],
+                        );
                         emit_json(&env);
                     }
                     Ok(None) => emit_error_and_exit(
@@ -5376,7 +5408,13 @@ fn main() {
                                 description: "Inspect the entity details".to_string(),
                             }]
                         };
-                        let env = Envelope::success(EnvelopeKind::Events, payload, vec![], hints);
+                        let env = Envelope::success(
+                            CLI_VERSION,
+                            EnvelopeKind::Events,
+                            payload,
+                            vec![],
+                            hints,
+                        );
                         emit_json(&env);
                     }
                     Ok(None) => emit_error_and_exit(
@@ -5466,7 +5504,7 @@ fn main() {
                 "idle_skill": idle_skill,
                 "caught_contradiction_count": caught_contradiction_count,
             });
-            let env = Envelope::success(EnvelopeKind::Stats, payload, vec![], vec![]);
+            let env = Envelope::success(CLI_VERSION, EnvelopeKind::Stats, payload, vec![], vec![]);
             emit_json(&env);
         }
 
@@ -5557,7 +5595,13 @@ fn main() {
                 "trust_events": trust_events,
                 "dedup_refusals": [],
             });
-            let env = Envelope::success(EnvelopeKind::EvalExport, payload, vec![], vec![]);
+            let env = Envelope::success(
+                CLI_VERSION,
+                EnvelopeKind::EvalExport,
+                payload,
+                vec![],
+                vec![],
+            );
             emit_json(&env);
         }
 
@@ -5573,6 +5617,7 @@ fn main() {
                     "script": script.as_ref(),
                 });
                 emit_json(&Envelope::success(
+                    CLI_VERSION,
                     EnvelopeKind::DontCompletions,
                     payload,
                     vec![],
@@ -6070,7 +6115,8 @@ fn main() {
                     "total_claims": counts.values().sum::<u64>(),
                     "status_counts": counts,
                 });
-                let env = Envelope::success(EnvelopeKind::Check, payload, vec![], vec![]);
+                let env =
+                    Envelope::success(CLI_VERSION, EnvelopeKind::Check, payload, vec![], vec![]);
                 emit_json(&env);
             } else if has_ungrounded {
                 println!("✗ {} ungrounded claim(s)", unverified);
@@ -6122,6 +6168,7 @@ fn main() {
                     }
 
                     emit_json(&Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::RuleList,
                         rules,
                         vec![],
@@ -6138,6 +6185,7 @@ fn main() {
                             datalog: None,
                         };
                         emit_json(&Envelope::success(
+                            CLI_VERSION,
                             EnvelopeKind::Rule,
                             detail,
                             vec![],
@@ -6154,6 +6202,7 @@ fn main() {
                                     datalog: Some(src),
                                 };
                                 emit_json(&Envelope::success(
+                                    CLI_VERSION,
                                     EnvelopeKind::Rule,
                                     detail,
                                     vec![],
@@ -6282,6 +6331,7 @@ fn main() {
                     }
 
                     emit_confirm_json(&Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::Empty,
                         serde_json::Value::Null,
                         vec![],
@@ -6365,6 +6415,7 @@ fn main() {
                             .collect(),
                     };
                     emit_json(&Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::RuleResult,
                         result,
                         vec![],
@@ -6396,6 +6447,7 @@ fn main() {
                     println!("{}", prose.trim());
                 } else {
                     emit_json(&Envelope::success(
+                        CLI_VERSION,
                         EnvelopeKind::DontExplain,
                         payload,
                         vec![],
@@ -6548,6 +6600,7 @@ fn main() {
                         println!("{}", msg);
                     } else {
                         emit_json(&Envelope::success(
+                            CLI_VERSION,
                             EnvelopeKind::Stats,
                             json!({ "message": msg }),
                             vec![],

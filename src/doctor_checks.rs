@@ -11,8 +11,8 @@ use std::sync::Arc;
 use genesis::doctor::DoctorCheck;
 use genesis::suite_linter::{LintResult, Severity};
 
+use crate::CLI_VERSION;
 use crate::config;
-use crate::envelope::CLI_VERSION;
 use crate::linkml::linkml_is_on_path;
 use crate::project::Project;
 
