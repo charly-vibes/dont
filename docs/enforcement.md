@@ -127,3 +127,40 @@ exits 0 (output is still produced but not treated as an error by Claude Code).
 
 `just ci` calls `just check-claims`, which calls `dont prime`. A doubted claim
 fails the pipeline. See `.github/workflows/ci.yml`.
+
+## Scope of the gate: repo-local, opt-in (ADR)
+
+**Decision (2026-09, dont-bpuo):** the epistemic gate (`dont prime` /
+`just check-claims`) is **repo-local and opt-in**. `dont` ships the wiring
+recipes above; each repository adopts the gate when it maintains a real claim
+corpus. There is no suite-wide mandate and none is planned.
+
+**Why not suite-wide enforcement:**
+
+1. *A gate over no claims enforces nothing.* `dont check` passes trivially in
+   a repository whose store has no claims — the gate only has teeth where
+   agents actually register and ground claims. Wiring the hook into repos
+   before the claim-creation habit exists adds friction without epistemic
+   value (enforcement theater).
+2. *Uninitialized repos hard-fail.* `dont check` exits 1 with "no .dont/
+   project found" outside an initialized project, so blanket pre-push wiring
+   would block pushes from repos that never opted in.
+3. *It matches the design.* dont is permissive by default; hooks are opt-in
+   wiring, and the in-binary rules (strict transitions, dependency gate,
+   lockability) need no cross-repo infrastructure to hold.
+4. *`ah signals` is already repo-local by mechanism.* It reads
+   `.dont/events/*.json` from the same repository — no cross-repo claim
+   enforcement is implied by that integration.
+
+**Adoption ladder for a suite repository:**
+
+1. `dont init` and start registering claims during development (dogfood
+   period — see the [grounding workflow](./grounding-workflow.md)).
+2. Once the repo has real claim activity, wire `just check-claims` (or the
+   `dont prime` equivalent) into pre-commit/CI using the recipes above.
+3. Document the gate in the repo's contributor docs so the hook is not a
+   surprise.
+
+Note: within `dont` itself the gate runs at **pre-commit** (lefthook and
+prek), not pre-push — earlier descriptions that placed it at pre-push were
+inaccurate.
