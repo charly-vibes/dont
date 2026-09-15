@@ -8,13 +8,12 @@
 
 mod common;
 
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use serde_json::Value;
 use std::fs;
-use tempfile::TempDir;
 
 /// Write a LinkML YAML file into `dir` and return its path as a string.
-fn write_schema(dir: &TempDir, name: &str, content: &str) -> String {
+fn write_schema(dir: &TestProject, name: &str, content: &str) -> String {
     let path = dir.path().join(name);
     fs::write(&path, content).unwrap();
     path.to_str().unwrap().to_string()
@@ -28,8 +27,7 @@ fn write_schema(dir: &TempDir, name: &str, content: &str) -> String {
 /// with `config-missing` and install guidance.
 #[test]
 fn linkml_import_refuses_when_linkml_cli_missing() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/basic-test
@@ -83,8 +81,7 @@ classes:
 /// and name the offending construct.
 #[test]
 fn linkml_reified_slot_triggers_unsupported_feature_refusal() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/reified-test
@@ -133,8 +130,7 @@ classes:
 /// `linkml-unsupported-feature`.
 #[test]
 fn linkml_python_class_triggers_unsupported_feature_refusal() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/python-test
@@ -179,8 +175,7 @@ classes:
 /// `linkml-unsupported-feature`.
 #[test]
 fn linkml_sparql_rule_triggers_unsupported_feature_refusal() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/sparql-test
@@ -235,8 +230,7 @@ classes:
 /// schema's terms must be imported into the local store.
 #[test]
 fn linkml_refusal_leaves_no_partial_state() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Schema contains both a useful class AND a python_class (refusal trigger)
     let schema = r#"
@@ -302,8 +296,7 @@ classes:
 /// and record a warning naming that feature.
 #[test]
 fn linkml_permissible_values_imports_with_warning() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/enum-test
@@ -365,8 +358,7 @@ classes:
 /// warn about the approximation.
 #[test]
 fn linkml_string_pattern_imports_with_warning() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/pattern-test
@@ -422,8 +414,7 @@ classes:
 /// The import must NOT fail and must NOT emit a warning solely for `is_a`.
 #[test]
 fn linkml_is_a_imports_silently_as_kind_of_chain() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/isa-test
@@ -478,8 +469,7 @@ classes:
 /// transformation.
 #[test]
 fn linkml_mixins_flatten_silently() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/mixin-test
@@ -541,8 +531,7 @@ classes:
 /// successfully and add import data without creating coined terms.
 #[test]
 fn linkml_basic_schema_lowers_to_local_relations() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/basic-test
@@ -625,8 +614,7 @@ classes:
 /// canonical_source_id.
 #[test]
 fn linkml_reimport_is_idempotent_with_canonical_source_id() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/basic-test
@@ -682,8 +670,7 @@ classes:
 /// identity and reuse the same canonical_source_id.
 #[test]
 fn linkml_path_aliases_share_canonical_source_id() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema = r#"
 id: https://example.org/basic-test

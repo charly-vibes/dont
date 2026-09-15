@@ -7,7 +7,7 @@ use dont::store::{
 use serde_json::Value;
 use tempfile::TempDir;
 
-fn init_dir(dir: &TempDir) {
+fn init_subdir(dir: &TempDir) {
     dont()
         .args(["init", "--json"])
         .env("DONT_DIR", dir.path().join(".dont"))
@@ -71,7 +71,7 @@ fn undoubt(dir: &TempDir, id: &str) -> Vec<u8> {
 #[test]
 fn undoubt_doubted_claim_returns_to_unverified() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    init_subdir(&dir);
     let id = conclude_claim(&dir, "claim that will be doubted then undoubted");
     trust(&dir, &id);
     let out = undoubt(&dir, &id);
@@ -84,7 +84,7 @@ fn undoubt_doubted_claim_returns_to_unverified() {
 #[test]
 fn undoubt_doubted_term_returns_to_unverified() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    init_subdir(&dir);
     let id = define_term(&dir, "WB:P001");
     trust(&dir, &id);
     let out = undoubt(&dir, &id);
@@ -97,7 +97,7 @@ fn undoubt_doubted_term_returns_to_unverified() {
 #[test]
 fn undoubt_carries_tx_in_meta() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    init_subdir(&dir);
     let id = conclude_claim(&dir, "tx is tracked for undoubt");
     trust(&dir, &id);
     let out = undoubt(&dir, &id);
@@ -110,7 +110,7 @@ fn undoubt_carries_tx_in_meta() {
 #[test]
 fn undoubt_unverified_claim_is_refused() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    init_subdir(&dir);
     let id = conclude_claim(&dir, "unverified claim cannot be undoubted");
     let out = dont()
         .args(["undoubt", &id, "--json"])
@@ -128,7 +128,7 @@ fn undoubt_unverified_claim_is_refused() {
 #[test]
 fn undoubt_verified_claim_is_refused() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    init_subdir(&dir);
     let id = conclude_claim(&dir, "verified claim cannot be undoubted");
     dont()
         .args([
@@ -157,7 +157,7 @@ fn undoubt_verified_claim_is_refused() {
 #[test]
 fn undoubt_ignored_claim_is_refused() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    init_subdir(&dir);
     let id = conclude_claim(&dir, "ignored claim cannot be undoubted");
     dont()
         .args([
@@ -186,7 +186,7 @@ fn undoubt_ignored_claim_is_refused() {
 #[test]
 fn undoubt_entity_not_found_returns_error_exit_1() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    init_subdir(&dir);
     let out = dont()
         .args(["undoubt", "claim:01JNONEXISTENT", "--json"])
         .env("DONT_DIR", dir.path().join(".dont"))
@@ -203,7 +203,7 @@ fn undoubt_entity_not_found_returns_error_exit_1() {
 #[test]
 fn undoubt_locked_claim_is_refused() {
     let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    init_subdir(&dir);
     let id = conclude_claim(
         &dir,
         "claim that will be locked and then undoubt is attempted",

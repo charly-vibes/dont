@@ -1,10 +1,9 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
+fn dismiss_claim(dir: &TestProject, id: &str, evidence: &str) {
     dont()
         .args(["flag", id, "--evidence", evidence, "--json"])
         .env("DONT_DIR", dir.path())
@@ -14,8 +13,7 @@ fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
 
 #[test]
 fn hypothesis_add_appends_to_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Hypotheses support lockable claims");
 
     let output = dont()
@@ -52,8 +50,7 @@ fn hypothesis_add_appends_to_claim() {
 
 #[test]
 fn hypothesis_add_multiple_increments_idx() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim with multiple competing hypotheses");
 
     for (i, text) in ["H1", "H2", "H3"].iter().enumerate() {
@@ -76,8 +73,7 @@ fn hypothesis_add_multiple_increments_idx() {
 
 #[test]
 fn hypothesis_add_on_unknown_claim_returns_not_found() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -102,8 +98,7 @@ fn hypothesis_add_on_unknown_claim_returns_not_found() {
 
 #[test]
 fn hypothesis_assess_adds_supporting_evidence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim needing assessed hypotheses for locking");
 
     dont()
@@ -144,8 +139,7 @@ fn hypothesis_assess_adds_supporting_evidence() {
 
 #[test]
 fn hypothesis_assess_adds_refuting_evidence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim with refuted hypothesis");
 
     dont()
@@ -184,8 +178,7 @@ fn hypothesis_assess_adds_refuting_evidence() {
 
 #[test]
 fn hypothesis_assess_out_of_range_returns_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim with one hypothesis");
 
     dont()
@@ -224,8 +217,7 @@ fn hypothesis_assess_out_of_range_returns_error() {
 
 #[test]
 fn hypothesis_add_with_empty_text_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim whose hypothesis text must be non-empty");
 
     let output = dont()
@@ -249,8 +241,7 @@ fn hypothesis_add_with_empty_text_is_refused() {
 
 #[test]
 fn hypothesis_assess_without_supporting_or_refuting_returns_no_assessment() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(
         &dir,
         "Claim whose hypothesis requires at least one assessment item",
@@ -290,8 +281,7 @@ fn hypothesis_assess_without_supporting_or_refuting_returns_no_assessment() {
 
 #[test]
 fn lock_reachable_via_cli_hypothesis_commands() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim reachable with only CLI commands");
 
     dismiss_claim(&dir, &id, "https://source-one.example/evidence");

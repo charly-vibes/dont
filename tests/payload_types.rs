@@ -5,11 +5,10 @@
 /// implementation matches.  Tests in this file were written red-first.
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str, doc: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", doc, "--json"])
         .env("DONT_DIR", dir.path())
@@ -33,8 +32,7 @@ fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
 
 #[test]
 fn claim_view_includes_confidence_field() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim view must carry confidence");
 
     let out = dont()
@@ -62,8 +60,7 @@ fn claim_view_includes_confidence_field() {
 
 #[test]
 fn claim_view_includes_provenance_field() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim view must carry provenance");
 
     let out = dont()
@@ -91,8 +88,7 @@ fn claim_view_includes_provenance_field() {
 
 #[test]
 fn claims_list_data_has_as_of_count_and_claims_array() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "first claim");
     conclude_claim(&dir, "second claim");
 
@@ -142,8 +138,7 @@ fn claims_list_data_has_as_of_count_and_claims_array() {
 
 #[test]
 fn prime_assessment_counts_uses_hyphenated_keys() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["prime", "--json"])
@@ -193,8 +188,7 @@ fn prime_assessment_counts_uses_hyphenated_keys() {
 
 #[test]
 fn term_view_omits_updated_at() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     define_term(&dir, "WB:P001", "a well-known process");
 
     let out = dont()
@@ -223,8 +217,7 @@ fn term_view_omits_updated_at() {
 
 #[test]
 fn claim_view_required_array_fields_always_present() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "array fields must always be present");
 
     let out = dont()
@@ -267,8 +260,7 @@ fn claim_view_required_array_fields_always_present() {
 
 #[test]
 fn claim_view_entity_kind_is_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "entity kind must be claim");
 
     let out = dont()
@@ -295,8 +287,7 @@ fn claim_view_entity_kind_is_claim() {
 
 #[test]
 fn claim_view_includes_updated_at() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "updated_at must be present on claims");
 
     let out = dont()
@@ -328,8 +319,7 @@ fn claim_view_includes_updated_at() {
 
 #[test]
 fn term_view_required_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     define_term(&dir, "WB:T001", "a test term for field coverage");
 
     let out = dont()
@@ -385,8 +375,7 @@ fn term_view_required_fields() {
 
 #[test]
 fn why_view_structure() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "why view must have required structure");
 
     let out = dont()
@@ -438,8 +427,7 @@ fn why_view_structure() {
 
 #[test]
 fn why_view_history_event_shape() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "event view shape in history");
 
     let out = dont()
@@ -491,8 +479,7 @@ fn why_view_history_event_shape() {
 
 #[test]
 fn prime_view_required_top_level_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["prime", "--json"])
@@ -546,8 +533,7 @@ fn prime_view_required_top_level_fields() {
 
 #[test]
 fn prime_status_counts_has_all_four_keys() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["prime", "--json"])
@@ -586,8 +572,7 @@ fn prime_status_counts_has_all_four_keys() {
 
 #[test]
 fn doctor_report_structure() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["doctor", "--json"])
@@ -680,8 +665,7 @@ fn doctor_report_structure() {
 
 #[test]
 fn doctor_warns_when_linkml_not_on_path() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Run doctor with an empty PATH so linkml cannot be found.
     let out = dont()
@@ -732,8 +716,7 @@ fn doctor_warns_when_linkml_not_on_path() {
 
 #[test]
 fn conclude_with_confidence_stores_value_in_claim_view() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([

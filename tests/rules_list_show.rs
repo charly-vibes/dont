@@ -1,10 +1,9 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn write_custom_rule(dir: &TempDir, name: &str, script: &str) {
+fn write_custom_rule(dir: &TestProject, name: &str, script: &str) {
     let rules_dir = dir.path().join("rules");
     std::fs::write(rules_dir.join(format!("{name}.dl")), script).unwrap();
 }
@@ -13,8 +12,7 @@ fn write_custom_rule(dir: &TempDir, name: &str, script: &str) {
 
 #[test]
 fn rules_list_returns_rule_list_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "list", "--json"])
@@ -33,8 +31,7 @@ fn rules_list_returns_rule_list_envelope() {
 
 #[test]
 fn rules_list_contains_all_seven_shipped_rules() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "list", "--json"])
@@ -67,8 +64,7 @@ fn rules_list_contains_all_seven_shipped_rules() {
 
 #[test]
 fn rules_list_shipped_rules_have_correct_source_and_severity_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "list", "--json"])
@@ -97,8 +93,7 @@ fn rules_list_shipped_rules_have_correct_source_and_severity_fields() {
 
 #[test]
 fn rules_list_non_overridable_rules_have_strict_severity() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "list", "--json"])
@@ -123,8 +118,7 @@ fn rules_list_non_overridable_rules_have_strict_severity() {
 
 #[test]
 fn rules_list_includes_custom_rules_from_rules_dir() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     write_custom_rule(
         &dir,
         "my-custom-rule",
@@ -157,8 +151,7 @@ fn rules_list_includes_custom_rules_from_rules_dir() {
 
 #[test]
 fn rules_show_shipped_rule_returns_rule_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "show", "ungrounded", "--json"])
@@ -185,8 +178,7 @@ fn rules_show_shipped_rule_returns_rule_envelope() {
 
 #[test]
 fn rules_show_custom_rule_includes_datalog_source() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let script = r#"?[entity_id, detail] <- [["entity-1", "found"]]"#;
     write_custom_rule(&dir, "my-rule", script);
 
@@ -209,8 +201,7 @@ fn rules_show_custom_rule_includes_datalog_source() {
 
 #[test]
 fn rules_show_unknown_rule_returns_rule_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "show", "nonexistent-rule", "--json"])
@@ -229,8 +220,7 @@ fn rules_show_unknown_rule_returns_rule_not_found_exit_1() {
 
 #[test]
 fn rules_show_strict_rule_has_strict_severity() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "show", "unresolved-terms", "--json"])

@@ -1,11 +1,11 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
-fn append_config(dir: &TempDir, extra: &str) {
+fn append_config(dir: &TestProject, extra: &str) {
     let path = dir.path().join("config.toml");
     let mut content = fs::read_to_string(&path).unwrap();
     content.push('\n');
@@ -17,8 +17,7 @@ fn append_config(dir: &TempDir, extra: &str) {
 #[test]
 fn import_verify_shape() {
     // --- 1. Disabled adapter causes refusal ---
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     append_config(&dir, "[import.wikidata]\nenabled = false");
 
     let output = dont()
@@ -34,8 +33,7 @@ fn import_verify_shape() {
     assert_eq!(v["data"]["code"], "adapter-disabled");
 
     // --- 2. verify_evidence uses config default_timeout_s ---
-    let dir2 = TempDir::new().unwrap();
-    init_dir(&dir2);
+    let dir2 = init_project();
     append_config(&dir2, "[verify_evidence]\ndefault_timeout_s = 7");
 
     let claim_out = dont()
@@ -78,8 +76,7 @@ fn import_verify_shape() {
     assert_eq!(vv["data"]["timeout_seconds"], 7);
 
     // --- 3. [define.shape] check_indefinite = false skips indefinite-article check ---
-    let dir3 = TempDir::new().unwrap();
-    init_dir(&dir3);
+    let dir3 = init_project();
     append_config(&dir3, "[define.shape]\ncheck_indefinite = false");
 
     // "Ricci tensor" lacks indefinite article — normally refused, but check is disabled.
@@ -106,8 +103,7 @@ fn import_verify_shape() {
 #[test]
 fn trust_hedges_and_term_nonfunctional_config_rules_take_effect_at_runtime() {
     // --- 1. [trust.hedges] custom pattern causes refusal ---
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     append_config(&dir, "[trust.hedges]\npatterns = [\"speculative at best\"]");
 
     let claim_out = dont()
@@ -140,8 +136,7 @@ fn trust_hedges_and_term_nonfunctional_config_rules_take_effect_at_runtime() {
     assert_eq!(tv["data"]["code"], "reason-not-hedge");
 
     // --- 2. [rules.term_nonfunctional] enabled → warning emitted on define ---
-    let dir2 = TempDir::new().unwrap();
-    init_dir(&dir2);
+    let dir2 = init_project();
     append_config(
         &dir2,
         "[rules.term_nonfunctional]\nenabled = true\npatterns = [\"responsible for\"]",
@@ -174,8 +169,7 @@ fn trust_hedges_and_term_nonfunctional_config_rules_take_effect_at_runtime() {
     );
 
     // --- 3. term_nonfunctional disabled by default → no warning ---
-    let dir3 = TempDir::new().unwrap();
-    init_dir(&dir3);
+    let dir3 = init_project();
 
     let def_out3 = dont()
         .args([
@@ -208,8 +202,7 @@ fn trust_hedges_and_term_nonfunctional_config_rules_take_effect_at_runtime() {
 
 #[test]
 fn config_project_output_storage_blocks_parse_without_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Overwrite config with all three blocks explicitly set
     let config_path = dir.path().join("config.toml");
@@ -245,8 +238,7 @@ busy_retry_base_ms = 50
 
 #[test]
 fn config_unknown_keys_fail_with_actionable_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     append_config(
         &dir,
@@ -302,8 +294,7 @@ fn invalid_project_mode_is_rejected_with_named_field_error() {
     // project.mode must be "permissive" or "strict"; any other value should
     // produce an error naming the field and the invalid value — not silently
     // treat the project as non-strict.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let config_path = dir.path().join("config.toml");
     let config = fs::read_to_string(&config_path).unwrap();
@@ -337,8 +328,7 @@ fn invalid_project_mode_is_rejected_with_named_field_error() {
 fn invalid_output_format_is_rejected_with_named_field_error() {
     // output.default_format must be "json" or "human"; any other value should
     // produce an error naming the field and the invalid value.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Overwrite (not append) so we don't produce a duplicate-key TOML error.
     let config_path = dir.path().join("config.toml");
@@ -368,8 +358,7 @@ fn invalid_output_format_is_rejected_with_named_field_error() {
 fn verify_evidence_zero_timeout_is_rejected_with_named_field_error() {
     // verify_evidence.default_timeout_s = 0 is not a valid timeout;
     // it should be rejected at load time with an error naming the field.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     append_config(&dir, "[verify_evidence]\ndefault_timeout_s = 0");
 
@@ -394,8 +383,7 @@ fn verify_evidence_zero_timeout_is_rejected_with_named_field_error() {
 #[test]
 fn verify_evidence_zero_concurrency_is_rejected_with_named_field_error() {
     // verify_evidence.concurrency = 0 is not valid; must be >= 1 if provided.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     append_config(&dir, "[verify_evidence]\nconcurrency = 0");
 
@@ -421,8 +409,7 @@ fn verify_evidence_zero_concurrency_is_rejected_with_named_field_error() {
 fn malformed_config_toml_returns_error_exit_not_panic() {
     // A syntactically invalid config.toml must not panic the process. The tool
     // must return a non-zero exit code and a structured "config-invalid" error.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Overwrite config.toml with unparsable TOML (bare key without value)
     let config_path = dir.path().join("config.toml");
@@ -462,8 +449,7 @@ fn malformed_config_toml_returns_error_exit_not_panic() {
 
 #[test]
 fn unknown_config_field_reports_field_name_and_line_number() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let config_path = dir.path().join("config.toml");
     let config = fs::read_to_string(&config_path).unwrap();
@@ -498,8 +484,7 @@ fn unknown_config_field_reports_field_name_and_line_number() {
 
 #[test]
 fn wrong_type_config_field_reports_field_name_and_expected_type() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let config_path = dir.path().join("config.toml");
     let config = fs::read_to_string(&config_path).unwrap();
@@ -537,8 +522,7 @@ fn missing_project_mode_field_reports_field_name_and_fix_instruction() {
     // 1. names the missing field ("project.mode")
     // 2. shows a fix example (add `mode = "permissive"` or `mode = "strict"`)
     // 3. exits non-zero
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Remove the mode field entirely (leave the [project] section header)
     let config_path = dir.path().join("config.toml");
@@ -578,8 +562,7 @@ fn missing_project_mode_field_reports_field_name_and_fix_instruction() {
 fn missing_output_default_format_field_reports_field_name_and_fix_instruction() {
     // output.default_format absent must produce a clear error naming the field
     // and showing how to add it.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let config_path = dir.path().join("config.toml");
     let config = fs::read_to_string(&config_path).unwrap();
@@ -616,8 +599,7 @@ fn missing_output_default_format_field_reports_field_name_and_fix_instruction() 
 
 #[test]
 fn mode_change_via_config_is_recorded_in_event_log() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Change config from permissive to strict
     let config_path = dir.path().join("config.toml");

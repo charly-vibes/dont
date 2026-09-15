@@ -1,6 +1,6 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use dont::envelope::{Envelope, EnvelopeKind, ErrorResult, RemediationEntry, UnmetClause, Warning};
 use serde_json::Value;
 use tempfile::TempDir;
@@ -331,8 +331,7 @@ fn assert_error_envelope(v: &Value) {
 
 #[test]
 fn cli_error_conclude_empty_statement_is_well_formed_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["conclude", "", "--json"])
         .env("DONT_DIR", dir.path())
@@ -365,8 +364,7 @@ fn cli_error_conclude_no_project_is_well_formed_envelope() {
 
 #[test]
 fn cli_error_show_claim_not_found_is_well_formed_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["show", "claim:01JNONEXISTENT", "--json"])
         .env("DONT_DIR", dir.path())
@@ -382,8 +380,7 @@ fn cli_error_show_claim_not_found_is_well_formed_envelope() {
 
 #[test]
 fn cli_error_show_term_not_found_is_well_formed_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["show", "term:01JNONEXISTENT", "--json"])
         .env("DONT_DIR", dir.path())
@@ -399,8 +396,7 @@ fn cli_error_show_term_not_found_is_well_formed_envelope() {
 
 #[test]
 fn cli_error_trust_reason_required_is_well_formed_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim to doubt");
     let out = dont()
         .args(["trust", &id, "--json"])
@@ -417,8 +413,7 @@ fn cli_error_trust_reason_required_is_well_formed_envelope() {
 
 #[test]
 fn cli_error_list_invalid_status_is_well_formed_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["list", "--status", "pending", "--json"])
         .env("DONT_DIR", dir.path())
@@ -434,8 +429,7 @@ fn cli_error_list_invalid_status_is_well_formed_envelope() {
 
 #[test]
 fn cli_error_invalid_transition_is_well_formed_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim to double-doubt");
     dont()
         .args([

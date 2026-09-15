@@ -1,11 +1,10 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::{Store, StoreEvent, StoreEventKind};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
+fn dismiss_claim(dir: &TestProject, id: &str, evidence: &str) {
     dont()
         .args(["flag", id, "--evidence", evidence, "--json"])
         .env("DONT_DIR", dir.path())
@@ -15,7 +14,7 @@ fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
 
 /// Inject an evidence URI directly into the store, bypassing CLI validation.
 /// Use this to seed legacy or intentionally malformed URIs that `flag` would now reject.
-fn inject_evidence_via_store(dir: &TempDir, id: &str, uri: &str) {
+fn inject_evidence_via_store(dir: &TestProject, id: &str, uri: &str) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     store
         .append_evidence_event(
@@ -29,7 +28,7 @@ fn inject_evidence_via_store(dir: &TempDir, id: &str, uri: &str) {
         .unwrap();
 }
 
-fn verify_evidence(dir: &TempDir, id: &str, mock: &str) -> Value {
+fn verify_evidence(dir: &TestProject, id: &str, mock: &str) -> Value {
     let out = dont()
         .args(["verify-evidence", id, "--json"])
         .env("DONT_DIR", dir.path())
@@ -44,8 +43,7 @@ fn verify_evidence(dir: &TempDir, id: &str, mock: &str) -> Value {
 
 #[test]
 fn verify_evidence_reports_per_reference_results_without_changing_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "evidence should remain checkable");
     dismiss_claim(&dir, &id, "https://example.test/evidence-1");
 
@@ -68,8 +66,7 @@ fn verify_evidence_reports_per_reference_results_without_changing_status() {
 
 #[test]
 fn verify_evidence_returns_partial_results_on_timeout() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "timeouts should not abort all evidence checks");
     dismiss_claim(&dir, &id, "https://example.test/evidence-ok");
     dismiss_claim(&dir, &id, "https://example.test/evidence-timeout");
@@ -94,8 +91,7 @@ fn verify_evidence_returns_partial_results_on_timeout() {
 
 #[test]
 fn verify_evidence_warns_on_malformed_or_unreachable_references() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "bad evidence should surface warnings");
     inject_evidence_via_store(&dir, &id, "not-a-uri");
     dismiss_claim(&dir, &id, "https://example.test/offline");
@@ -125,8 +121,7 @@ fn verify_evidence_warns_on_malformed_or_unreachable_references() {
 
 #[test]
 fn verify_evidence_refuses_targets_without_evidence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claims without evidence should fail structurally");
 
     let out = dont()
@@ -145,8 +140,7 @@ fn verify_evidence_refuses_targets_without_evidence() {
 
 #[test]
 fn verify_evidence_refuses_unknown_target() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["verify-evidence", "claim:NOTEXIST", "--json"])
@@ -167,8 +161,7 @@ fn verify_evidence_refuses_unknown_target() {
 /// This guards against path-traversal via evidence locator URI strings.
 #[test]
 fn verify_evidence_file_uri_traversal_is_malformed_not_read() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "traversal locator must not read outside project root");
     // Seed the traversal URI directly so verify-evidence exercises the read path
     // without going through CLI input validation.

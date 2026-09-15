@@ -1,15 +1,13 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 // --- dont check ---
 
 #[test]
 fn check_passes_on_empty_project() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["check", "--json"])
@@ -29,8 +27,7 @@ fn check_passes_on_empty_project() {
 
 #[test]
 fn check_fails_on_unverified_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "ungrounded claim");
 
     dont()
@@ -42,8 +39,7 @@ fn check_fails_on_unverified_claim() {
 
 #[test]
 fn check_json_reports_unverified_count() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "first ungrounded");
     conclude_claim(&dir, "second ungrounded");
 
@@ -64,8 +60,7 @@ fn check_json_reports_unverified_count() {
 
 #[test]
 fn check_passes_when_all_claims_verified() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "grounded claim");
 
     // Flag the claim with evidence to verify it
@@ -97,8 +92,7 @@ fn check_passes_when_all_claims_verified() {
 
 #[test]
 fn check_human_output_shows_summary() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "ungrounded");
 
     // Without --json, human output is plain text; exit code signals status
@@ -120,8 +114,7 @@ fn check_human_output_shows_summary() {
 
 #[test]
 fn check_passes_human_on_empty_project() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["check", "--human"])

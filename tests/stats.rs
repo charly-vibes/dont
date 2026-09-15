@@ -1,10 +1,9 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn stats(dir: &TempDir) -> Value {
+fn stats(dir: &TestProject) -> Value {
     let out = dont()
         .args(["stats", "--json"])
         .env("DONT_DIR", dir.path())
@@ -16,7 +15,7 @@ fn stats(dir: &TempDir) -> Value {
     serde_json::from_slice::<Value>(&out).unwrap()
 }
 
-fn stats_with_args(dir: &TempDir, extra: &[&str]) -> Value {
+fn stats_with_args(dir: &TestProject, extra: &[&str]) -> Value {
     let out = dont()
         .args(["stats", "--json"])
         .args(extra)
@@ -28,8 +27,7 @@ fn stats_with_args(dir: &TempDir, extra: &[&str]) -> Value {
 
 #[test]
 fn stats_returns_stats_envelope_kind() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = stats(&dir);
     assert_eq!(v["ok"], true);
     assert_eq!(v["envelope_kind"], "stats");
@@ -37,8 +35,7 @@ fn stats_returns_stats_envelope_kind() {
 
 #[test]
 fn stats_empty_store_has_zero_counts_and_null_rate() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = stats(&dir);
     let data = &v["data"];
     assert_eq!(
@@ -59,8 +56,7 @@ fn stats_empty_store_has_zero_counts_and_null_rate() {
 
 #[test]
 fn stats_after_conclude_shows_verb_count() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "the cache expires after 60 seconds");
     let v = stats(&dir);
     let data = &v["data"];
@@ -70,8 +66,7 @@ fn stats_after_conclude_shows_verb_count() {
 
 #[test]
 fn stats_verb_counts_omits_absent_verbs() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "the service starts on port 8080");
     let v = stats(&dir);
     let data = &v["data"];
@@ -86,8 +81,7 @@ fn stats_verb_counts_omits_absent_verbs() {
 
 #[test]
 fn stats_claim_verification_rate_is_correct_ratio() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id1 = conclude_claim(&dir, "alpha claim");
     let _id2 = conclude_claim(&dir, "beta claim");
     let _id3 = conclude_claim(&dir, "gamma claim");
@@ -114,16 +108,14 @@ fn stats_claim_verification_rate_is_correct_ratio() {
 
 #[test]
 fn stats_claim_verification_rate_null_when_no_claims() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = stats(&dir);
     assert!(v["data"]["claim_verification_rate"].is_null());
 }
 
 #[test]
 fn stats_inverted_time_window_returns_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = stats_with_args(
         &dir,
         &[
@@ -143,16 +135,14 @@ fn stats_inverted_time_window_returns_error() {
 
 #[test]
 fn stats_unknown_session_returns_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = stats_with_args(&dir, &["--session", "nonexistent-session-id-xyz"]);
     assert_eq!(v["ok"], false, "unknown session must return error");
 }
 
 #[test]
 fn stats_idle_skill_true_when_no_writes_in_scope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     // Run a read-only command (list) - should not affect idle_skill
     dont()
         .args(["list", "--json"])
@@ -168,8 +158,7 @@ fn stats_idle_skill_true_when_no_writes_in_scope() {
 
 #[test]
 fn stats_caught_contradiction_count_increments_for_doubted_evidence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     // Create claim X and conclude Y with X as a dependency (X is evidence for Y)
     let x_id = conclude_claim(&dir, "claim X that will be doubted");
     // conclude Y with --depends-on x_id to establish X as evidence for Y
@@ -209,8 +198,7 @@ fn stats_caught_contradiction_count_increments_for_doubted_evidence() {
 
 #[test]
 fn stats_caught_contradiction_count_zero_when_doubted_claim_not_evidence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let x_id = conclude_claim(
         &dir,
         "isolated claim that is doubted but not used as evidence",
@@ -236,8 +224,7 @@ fn stats_caught_contradiction_count_zero_when_doubted_claim_not_evidence() {
 
 #[test]
 fn stats_default_scope_since_is_today_not_epoch() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = stats(&dir);
     let since = v["data"]["scope"]["since"].as_str().unwrap();
     // Should start with today's date (2026-...) not epoch (1970-...)
@@ -255,8 +242,7 @@ fn stats_default_scope_since_is_today_not_epoch() {
 /// Ignored claims must be excluded from total claim counts and verification rate.
 #[test]
 fn stats_excludes_ignored_claims_from_counts() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim to be ignored");
     // Ignore the claim
     dont()

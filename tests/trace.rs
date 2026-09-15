@@ -1,11 +1,10 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::Store;
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn conclude_with_deps(dir: &TempDir, statement: &str, deps: &[&str]) -> String {
+fn conclude_with_deps(dir: &TestProject, statement: &str, deps: &[&str]) -> String {
     let mut args = vec!["conclude", statement, "--json"];
     for dep in deps {
         args.push("--depends-on");
@@ -25,7 +24,7 @@ fn conclude_with_deps(dir: &TempDir, statement: &str, deps: &[&str]) -> String {
         .to_string()
 }
 
-fn define_term(dir: &TempDir, curie: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", "a test term definition", "--json"])
         .env("DONT_DIR", dir.path())
@@ -40,7 +39,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
         .to_string()
 }
 
-fn dismiss(dir: &TempDir, id: &str, evidence: &str) {
+fn dismiss(dir: &TestProject, id: &str, evidence: &str) {
     dont()
         .args(["flag", id, "--evidence", evidence, "--json"])
         .env("DONT_DIR", dir.path())
@@ -48,7 +47,7 @@ fn dismiss(dir: &TempDir, id: &str, evidence: &str) {
         .success();
 }
 
-fn trust(dir: &TempDir, id: &str, reason: &str) {
+fn trust(dir: &TestProject, id: &str, reason: &str) {
     dont()
         .args(["trust", id, "--reason", reason, "--json"])
         .env("DONT_DIR", dir.path())
@@ -60,8 +59,7 @@ fn trust(dir: &TempDir, id: &str, reason: &str) {
 
 #[test]
 fn trace_healthy_claim_returns_empty_blockers() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "standalone healthy claim");
     dismiss(&dir, &id, "https://example.com/evidence");
 
@@ -84,8 +82,7 @@ fn trace_healthy_claim_returns_empty_blockers() {
 
 #[test]
 fn trace_unverified_standalone_claim_returns_empty_blockers() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "unverified standalone claim");
 
     let out = dont()
@@ -108,8 +105,7 @@ fn trace_unverified_standalone_claim_returns_empty_blockers() {
 
 #[test]
 fn trace_claim_blocked_by_doubted_term_shows_stale_path() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let term_id = define_term(&dir, "EX:T001");
     let claim_id = conclude_with_deps(&dir, "relies on doubted term", &["EX:T001"]);
     trust(&dir, &term_id, "the definition is inaccurate");
@@ -139,8 +135,7 @@ fn trace_claim_blocked_by_doubted_term_shows_stale_path() {
 
 #[test]
 fn trace_claim_with_unresolved_curie_shows_unresolved_term_path() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let claim_id = conclude_with_deps(&dir, "relies on missing term", &["EX:MISSING"]);
 
     let out = dont()
@@ -165,8 +160,7 @@ fn trace_claim_with_unresolved_curie_shows_unresolved_term_path() {
 
 #[test]
 fn trace_multiple_independent_blockers_reported_separately() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let term_id = define_term(&dir, "EX:T002");
     trust(&dir, &term_id, "concerns about this term");
     let claim_id = conclude_with_deps(
@@ -201,8 +195,7 @@ fn trace_multiple_independent_blockers_reported_separately() {
 
 #[test]
 fn trace_unknown_entity_returns_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["trace", "claim:nonexistent", "--json"])
@@ -224,8 +217,7 @@ fn trace_unknown_entity_returns_error() {
 fn trace_term_entity_returns_empty_blockers() {
     // Spec: "dont trace <entity-id> ... for a claim or term"
     // A defined term has no depends_on, so trace returns empty blockers.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let term_id = define_term(&dir, "EX:TRACED");
 
     let out = dont()
@@ -252,8 +244,7 @@ fn trace_term_entity_returns_empty_blockers() {
 fn trace_unknown_term_returns_error() {
     // Spec: trace SHALL identify the starting entity — so an unknown term-id
     // must return a structured error, not silently succeed.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["trace", "term:nonexistent-term-id", "--json"])
@@ -273,8 +264,7 @@ fn trace_unknown_term_returns_error() {
 fn trace_duplicate_dependency_is_reported_once() {
     // Validates deduplication: if the same term appears multiple times in depends_on,
     // trace emits only one blocker entry (visited-set semantics).
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let term_id = define_term(&dir, "EX:DUP");
     trust(&dir, &term_id, "duplicate dep test");
     let claim_id = conclude_with_deps(&dir, "depends on same term twice", &["EX:DUP", "EX:DUP"]);
@@ -299,8 +289,7 @@ fn trace_duplicate_dependency_is_reported_once() {
 
 #[test]
 fn trace_remediation_contains_valid_dont_commands() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let term_id = define_term(&dir, "EX:T003");
     trust(&dir, &term_id, "needs re-evaluation");
     let claim_id = conclude_with_deps(&dir, "depends on doubted term", &["EX:T003"]);
@@ -346,8 +335,7 @@ fn trace_mutual_cycle_between_two_claims_terminates_with_bounded_output() {
     //
     // We inject the cycle directly via the store API because the CLI's
     // `conclude --depends-on` only accepts resolved term CURIEs.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let store = Store::open_dont_dir(dir.path()).unwrap();
 
@@ -446,8 +434,7 @@ fn trace_self_referential_dependency_terminates_with_bounded_output() {
     // degenerate cycle possible.  The implementation's visited-set guard MUST
     // prevent infinite expansion; the result MUST be a valid JSON envelope
     // with a finite (non-empty) blockers array.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Inject the self-referential claim directly via the store API, bypassing
     // the CLI's term-resolution layer (which only accepts term CURIEs).

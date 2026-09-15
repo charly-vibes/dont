@@ -1,8 +1,7 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use std::fs;
-use tempfile::TempDir;
 
 // --- Mode tracking ---
 
@@ -11,8 +10,7 @@ use tempfile::TempDir;
 /// should be silent, not pollute user-facing stderr.
 #[test]
 fn mode_baseline_write_failure_is_silent() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // When DONT_DIR is set, the DONT_DIR path IS the .dont/ directory
     let events_path = dir.path().join("events.jsonl");

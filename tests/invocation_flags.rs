@@ -1,6 +1,6 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -123,8 +123,7 @@ fn version_plain_matches_dont_semver_format() {
 
 #[test]
 fn dont_author_env_is_reflected_in_envelope_meta() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--json"])
@@ -142,8 +141,7 @@ fn dont_author_env_is_reflected_in_envelope_meta() {
 
 #[test]
 fn author_flag_overrides_dont_author_env() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--json", "--author", "bob"])
@@ -161,8 +159,7 @@ fn author_flag_overrides_dont_author_env() {
 
 #[test]
 fn author_short_flag_sets_author_in_response_meta() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--json", "-a", "carol"])
@@ -214,8 +211,7 @@ fn forget_without_project_emits_error_envelope() {
 
 #[test]
 fn j_short_flag_emits_json() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "-j"])

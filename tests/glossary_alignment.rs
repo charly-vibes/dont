@@ -9,9 +9,8 @@
 /// can rely on the spec-defined vocabulary.
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 // ── Core four verb: dismiss ──────────────────────────────────────────────────
 
@@ -20,8 +19,7 @@ use tempfile::TempDir;
 /// top level and use it to verify a claim with evidence.
 #[test]
 fn dismiss_is_a_top_level_verb_that_verifies_a_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "all bachelors are unmarried");
 
     let out = dont()
@@ -71,8 +69,7 @@ fn forget_is_a_top_level_lifecycle_verb_that_locks_a_verified_claim() {
         HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
     };
 
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "photons have no rest mass");
 
     // Seed two independent evidence sources directly (mirrors lock.rs helper)
@@ -235,8 +232,7 @@ fn tutorial_uses_canonical_core_four_verbs_label() {
 /// supplied to `trust`, confirming the implementation uses the glossary term.
 #[test]
 fn hedge_pattern_produces_reason_not_hedge_error_code() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the sky is blue");
 
     let out = dont()
@@ -264,8 +260,7 @@ fn hedge_pattern_produces_reason_not_hedge_error_code() {
 /// `data.remediation` array so that callers can surface recovery steps.
 #[test]
 fn error_payload_contains_non_empty_remediation() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "mars has two moons");
 
     // trust with a hedge is a reliable way to produce a refused command
@@ -302,8 +297,7 @@ fn error_payload_contains_non_empty_remediation() {
 /// model.
 #[test]
 fn claim_json_output_contains_evidence_field() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "water boils at 100 degrees Celsius at sea level");
 
     let out = dont()
@@ -330,8 +324,7 @@ fn claim_json_output_contains_evidence_field() {
 /// `--author` or `$DONT_AUTHOR` and echo it back in `meta.author`.
 #[test]
 fn author_string_actor_kind_colon_id_format_is_accepted() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--json", "--author", "llm:claude-sonnet"])

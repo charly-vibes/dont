@@ -1,15 +1,13 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 // --- rules add ---
 
 #[test]
 fn rules_add_valid_dl_file_copies_into_rules_dir() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rule_file = dir.path().join("my-rule.dl");
     std::fs::write(
@@ -32,8 +30,7 @@ fn rules_add_valid_dl_file_copies_into_rules_dir() {
 
 #[test]
 fn rules_add_returns_empty_envelope_on_success() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rule_file = dir.path().join("new-rule.dl");
     std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
@@ -54,8 +51,7 @@ fn rules_add_returns_empty_envelope_on_success() {
 
 #[test]
 fn rules_add_success_hints_include_severity_guidance() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rule_file = dir.path().join("my-custom-rule.dl");
     std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
@@ -85,8 +81,7 @@ fn rules_add_success_hints_include_severity_guidance() {
 
 #[test]
 fn rules_add_makes_rule_appear_in_rules_list() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rule_file = dir.path().join("added-rule.dl");
     std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
@@ -117,8 +112,7 @@ fn rules_add_makes_rule_appear_in_rules_list() {
 
 #[test]
 fn rules_add_invalid_dl_emits_compile_error_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rule_file = dir.path().join("bad-rule.dl");
     std::fs::write(&rule_file, "this is not valid datalog !!!@#$").unwrap();
@@ -140,8 +134,7 @@ fn rules_add_invalid_dl_emits_compile_error_exit_1() {
 
 #[test]
 fn rules_add_nonexistent_file_emits_error_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "add", "/nonexistent/path/rule.dl", "--json"])
@@ -159,8 +152,7 @@ fn rules_add_nonexistent_file_emits_error_exit_1() {
 
 #[test]
 fn rules_add_shipped_rule_name_emits_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rule_file = dir.path().join("ungrounded.dl");
     std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
@@ -181,8 +173,7 @@ fn rules_add_shipped_rule_name_emits_error() {
 
 #[test]
 fn rules_add_duplicate_name_without_force_emits_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rule_file = dir.path().join("my-rule.dl");
     std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
@@ -211,8 +202,7 @@ fn rules_add_duplicate_name_without_force_emits_error() {
 
 #[test]
 fn rules_add_duplicate_name_with_force_succeeds() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rule_file = dir.path().join("my-rule.dl");
     std::fs::write(&rule_file, r#"?[entity_id, detail] <- [["e", "d"]]"#).unwrap();
@@ -251,8 +241,7 @@ fn rules_add_duplicate_name_with_force_succeeds() {
 
 #[test]
 fn rules_test_shipped_rule_returns_rule_result_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "test", "ungrounded", "--json"])
@@ -279,8 +268,7 @@ fn rules_test_shipped_rule_returns_rule_result_envelope() {
 
 #[test]
 fn rules_test_custom_rule_that_fires_returns_matches() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Write a rule directly to the rules dir (simulating a pre-installed custom rule).
     let rules_dir = dir.path().join("rules");
@@ -310,8 +298,7 @@ fn rules_test_custom_rule_that_fires_returns_matches() {
 
 #[test]
 fn rules_test_does_not_modify_store_state() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let rules_dir = dir.path().join("rules");
     std::fs::write(
@@ -364,8 +351,7 @@ fn rules_test_does_not_modify_store_state() {
 
 #[test]
 fn rules_test_unknown_rule_returns_rule_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["rules", "test", "nonexistent-rule", "--json"])

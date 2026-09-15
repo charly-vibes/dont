@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
-fn init_project(dir: &TempDir) {
+fn init_subdir(dir: &TempDir) {
     dont()
         .args(["init", "--json"])
         .env("DONT_DIR", dir.path())
@@ -19,7 +19,7 @@ mod layout {
     #[test]
     fn open_with_missing_required_subdir_returns_layout_invalid() {
         let dir = TempDir::new().unwrap();
-        init_project(&dir);
+        init_subdir(&dir);
 
         fs::remove_dir_all(dir.path().join("sessions")).unwrap();
 
@@ -46,7 +46,7 @@ mod layout {
     fn open_validates_each_required_subdir() {
         for subdir in &["seed", "vocab", "rules", "imports", "sessions", "schemas"] {
             let dir = TempDir::new().unwrap();
-            init_project(&dir);
+            init_subdir(&dir);
 
             fs::remove_dir_all(dir.path().join(subdir)).unwrap();
 
@@ -75,7 +75,7 @@ mod layout {
     #[test]
     fn layout_invalid_remediation_suggests_dont_init() {
         let dir = TempDir::new().unwrap();
-        init_project(&dir);
+        init_subdir(&dir);
         fs::remove_dir_all(dir.path().join("schemas")).unwrap();
 
         let output = dont()

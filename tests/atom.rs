@@ -1,13 +1,11 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 #[test]
 fn atom_define_appends_unverified_atom_to_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim with atomized verification plan");
 
     let output = dont()
@@ -31,8 +29,7 @@ fn atom_define_appends_unverified_atom_to_claim() {
 
 #[test]
 fn atom_define_multiple_increments_idx() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim with multiple atoms");
 
     for (i, text) in ["A", "B"].iter().enumerate() {
@@ -54,8 +51,7 @@ fn atom_define_multiple_increments_idx() {
 
 #[test]
 fn atom_define_unknown_claim_returns_not_found() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -80,8 +76,7 @@ fn atom_define_unknown_claim_returns_not_found() {
 
 #[test]
 fn atom_dismiss_marks_atom_verified_with_evidence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim with dismissible atom");
     dont()
         .args(["atom", "define", &id, "--text", "Checkable part", "--json"])
@@ -120,8 +115,7 @@ fn atom_dismiss_marks_atom_verified_with_evidence() {
 
 #[test]
 fn atom_dismiss_out_of_range_returns_atom_not_found() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim with one atom");
     dont()
         .args(["atom", "define", &id, "--text", "Only atom", "--json"])
@@ -153,8 +147,7 @@ fn atom_dismiss_out_of_range_returns_atom_not_found() {
 
 #[test]
 fn atom_dismiss_without_evidence_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim with atom needing evidence");
     dont()
         .args(["atom", "define", &id, "--text", "Checkable part", "--json"])
@@ -178,8 +171,7 @@ fn atom_dismiss_without_evidence_is_refused() {
 
 #[test]
 fn atom_define_with_empty_text_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim whose atom text must be non-empty");
 
     let output = dont()
@@ -203,8 +195,7 @@ fn atom_define_with_empty_text_is_refused() {
 
 #[test]
 fn atom_dismiss_on_nonexistent_claim_returns_claim_not_found() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([

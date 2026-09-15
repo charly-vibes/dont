@@ -13,10 +13,9 @@
 
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use predicates::prelude::*;
 use serde_json::Value;
-use tempfile::TempDir;
 
 // ── Requirement: Colour and terminal awareness ──────────────────────────────
 
@@ -25,8 +24,7 @@ use tempfile::TempDir;
 /// THEN output contains no ANSI colour codes
 #[test]
 fn plain_flag_overrides_clicolor_force() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "colour override test claim");
 
     let out = dont()
@@ -77,8 +75,7 @@ fn completions_unknown_shell_exits_2() {
 /// Spec: widely reused per-command short flags: -r for --reason on trust
 #[test]
 fn trust_short_r_flag_transitions_claim_to_doubted() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "short flag trust test");
 
     let out = dont()
@@ -98,8 +95,7 @@ fn trust_short_r_flag_transitions_claim_to_doubted() {
 /// Spec: widely reused per-command short flags: -r for --reason on ignore
 #[test]
 fn ignore_short_r_flag_transitions_claim_to_ignored() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "short flag ignore test");
 
     let out = dont()
@@ -119,8 +115,7 @@ fn ignore_short_r_flag_transitions_claim_to_ignored() {
 /// Spec: widely reused per-command short flags: -e for --evidence on flag
 #[test]
 fn flag_short_e_flag_transitions_claim_to_verified() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "short flag flag test");
 
     let out = dont()
@@ -140,8 +135,7 @@ fn flag_short_e_flag_transitions_claim_to_verified() {
 /// Spec: widely reused per-command short flags: -e for --evidence on dismiss
 #[test]
 fn dismiss_short_e_flag_transitions_claim_to_verified() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "short flag dismiss test");
 
     let out = dont()

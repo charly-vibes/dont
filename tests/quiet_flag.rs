@@ -1,6 +1,6 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use predicates::prelude::*;
 use tempfile::TempDir;
 
@@ -8,8 +8,7 @@ use tempfile::TempDir;
 
 #[test]
 fn conclude_quiet_produces_no_stdout() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["conclude", "quiet test claim", "--quiet", "--human"])
@@ -33,8 +32,7 @@ fn init_quiet_produces_no_stdout() {
 
 #[test]
 fn flag_quiet_produces_no_stdout() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "quiet flag test");
 
     dont()
@@ -56,8 +54,7 @@ fn flag_quiet_produces_no_stdout() {
 
 #[test]
 fn quiet_does_not_suppress_validation_errors() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["conclude", "", "--quiet", "--human"])
@@ -69,8 +66,7 @@ fn quiet_does_not_suppress_validation_errors() {
 
 #[test]
 fn quiet_does_not_suppress_unknown_entity_errors() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args([
@@ -89,8 +85,7 @@ fn quiet_does_not_suppress_unknown_entity_errors() {
 
 #[test]
 fn quiet_with_json_still_emits_json_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -117,8 +112,7 @@ fn quiet_with_json_still_emits_json_envelope() {
 
 #[test]
 fn conclude_help_documents_quiet_flag() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["conclude", "--help"])
@@ -144,8 +138,7 @@ fn init_help_documents_quiet_flag() {
 
 #[test]
 fn list_quiet_still_shows_claims() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "claim to list quietly");
 
     let out = dont()

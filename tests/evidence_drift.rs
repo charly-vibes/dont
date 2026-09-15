@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::path::Path;
 use tempfile::TempDir;
 
-fn init_project(root: &Path) {
+fn init_subdir(root: &Path) {
     dont()
         .args(["init", "--json"])
         .env("DONT_DIR", root.join(".dont"))
@@ -114,7 +114,7 @@ fn dismiss_refuses_symlink_escape_outside_project_root() {
     let outside = dir.path().join("outside");
     std::fs::create_dir_all(&root).unwrap();
     std::fs::create_dir_all(&outside).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(outside.join("secret.txt"), "secret\n").unwrap();
     std::os::unix::fs::symlink(outside.join("secret.txt"), root.join("link.txt")).unwrap();
     let id = conclude_claim(&root, "symlink should not escape project root");
@@ -131,7 +131,7 @@ fn dismiss_refuses_broken_symlink_locator_before_it_can_later_escape() {
     let root = dir.path().join("repo");
     let outside_target = dir.path().join("later-secret.txt");
     std::fs::create_dir_all(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::os::unix::fs::symlink(&outside_target, root.join("link.txt")).unwrap();
     let id = conclude_claim(&root, "broken symlink should not become future evidence");
 
@@ -149,7 +149,7 @@ fn dismiss_with_excerpt_without_lines_audits_excerpt_presence() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "alpha beta gamma\n").unwrap();
     let id = conclude_claim(&root, "README mentions beta");
 
@@ -182,7 +182,7 @@ fn dismiss_refuses_invalid_line_spans() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "line\n").unwrap();
 
     for lines in ["0", "0-1", "1-0"] {
@@ -199,7 +199,7 @@ fn show_projects_current_repo_locator_excerpt_and_fingerprint_audit() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "title\nsource line\nmore\n").unwrap();
     let id = conclude_claim(&root, "README has a source line");
 
@@ -230,7 +230,7 @@ fn show_reports_fingerprint_mismatch_as_drift_without_status_mutation() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "title\noriginal\nmore\n").unwrap();
     let id = conclude_claim(&root, "README has original text");
     dismiss_file(&root, &id, "README.md", "2");
@@ -259,7 +259,7 @@ fn why_projects_same_repo_locator_audit_contract_as_show() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "title\noriginal\nmore\n").unwrap();
     let id = conclude_claim(&root, "README has original text");
     dismiss_file(&root, &id, "README.md", "2");
@@ -282,7 +282,7 @@ fn term_show_and_why_project_repo_locator_audit() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "original\n").unwrap();
     let id = define_term(&root, "EX:T");
     dismiss_file(&root, &id, "README.md", "1");
@@ -312,7 +312,7 @@ fn verify_evidence_reports_missing_line_span_for_repo_locator() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "one\ntwo\nthree\n").unwrap();
     let id = conclude_claim(&root, "README has a third line");
     dismiss_file(&root, &id, "README.md", "3");
@@ -337,7 +337,7 @@ fn show_human_output_strips_ansi_escape_from_anchor() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "target section content\n").unwrap();
     let id = conclude_claim(&root, "README has target section");
 
@@ -390,7 +390,7 @@ fn prime_counts_drifted_evidence_in_assessment_counts() {
     let dir = TempDir::new().unwrap();
     let root = dir.path().join("repo");
     std::fs::create_dir(&root).unwrap();
-    init_project(&root);
+    init_subdir(&root);
     std::fs::write(root.join("README.md"), "original content\n").unwrap();
 
     let id = conclude_claim(&root, "README has original content");

@@ -5,11 +5,10 @@
 
 mod common;
 
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn conclude_with_deps(dir: &TempDir, statement: &str, deps: &[&str]) -> String {
+fn conclude_with_deps(dir: &TestProject, statement: &str, deps: &[&str]) -> String {
     let mut args = vec!["conclude", statement, "--json"];
     for dep in deps {
         args.push("--depends-on");
@@ -29,7 +28,7 @@ fn conclude_with_deps(dir: &TempDir, statement: &str, deps: &[&str]) -> String {
         .to_string()
 }
 
-fn define_term(dir: &TempDir, curie: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", "a test term", "--json"])
         .env("DONT_DIR", dir.path())
@@ -44,7 +43,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
         .to_string()
 }
 
-fn trust_entity(dir: &TempDir, id: &str) {
+fn trust_entity(dir: &TestProject, id: &str) {
     dont()
         .args(["trust", id, "--reason", "spec-align test doubt", "--json"])
         .env("DONT_DIR", dir.path())
@@ -52,7 +51,7 @@ fn trust_entity(dir: &TempDir, id: &str) {
         .success();
 }
 
-fn ignore_entity(dir: &TempDir, id: &str) {
+fn ignore_entity(dir: &TestProject, id: &str) {
     dont()
         .args(["ignore", id, "--reason", "spec-align test ignore", "--json"])
         .env("DONT_DIR", dir.path())
@@ -60,7 +59,7 @@ fn ignore_entity(dir: &TempDir, id: &str) {
         .success();
 }
 
-fn show_entity(dir: &TempDir, id: &str) -> Value {
+fn show_entity(dir: &TestProject, id: &str) -> Value {
     let out = dont()
         .args(["show", id, "--json"])
         .env("DONT_DIR", dir.path())
@@ -82,8 +81,7 @@ fn ignored_claim_with_doubted_dep_has_empty_derived_assessments() {
     // Setup: term → claim depends on it → term is doubted → claim is ignored
     // The dependent claim is ignored. Even though its dependency is doubted,
     // derived_assessments must be [] because the entity is ignored.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let term_id = define_term(&dir, "WB:IGNORED001");
     let claim_id = conclude_with_deps(
@@ -118,8 +116,7 @@ fn ignored_claim_with_doubted_dep_has_empty_derived_assessments() {
 #[test]
 fn doubting_a_term_does_not_change_dependent_claims_persisted_status() {
     // Setup: claim depends on a term; trust (doubt) the term; verify dependent claim status unchanged
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let term_id = define_term(&dir, "WB:NOCASCADE001");
     let claim_id = conclude_with_deps(
@@ -162,8 +159,7 @@ fn doubting_a_term_does_not_change_dependent_claims_persisted_status() {
 fn reopen_verified_stale_claim_is_refused() {
     // Setup: claim depends on a term, claim is flagged verified, then term is doubted
     // (giving claim stale derived_assessment). Reopen must be refused.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let term_id = define_term(&dir, "WB:STALE001");
     let claim_id = conclude_with_deps(&dir, "verified claim that becomes stale", &["WB:STALE001"]);

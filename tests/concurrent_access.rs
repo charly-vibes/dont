@@ -1,9 +1,8 @@
 mod common;
 
 use assert_cmd::cargo::cargo_bin;
-use common::init_dir;
+use common::init_project;
 use serde_json::Value;
-use tempfile::TempDir;
 
 /// Two concurrent `dont conclude` invocations to the same store directory
 /// must not corrupt data.  Both may succeed (2 claims) or one may fail
@@ -12,8 +11,7 @@ use tempfile::TempDir;
 #[test]
 fn concurrent_conclude_does_not_corrupt_store() {
     let bin = cargo_bin("dont");
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let dont_dir = dir.path().to_owned();
 
     // Spawn two `dont conclude` processes simultaneously.

@@ -1,13 +1,12 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::{
     HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[&str]) {
+fn seed_verified_claim_with_evidence(dir: &TestProject, claim_id: &str, evidence: &[&str]) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let first = evidence.first().expect("at least one evidence item");
     store
@@ -36,7 +35,7 @@ fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[
     }
 }
 
-fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
+fn seed_assessed_hypotheses(dir: &TestProject, claim_id: &str, count: usize) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let hypotheses: Vec<HypothesisRecord> = (0..count)
         .map(|idx| HypothesisRecord {
@@ -53,7 +52,7 @@ fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
         .unwrap();
 }
 
-fn ignore_entity(dir: &TempDir, id: &str) {
+fn ignore_entity(dir: &TestProject, id: &str) {
     dont()
         .args(["ignore", id, "--reason", "out of scope", "--json"])
         .env("DONT_DIR", dir.path())
@@ -61,7 +60,7 @@ fn ignore_entity(dir: &TempDir, id: &str) {
         .success();
 }
 
-fn define_term(dir: &TempDir, curie: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", "a valid definition", "--json"])
         .env("DONT_DIR", dir.path())
@@ -76,8 +75,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
 
 #[test]
 fn reopen_ignored_claim_produces_unverified_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
     ignore_entity(&dir, &id);
 
@@ -98,8 +96,7 @@ fn reopen_ignored_claim_produces_unverified_status() {
 
 #[test]
 fn reopen_unverified_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     let output = dont()
@@ -118,8 +115,7 @@ fn reopen_unverified_claim_is_refused() {
 
 #[test]
 fn reopen_verified_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
@@ -150,8 +146,7 @@ fn reopen_verified_claim_is_refused() {
 
 #[test]
 fn reopen_doubted_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
@@ -182,8 +177,7 @@ fn reopen_doubted_claim_is_refused() {
 
 #[test]
 fn reopen_ignored_term_produces_unverified_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = define_term(&dir, "WB:P001");
     ignore_entity(&dir, &id);
 
@@ -203,8 +197,7 @@ fn reopen_ignored_term_produces_unverified_status() {
 
 #[test]
 fn reopen_locked_claim_is_rejected() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "A claim that will be permanently locked");
     seed_verified_claim_with_evidence(
         &dir,
@@ -246,8 +239,7 @@ fn reopen_locked_claim_is_rejected() {
 
 #[test]
 fn reopen_entity_not_found_returns_structured_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args(["reopen", "claim:NOTEXIST", "--json"])
@@ -265,8 +257,7 @@ fn reopen_entity_not_found_returns_structured_error() {
 
 #[test]
 fn reopen_carries_tx_in_meta() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
     ignore_entity(&dir, &id);
 

@@ -1,20 +1,20 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
-fn events_jsonl(dir: &TempDir) -> Vec<Value> {
+fn events_jsonl(dir: &impl AsRef<std::path::Path>) -> Vec<Value> {
     // When DONT_DIR is set, files are directly inside that directory (no .dont subdir).
-    let path = dir.path().join("events.jsonl");
+    let path = dir.as_ref().join("events.jsonl");
     let text = fs::read_to_string(path).unwrap_or_default();
     text.lines()
         .filter_map(|l| serde_json::from_str(l).ok())
         .collect()
 }
 
-fn switch_mode(dir: &TempDir, from: &str, to: &str) {
+fn switch_mode(dir: &TestProject, from: &str, to: &str) {
     let config_path = dir.path().join("config.toml");
     let original = fs::read_to_string(&config_path).expect("config.toml must exist");
     let updated = original.replace(&format!("mode = \"{from}\""), &format!("mode = \"{to}\""));
@@ -25,8 +25,7 @@ fn switch_mode(dir: &TempDir, from: &str, to: &str) {
 
 #[test]
 fn init_writes_mode_to_events() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let events = events_jsonl(&dir);
     // The project.initialized event already contains mode; subsequent commands
@@ -66,8 +65,7 @@ fn strict_init_records_strict_mode() {
 
 #[test]
 fn no_spurious_mode_changed_when_mode_unchanged() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // invoke multiple times without switching mode
     conclude_claim(&dir, "first");
@@ -89,8 +87,7 @@ fn no_spurious_mode_changed_when_mode_unchanged() {
 
 #[test]
 fn mode_change_writes_mode_changed_event() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // establish baseline
     conclude_claim(&dir, "seed claim");
@@ -132,8 +129,7 @@ fn mode_change_writes_mode_changed_event() {
 
 #[test]
 fn prime_reports_new_mode_after_switch() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     switch_mode(&dir, "permissive", "strict");
 
@@ -160,8 +156,7 @@ fn prime_reports_new_mode_after_switch() {
 
 #[test]
 fn multiple_mode_transitions_produce_ordered_history() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     conclude_claim(&dir, "seed");
     switch_mode(&dir, "permissive", "strict");
@@ -195,8 +190,7 @@ fn multiple_mode_transitions_produce_ordered_history() {
 #[test]
 fn mode_baseline_written_for_projects_without_mode_in_events() {
     // Simulate a legacy project by removing mode from the initialized event.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Strip the `mode` field from all events to simulate a pre-mode-tracking project.
     let events_path = dir.path().join("events.jsonl");

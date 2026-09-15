@@ -5,29 +5,29 @@ use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
-fn init_project(root: &TempDir) -> assert_cmd::assert::Assert {
-    let dont_dir = root.path().join(".dont");
+fn init_subdir(root: &TempDir) -> assert_cmd::assert::Assert {
+    let dont_dir = root.as_ref().join(".dont");
     dont()
         .args(["init", "--json"])
-        .current_dir(root.path())
+        .current_dir(root.as_ref())
         .env("DONT_DIR", &dont_dir)
         .assert()
 }
 
-fn doctor_json(root: &TempDir) -> assert_cmd::assert::Assert {
-    let dont_dir = root.path().join(".dont");
+fn doctor_json(root: &impl AsRef<std::path::Path>) -> assert_cmd::assert::Assert {
+    let dont_dir = root.as_ref().join(".dont");
     dont()
         .args(["doctor", "--json"])
-        .current_dir(root.path())
+        .current_dir(root.as_ref())
         .env("DONT_DIR", &dont_dir)
         .assert()
 }
 
-fn doctor_fix(root: &TempDir) -> assert_cmd::assert::Assert {
-    let dont_dir = root.path().join(".dont");
+fn doctor_fix(root: &impl AsRef<std::path::Path>) -> assert_cmd::assert::Assert {
+    let dont_dir = root.as_ref().join(".dont");
     dont()
         .args(["doctor", "--fix", "--json"])
-        .current_dir(root.path())
+        .current_dir(root.as_ref())
         .env("DONT_DIR", &dont_dir)
         .assert()
 }
@@ -39,11 +39,11 @@ fn root_block(path: &std::path::Path) -> String {
 #[test]
 fn init_creates_canonical_and_root_managed_docs() {
     let root = TempDir::new().unwrap();
-    init_project(&root).success();
+    init_subdir(&root).success();
 
-    let canonical = fs::read_to_string(root.path().join(".dont/AGENTS.md")).unwrap();
-    let agents = root_block(&root.path().join("AGENTS.md"));
-    let claude = root_block(&root.path().join("CLAUDE.md"));
+    let canonical = fs::read_to_string(root.as_ref().join(".dont/AGENTS.md")).unwrap();
+    let agents = root_block(&root.as_ref().join("AGENTS.md"));
+    let claude = root_block(&root.as_ref().join("CLAUDE.md"));
 
     assert!(
         canonical.contains("managed by `dont init`") || canonical.contains("managed by `dont`")
@@ -81,14 +81,14 @@ fn init_creates_canonical_and_root_managed_docs() {
 fn init_preserves_existing_root_content_outside_managed_block() {
     let root = TempDir::new().unwrap();
     fs::write(
-        root.path().join("AGENTS.md"),
+        root.as_ref().join("AGENTS.md"),
         "# Team notes\n\nKeep this intro.\n",
     )
     .unwrap();
 
-    init_project(&root).success();
+    init_subdir(&root).success();
 
-    let agents = root_block(&root.path().join("AGENTS.md"));
+    let agents = root_block(&root.as_ref().join("AGENTS.md"));
     assert!(
         agents.contains("# Team notes"),
         "preexisting content should remain: {agents}"
@@ -106,7 +106,7 @@ fn init_preserves_existing_root_content_outside_managed_block() {
 #[test]
 fn doctor_reports_pass_for_fresh_init() {
     let root = TempDir::new().unwrap();
-    init_project(&root).success();
+    init_subdir(&root).success();
 
     let output = doctor_json(&root).success().get_output().stdout.clone();
     let v: Value = serde_json::from_slice(&output).unwrap();
@@ -124,9 +124,9 @@ fn doctor_reports_pass_for_fresh_init() {
 #[test]
 fn doctor_reports_warn_for_edited_root_block_and_ignores_whitespace_only_drift() {
     let root = TempDir::new().unwrap();
-    init_project(&root).success();
+    init_subdir(&root).success();
 
-    let agents_path = root.path().join("AGENTS.md");
+    let agents_path = root.as_ref().join("AGENTS.md");
     let original = fs::read_to_string(&agents_path).unwrap();
     let whitespace_only = original.replace("\n", "  \r\n");
     fs::write(&agents_path, whitespace_only).unwrap();
@@ -162,9 +162,9 @@ fn doctor_reports_warn_for_edited_root_block_and_ignores_whitespace_only_drift()
 #[test]
 fn doctor_warns_when_seed_snapshot_file_is_missing() {
     let root = TempDir::new().unwrap();
-    init_project(&root).success();
+    init_subdir(&root).success();
 
-    fs::remove_file(root.path().join(".dont/seed/dont-seed.yaml")).unwrap();
+    fs::remove_file(root.as_ref().join(".dont/seed/dont-seed.yaml")).unwrap();
 
     let output = doctor_json(&root).success().get_output().stdout.clone();
     let v: Value = serde_json::from_slice(&output).unwrap();
@@ -186,10 +186,10 @@ fn doctor_warns_when_seed_snapshot_file_is_missing() {
 #[test]
 fn doctor_fix_restores_stale_docs_and_is_idempotent() {
     let root = TempDir::new().unwrap();
-    init_project(&root).success();
+    init_subdir(&root).success();
 
-    let agents_path = root.path().join("AGENTS.md");
-    let canonical_path = root.path().join(".dont/AGENTS.md");
+    let agents_path = root.as_ref().join("AGENTS.md");
+    let canonical_path = root.as_ref().join(".dont/AGENTS.md");
     fs::write(&agents_path, "# custom\nno markers here\n").unwrap();
     fs::write(&canonical_path, "stale canonical\n").unwrap();
 
@@ -224,9 +224,9 @@ fn doctor_fix_restores_stale_docs_and_is_idempotent() {
 #[test]
 fn doctor_fix_reports_managed_doc_write_failures_with_path_context() {
     let root = TempDir::new().unwrap();
-    init_project(&root).success();
+    init_subdir(&root).success();
 
-    let canonical_path = root.path().join(".dont/AGENTS.md");
+    let canonical_path = root.as_ref().join(".dont/AGENTS.md");
     fs::remove_file(&canonical_path).unwrap();
     fs::create_dir(&canonical_path).unwrap();
 

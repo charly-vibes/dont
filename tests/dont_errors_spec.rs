@@ -2,16 +2,14 @@
 /// remediation invariant, unmet_clauses, and rule_name usage.
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 // --- Structured error envelope ---
 
 #[test]
 fn error_envelope_has_required_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["conclude", "", "--json"])
@@ -41,8 +39,7 @@ fn error_envelope_has_required_fields() {
 
 #[test]
 fn validation_error_has_non_empty_remediation() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["conclude", "", "--json"])
@@ -63,8 +60,7 @@ fn validation_error_has_non_empty_remediation() {
 
 #[test]
 fn not_found_error_has_non_empty_remediation() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["show", "claim:nonexistent00000000000000", "--json"])
@@ -85,8 +81,7 @@ fn not_found_error_has_non_empty_remediation() {
 
 #[test]
 fn remediation_entries_have_command_and_description() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["show", "claim:nonexistent00000000000000", "--json"])
@@ -115,8 +110,7 @@ fn remediation_entries_have_command_and_description() {
 
 #[test]
 fn no_evidence_error_has_dedicated_code_and_null_rule_name() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim for evidence check");
 
     let out = dont()
@@ -142,8 +136,7 @@ fn no_evidence_error_has_dedicated_code_and_null_rule_name() {
 
 #[test]
 fn reason_required_error_has_dedicated_code_and_null_rule_name() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim for reason check");
 
     // trust without --reason should require a reason
@@ -174,8 +167,7 @@ fn reason_required_error_has_dedicated_code_and_null_rule_name() {
 fn rule_not_met_error_has_non_null_rule_name() {
     // Flag a claim that depends on an unverified claim — the stale-cascade
     // dependency gate fires and returns rule-not-met with a non-null rule_name.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let dep_id = conclude_claim(&dir, "unverified dependency");
 

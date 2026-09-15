@@ -1,14 +1,13 @@
 mod common;
 
-use common::{conclude_claim as conclude_json, dont, init_dir};
+use common::{conclude_claim as conclude_json, dont, init_project};
 use tempfile::TempDir;
 
 // --- --human flag: not JSON ---
 
 #[test]
 fn list_human_emits_plain_text_not_json() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_json(&dir, "water is wet");
 
     let out = dont()
@@ -34,8 +33,7 @@ fn list_human_emits_plain_text_not_json() {
 
 #[test]
 fn list_empty_human_emits_no_claims_message() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--human"])
@@ -59,8 +57,7 @@ fn list_empty_human_emits_no_claims_message() {
 
 #[test]
 fn conclude_human_emits_plain_text() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["conclude", "all bachelors are unmarried", "--human"])
@@ -85,8 +82,7 @@ fn conclude_human_emits_plain_text() {
 
 #[test]
 fn show_human_emits_plain_text() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_json(&dir, "gravity exists");
 
     let out = dont()
@@ -136,8 +132,7 @@ fn init_human_emits_plain_text() {
 
 #[test]
 fn prime_human_emits_plain_text() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_json(&dir, "some claim");
 
     let out = dont()
@@ -164,8 +159,7 @@ fn prime_human_emits_plain_text() {
 
 #[test]
 fn list_json_flag_emits_json_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--json"])
@@ -190,8 +184,7 @@ fn list_json_flag_emits_json_envelope() {
 
 #[test]
 fn list_default_emits_human_not_json() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_json(&dir, "water is wet");
 
     let out = dont()
@@ -216,8 +209,7 @@ fn list_default_emits_human_not_json() {
 
 #[test]
 fn conclude_default_emits_human_not_json() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["conclude", "the sky is blue", "--human"])
@@ -243,8 +235,7 @@ fn conclude_default_emits_human_not_json() {
 
 #[test]
 fn plain_flag_emits_no_ansi_escape_codes() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_json(&dir, "all swans are white");
 
     let out = dont()
@@ -269,8 +260,7 @@ fn plain_flag_emits_no_ansi_escape_codes() {
 
 #[test]
 fn no_color_env_disables_ansi() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_json(&dir, "entropy increases");
 
     let out = dont()
@@ -293,8 +283,7 @@ fn no_color_env_disables_ansi() {
 
 #[test]
 fn clicolor_force_enables_ansi() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_json(&dir, "constants are constant");
 
     let out = dont()
@@ -317,8 +306,7 @@ fn clicolor_force_enables_ansi() {
 
 #[test]
 fn no_color_flag_disables_ansi_even_when_force_is_set() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_json(&dir, "forced colour can be disabled");
 
     let out = dont()
@@ -340,8 +328,7 @@ fn no_color_flag_disables_ansi_even_when_force_is_set() {
 
 #[test]
 fn color_flag_enables_ansi_even_when_no_color_env_is_set() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_json(&dir, "flag overrides no_color env");
 
     let out = dont()
@@ -365,8 +352,7 @@ fn color_flag_enables_ansi_even_when_no_color_env_is_set() {
 
 #[test]
 fn show_human_renders_atoms_section() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_json(&dir, "claim with atoms");
 
     dont()
@@ -398,8 +384,7 @@ fn show_human_renders_atoms_section() {
 
 #[test]
 fn show_human_renders_hypotheses_section() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_json(&dir, "claim with hypotheses");
 
     dont()
@@ -438,8 +423,7 @@ fn show_human_renders_hypotheses_section() {
 
 #[test]
 fn show_json_includes_atom_and_hypothesis_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_json(&dir, "claim for json fields check");
 
     dont()
@@ -483,8 +467,7 @@ fn show_json_includes_atom_and_hypothesis_fields() {
 
 #[test]
 fn json_wins_over_human_when_both_set() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--json", "--human"])

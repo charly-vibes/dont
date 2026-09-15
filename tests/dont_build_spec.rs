@@ -5,11 +5,11 @@
 
 mod common;
 
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use std::time::Instant;
 use tempfile::TempDir;
 
-fn conclude_claim(dir: &TempDir, statement: &str) {
+fn conclude_claim(dir: &TestProject, statement: &str) {
     dont()
         .args(["conclude", statement, "--json"])
         .env("DONT_DIR", dir.path())
@@ -75,8 +75,7 @@ fn init_creates_embedded_database_file_locally() {
 /// Verified by running conclude/show without any DB server in the environment.
 #[test]
 fn core_commands_work_without_external_database_process() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // conclude (write)
     let out = dont()
@@ -117,8 +116,7 @@ fn core_commands_work_without_external_database_process() {
 /// CI runner variance; the spec bound itself is enforced by the local benchmark.
 #[test]
 fn list_cold_start_under_150ms_on_100_claims() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     for i in 0..100 {
         conclude_claim(&dir, &format!("cold start claim {i}"));
     }
@@ -147,8 +145,7 @@ fn list_cold_start_under_150ms_on_100_claims() {
 /// per-query overhead is acceptable; scaling to 5k is a separate load concern.
 #[test]
 fn show_cold_start_under_150ms() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Seed enough claims to have a realistic project
     let mut last_id = String::new();

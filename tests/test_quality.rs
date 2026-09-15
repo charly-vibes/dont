@@ -1,6 +1,6 @@
 /// Structural test: shared test helpers must be consolidated.
 ///
-/// The `dont()`, `init_dir()`, and `conclude_claim()` functions were
+/// The `dont()`, `init_project()`, and `conclude_claim()` functions were
 /// copy-pasted verbatim across 27+ test files. This test asserts that a
 /// canonical shared module exists so future changes only need to land in one
 /// place.
@@ -13,7 +13,7 @@ fn shared_helpers_module_exists() {
     assert!(
         common.exists(),
         "tests/common/mod.rs must exist — shared test helpers (`dont`, \
-         `init_dir`, `conclude_claim`) must not be copy-pasted per file"
+         `init_project`, `conclude_claim`) must not be copy-pasted per file"
     );
 }
 

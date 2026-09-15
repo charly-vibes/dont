@@ -6,15 +6,14 @@
 ///   - Scaling is linear (not exponential)
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use std::time::Instant;
-use tempfile::TempDir;
 
 const CLAIM_COUNT: usize = 1_000;
 const LIMIT_SECS: u64 = 5;
 
 /// Create CLAIM_COUNT claims in `dir`, return the last claim's ID.
-fn populate(dir: &TempDir) -> String {
+fn populate(dir: &TestProject) -> String {
     let mut last_id = String::new();
     for i in 0..CLAIM_COUNT {
         last_id = conclude_claim(dir, &format!("performance test claim number {i}"));
@@ -24,8 +23,7 @@ fn populate(dir: &TempDir) -> String {
 
 #[test]
 fn list_1000_claims_completes_within_5s() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     populate(&dir);
 
     let start = Instant::now();
@@ -44,8 +42,7 @@ fn list_1000_claims_completes_within_5s() {
 
 #[test]
 fn show_in_1000_claim_graph_completes_within_5s() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = populate(&dir);
 
     let start = Instant::now();
@@ -64,8 +61,7 @@ fn show_in_1000_claim_graph_completes_within_5s() {
 
 #[test]
 fn why_in_1000_claim_graph_completes_within_5s() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = populate(&dir);
 
     let start = Instant::now();

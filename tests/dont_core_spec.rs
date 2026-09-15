@@ -11,7 +11,7 @@
 
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use dont::store::{Status, Store, StoreEvent, StoreEventKind};
 use serde_json::Value;
 use tempfile::TempDir;
@@ -106,8 +106,7 @@ fn store_list_contains_only_claim_and_term_entities() {
 /// The CLI `conclude` command must create a `claim` entity kind.
 #[test]
 fn conclude_creates_entity_of_kind_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["conclude", "only claims and terms exist", "--json"])
@@ -128,8 +127,7 @@ fn conclude_creates_entity_of_kind_claim() {
 /// The CLI `define` command must create a `term` entity kind.
 #[test]
 fn define_creates_entity_of_kind_term() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["define", "ex:T001", "--doc", "a coined term", "--json"])

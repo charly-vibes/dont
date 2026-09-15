@@ -1,13 +1,12 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::{
     HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn define_term(dir: &TempDir, curie: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", "a valid definition", "--json"])
         .env("DONT_DIR", dir.path())
@@ -20,7 +19,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
     v["data"]["id"].as_str().unwrap().to_string()
 }
 
-fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
+fn dismiss_claim(dir: &TestProject, id: &str, evidence: &str) {
     dont()
         .args(["flag", id, "--evidence", evidence, "--json"])
         .env("DONT_DIR", dir.path())
@@ -28,7 +27,7 @@ fn dismiss_claim(dir: &TempDir, id: &str, evidence: &str) {
         .success();
 }
 
-fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[&str]) {
+fn seed_verified_claim_with_evidence(dir: &TestProject, claim_id: &str, evidence: &[&str]) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let first = evidence.first().expect("at least one evidence item");
     store
@@ -57,7 +56,7 @@ fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[
     }
 }
 
-fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
+fn seed_assessed_hypotheses(dir: &TestProject, claim_id: &str, count: usize) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let hypotheses: Vec<HypothesisRecord> = (0..count)
         .map(|idx| HypothesisRecord {
@@ -76,8 +75,7 @@ fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
 
 #[test]
 fn lock_verified_claim_with_sufficient_hypotheses_and_evidence_succeeds() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Independent evidence converges on this claim");
     dismiss_claim(&dir, &id, "https://source-one.example/evidence");
     dismiss_claim(&dir, &id, "https://source-two.example/evidence");
@@ -101,8 +99,7 @@ fn lock_verified_claim_with_sufficient_hypotheses_and_evidence_succeeds() {
 
 #[test]
 fn lock_unverified_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "This claim is not verified yet");
 
     let output = dont()
@@ -121,8 +118,7 @@ fn lock_unverified_claim_is_refused() {
 
 #[test]
 fn lock_already_locked_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "This claim will be locked once");
     dismiss_claim(&dir, &id, "https://source-one.example/evidence");
     dismiss_claim(&dir, &id, "https://source-two.example/evidence");
@@ -150,8 +146,7 @@ fn lock_already_locked_claim_is_refused() {
 
 #[test]
 fn lock_claim_with_too_few_hypotheses_is_refused_by_lockable_gate() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "This claim lacks enough hypotheses");
     dismiss_claim(&dir, &id, "https://source-one.example/evidence");
     dismiss_claim(&dir, &id, "https://source-two.example/evidence");
@@ -181,8 +176,7 @@ fn lock_claim_with_too_few_hypotheses_is_refused_by_lockable_gate() {
 
 #[test]
 fn lock_claim_with_too_little_evidence_is_refused_by_lockable_gate() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "This claim lacks enough evidence");
     dismiss_claim(&dir, &id, "https://source-one.example/evidence");
     seed_assessed_hypotheses(&dir, &id, 3);
@@ -211,8 +205,7 @@ fn lock_claim_with_too_little_evidence_is_refused_by_lockable_gate() {
 
 #[test]
 fn lock_claim_with_unverified_term_dependency_is_refused_by_lockable_gate() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     define_term(&dir, "WB:P001");
     let out = dont()
         .args([
@@ -264,8 +257,7 @@ fn lock_claim_with_unverified_term_dependency_is_refused_by_lockable_gate() {
 
 #[test]
 fn lock_term_is_refused_as_wrong_entity_kind() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = define_term(&dir, "WB:P001");
 
     let output = dont()
@@ -284,8 +276,7 @@ fn lock_term_is_refused_as_wrong_entity_kind() {
 
 #[test]
 fn forget_command_succeeds_where_lock_did() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim to be permanently preserved via forget");
     dismiss_claim(&dir, &id, "https://source-one.example/evidence");
     dismiss_claim(&dir, &id, "https://source-two.example/evidence");
@@ -307,8 +298,7 @@ fn forget_command_succeeds_where_lock_did() {
 
 #[test]
 fn lock_nonexistent_claim_returns_not_found() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args(["forget", "claim:NONEXISTENT", "--json"])
@@ -334,8 +324,7 @@ fn lock_nonexistent_claim_returns_not_found() {
 #[test]
 fn forget_command_rejects_unverified_claim() {
     // `forget` is the dont-canonical lock verb; locking an unverified claim must fail
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Claim via forget command on unverified state");
 
     let output = dont()

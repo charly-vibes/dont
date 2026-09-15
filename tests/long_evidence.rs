@@ -10,12 +10,12 @@
 /// - JSON `show --json` output always contains the full, untruncated excerpt.
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
 use tempfile::TempDir;
 
 /// Helper: run `dont flag <id> --evidence <uri> --json` and assert success.
-fn flag_with_evidence(dir: &TempDir, id: &str, uri: &str) -> Value {
+fn flag_with_evidence(dir: &TestProject, id: &str, uri: &str) -> Value {
     let out = dont()
         .args(["flag", id, "--evidence", uri, "--json"])
         .env("DONT_DIR", dir.path())
@@ -28,7 +28,7 @@ fn flag_with_evidence(dir: &TempDir, id: &str, uri: &str) -> Value {
 }
 
 /// Helper: run `dont show <id> --json` and return parsed output.
-fn show_json(dir: &TempDir, id: &str) -> Value {
+fn show_json(dir: &TestProject, id: &str) -> Value {
     let out = dont()
         .args(["show", id, "--json"])
         .env("DONT_DIR", dir.path())
@@ -41,7 +41,7 @@ fn show_json(dir: &TempDir, id: &str) -> Value {
 }
 
 /// Helper: run `dont show <id>` (human output) and return stdout as string.
-fn show_human(dir: &TempDir, id: &str) -> String {
+fn show_human(dir: &TestProject, id: &str) -> String {
     let out = dont()
         .args(["show", id])
         .env("DONT_DIR", dir.path())
@@ -60,8 +60,7 @@ fn show_human(dir: &TempDir, id: &str) -> String {
 /// JSON output.
 #[test]
 fn very_long_evidence_uri_round_trips_in_json() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "long URI round-trip");
 
     // Build a 10 k+ character URI (starts with https:// so it looks like a URI)
@@ -160,8 +159,7 @@ fn very_long_excerpt_round_trips_via_store() {
 /// The process must exit 0 successfully.
 #[test]
 fn show_human_does_not_panic_on_very_long_evidence_uri() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "no panic on long URI");
 
     let long_uri = format!("https://example.test/{}", "y".repeat(10_000));
@@ -180,8 +178,7 @@ fn show_human_does_not_panic_on_very_long_evidence_uri() {
 /// The JSON output must still contain the full URI.
 #[test]
 fn show_human_truncates_very_long_evidence_uri_in_display() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "display truncation for long URI");
 
     let long_uri = format!("https://example.test/{}", "z".repeat(10_000));

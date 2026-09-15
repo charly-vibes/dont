@@ -1,10 +1,9 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn eval_export(dir: &TempDir) -> Value {
+fn eval_export(dir: &TestProject) -> Value {
     let out = dont()
         .args(["export", "--eval", "--json"])
         .env("DONT_DIR", dir.path())
@@ -16,7 +15,7 @@ fn eval_export(dir: &TempDir) -> Value {
     serde_json::from_slice::<Value>(&out).unwrap()
 }
 
-fn eval_export_with_args(dir: &TempDir, extra: &[&str]) -> Value {
+fn eval_export_with_args(dir: &TestProject, extra: &[&str]) -> Value {
     let out = dont()
         .args(["export", "--eval", "--json"])
         .args(extra)
@@ -28,8 +27,7 @@ fn eval_export_with_args(dir: &TempDir, extra: &[&str]) -> Value {
 
 #[test]
 fn eval_export_returns_eval_export_envelope_kind() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = eval_export(&dir);
     assert_eq!(v["ok"], true);
     assert_eq!(v["envelope_kind"], "eval_export");
@@ -37,8 +35,7 @@ fn eval_export_returns_eval_export_envelope_kind() {
 
 #[test]
 fn eval_export_empty_store_has_required_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = eval_export(&dir);
     let data = &v["data"];
     assert!(
@@ -74,8 +71,7 @@ fn eval_export_empty_store_has_required_fields() {
 
 #[test]
 fn eval_export_empty_store_has_empty_arrays_and_maps() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = eval_export(&dir);
     let data = &v["data"];
     assert!(
@@ -98,8 +94,7 @@ fn eval_export_empty_store_has_empty_arrays_and_maps() {
 
 #[test]
 fn eval_export_claims_by_status_reflects_store() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id1 = conclude_claim(&dir, "claim one");
     let _id2 = conclude_claim(&dir, "claim two");
     // flag id1 to verify it (flag = "dont flag as concern" = verify in dont semantics)
@@ -123,8 +118,7 @@ fn eval_export_claims_by_status_reflects_store() {
 /// Ignored claims must not appear in claims_by_status counts.
 #[test]
 fn eval_export_claims_by_status_excludes_ignored() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim to be ignored");
     // Ignore the claim
     dont()
@@ -160,8 +154,7 @@ fn eval_export_claims_by_status_excludes_ignored() {
 
 #[test]
 fn eval_export_events_by_kind_reflects_store() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "first claim");
     conclude_claim(&dir, "second claim");
     let v = eval_export(&dir);
@@ -171,8 +164,7 @@ fn eval_export_events_by_kind_reflects_store() {
 
 #[test]
 fn eval_export_trust_events_populated_after_flag() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the timeout is configurable");
     // flag = verify in dont semantics (doubt=false in trust_events)
     dont()
@@ -212,8 +204,7 @@ fn eval_export_trust_events_populated_after_flag() {
 
 #[test]
 fn eval_export_trust_event_reason_excerpt_truncated_at_120() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "some conclusion");
     let long_reason = "x".repeat(200);
     // trust = doubt in dont semantics; generates Trusted event with note=reason
@@ -234,8 +225,7 @@ fn eval_export_trust_event_reason_excerpt_truncated_at_120() {
 
 #[test]
 fn eval_export_trust_event_has_doubt_true() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim that will be doubted");
     // trust = "dont trust" = doubt in dont semantics → doubt=true in trust_events
     dont()
@@ -263,16 +253,14 @@ fn eval_export_trust_event_has_doubt_true() {
 
 #[test]
 fn eval_export_unknown_session_returns_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = eval_export_with_args(&dir, &["--session", "no-such-session-xyz"]);
     assert_eq!(v["ok"], false, "unknown session must return error");
 }
 
 #[test]
 fn eval_export_inverted_time_window_returns_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = eval_export_with_args(
         &dir,
         &[
@@ -287,8 +275,7 @@ fn eval_export_inverted_time_window_returns_error() {
 
 #[test]
 fn eval_export_scope_session_not_present_when_no_session_flag() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let v = eval_export(&dir);
     let scope = &v["data"]["scope"];
     assert!(

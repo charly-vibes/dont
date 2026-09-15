@@ -9,7 +9,7 @@ mod common;
 /// Skipped when running as root (uid 0) because root ignores read-only bits.
 #[cfg(unix)]
 mod permissions_tests {
-    use crate::common::{dont, init_dir};
+    use crate::common::{dont, init_project};
     use serde_json::Value;
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
@@ -47,8 +47,7 @@ mod permissions_tests {
             return;
         }
 
-        let dir = TempDir::new().unwrap();
-        init_dir(&dir);
+        let dir = init_project();
 
         // Make DONT_DIR itself read-only (owner: r-x, no write).
         let mut perms = fs::metadata(dir.path()).unwrap().permissions();
@@ -102,8 +101,7 @@ mod permissions_tests {
             return;
         }
 
-        let dir = TempDir::new().unwrap();
-        init_dir(&dir);
+        let dir = init_project();
 
         let db_path = dir.path().join("db.cozo");
 
@@ -158,8 +156,7 @@ mod permissions_tests {
             return;
         }
 
-        let dir = TempDir::new().unwrap();
-        init_dir(&dir);
+        let dir = init_project();
 
         let mut perms = fs::metadata(dir.path()).unwrap().permissions();
         perms.set_mode(0o500);

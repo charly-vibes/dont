@@ -1,6 +1,6 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -8,8 +8,7 @@ use tempfile::TempDir;
 
 #[test]
 fn ground_returns_verified_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -35,8 +34,7 @@ fn ground_returns_verified_claim() {
 
 #[test]
 fn ground_without_evidence_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["ground", "claim with no evidence", "--json"])
@@ -54,8 +52,7 @@ fn ground_without_evidence_is_refused() {
 
 #[test]
 fn ground_without_evidence_leaves_no_partial_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["ground", "the orphan claim", "--json"])
@@ -84,8 +81,7 @@ fn ground_without_evidence_leaves_no_partial_claim() {
 
 #[test]
 fn ground_history_reflects_concluded_then_dismissed_events() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -128,8 +124,7 @@ fn ground_history_reflects_concluded_then_dismissed_events() {
 
 #[test]
 fn ground_with_multiple_evidence_items() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -269,8 +264,7 @@ fn ground_evidence_path_with_lines() {
 /// F23: http/https strings are still accepted as plain URI evidence.
 #[test]
 fn ground_evidence_url_stored_as_plain_string() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -341,8 +335,7 @@ fn ground_refuses_unreadable_file_locator_without_partial_claim() {
 
 #[test]
 fn ground_with_empty_statement_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -366,8 +359,7 @@ fn ground_with_empty_statement_is_refused() {
 
 #[test]
 fn ground_with_only_empty_evidence_uris_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["ground", "valid statement", "--evidence", "", "--json"])
@@ -385,8 +377,7 @@ fn ground_with_only_empty_evidence_uris_is_refused() {
 
 #[test]
 fn ground_rejects_stdin_bulk_mode() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -410,8 +401,7 @@ fn ground_rejects_stdin_bulk_mode() {
 
 #[test]
 fn ground_with_path_traversal_file_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -441,8 +431,7 @@ fn ground_with_path_traversal_file_is_refused() {
 #[test]
 fn ground_respects_author_override_flag() {
     // Spec: ground SHALL accept the standard invocation-level author override.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -475,8 +464,7 @@ fn ground_duplicate_statement_follows_conclude_policy() {
     // that would apply to the underlying `conclude` operation.
     // Since `conclude` now refuses duplicate statements (dedup check), `ground`
     // also refuses a second invocation with the same normalized statement text.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out1 = dont()
         .args([
@@ -543,8 +531,7 @@ fn ground_duplicate_statement_follows_conclude_policy() {
 
 #[test]
 fn ground_rejects_statement_with_path_traversal_sequence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -572,8 +559,7 @@ fn ground_rejects_statement_with_path_traversal_sequence() {
 
 #[test]
 fn ground_rejects_statement_with_shell_metacharacter() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Semicolon is allowed in prose; only genuine injection vectors are blocked.
     for statement in &["foo|bar", "foo`bar`", "foo$bar", "foo\\bar"] {
@@ -630,8 +616,7 @@ fn ground_rejects_statement_with_shell_metacharacter() {
 
 #[test]
 fn ground_accepts_prose_punctuation() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Semicolons, colons, and forward-slashes are common English prose
     // and must be accepted in claim statements.
@@ -668,8 +653,7 @@ fn ground_accepts_prose_punctuation() {
 #[test]
 fn ground_accepts_prose_statement_with_slash() {
     // A slash in prose (e.g. "TCP/IP") is allowed; only `..` traversal is banned.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -697,8 +681,7 @@ fn ground_accepts_prose_statement_with_slash() {
 /// not silently store it.
 #[test]
 fn ground_unreadable_evidence_path_is_rejected() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -737,8 +720,7 @@ fn ground_unreadable_evidence_path_is_rejected() {
 /// A failed `ground` due to malformed URI must leave no partial claim behind.
 #[test]
 fn ground_malformed_evidence_uri_leaves_no_partial_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args([
@@ -773,8 +755,7 @@ fn ground_malformed_evidence_uri_leaves_no_partial_claim() {
 
 #[test]
 fn ground_with_url_returns_verified() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -808,8 +789,7 @@ fn ground_with_url_returns_verified() {
 
 #[test]
 fn ground_with_url_and_lines_stores_line_span() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -838,8 +818,7 @@ fn ground_with_url_and_lines_stores_line_span() {
 
 #[test]
 fn ground_with_url_and_anchor_stores_anchor() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -867,8 +846,7 @@ fn ground_with_url_and_anchor_stores_anchor() {
 
 #[test]
 fn ground_with_url_and_excerpt_stores_excerpt() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([
@@ -896,8 +874,7 @@ fn ground_with_url_and_excerpt_stores_excerpt() {
 
 #[test]
 fn ground_without_evidence_file_or_url_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["ground", "claim with nothing", "--json"])
@@ -916,8 +893,7 @@ fn ground_without_evidence_file_or_url_is_refused() {
 
 #[test]
 fn ground_with_url_rejects_file_flag_conflict() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args([
@@ -936,8 +912,7 @@ fn ground_with_url_rejects_file_flag_conflict() {
 
 #[test]
 fn ground_with_url_and_evidence_stores_both() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args([

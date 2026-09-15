@@ -1,10 +1,9 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str, doc: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", doc, "--json"])
         .env("DONT_DIR", dir.path())
@@ -23,8 +22,7 @@ fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
 
 #[test]
 fn show_returns_claim_view_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the moon orbits the earth");
 
     let out = dont()
@@ -46,8 +44,7 @@ fn show_returns_claim_view_envelope() {
 
 #[test]
 fn show_claim_view_has_required_arrays_and_meta() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "required arrays test");
 
     let out = dont()
@@ -73,8 +70,7 @@ fn show_claim_view_has_required_arrays_and_meta() {
 
 #[test]
 fn show_reflects_current_status_after_trust() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim to be trusted");
     dont()
         .args([
@@ -103,8 +99,7 @@ fn show_reflects_current_status_after_trust() {
 
 #[test]
 fn show_evidence_reflects_dismiss_history() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim with evidence");
     let ev = "https://example.test/proof";
     dont()
@@ -130,8 +125,7 @@ fn show_evidence_reflects_dismiss_history() {
 
 #[test]
 fn show_nonexistent_id_returns_claim_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["show", "claim:01JNONEXISTENT", "--json"])
@@ -152,8 +146,7 @@ fn show_nonexistent_id_returns_claim_not_found_exit_1() {
 
 #[test]
 fn show_by_curie_resolves_to_term() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     define_term(&dir, "WB:P001", "a process by which X becomes Y");
 
     let out = dont()
@@ -174,8 +167,7 @@ fn show_by_curie_resolves_to_term() {
 
 #[test]
 fn show_unknown_curie_returns_term_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["show", "WB:ZZZZ", "--json"])
@@ -202,8 +194,7 @@ fn show_unknown_curie_returns_term_not_found_exit_1() {
 
 #[test]
 fn show_default_omits_events() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "events omitted by default");
 
     let out = dont()
@@ -224,8 +215,7 @@ fn show_default_omits_events() {
 
 #[test]
 fn show_history_includes_events() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "events present with --history");
 
     let out = dont()
@@ -251,8 +241,7 @@ fn show_history_includes_events() {
 
 #[test]
 fn list_returns_claims_envelope_kind() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "first claim");
 
     let out = dont()
@@ -272,8 +261,7 @@ fn list_returns_claims_envelope_kind() {
 
 #[test]
 fn list_returns_all_concluded_claims() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id1 = conclude_claim(&dir, "alpha claim");
     let id2 = conclude_claim(&dir, "beta claim");
 
@@ -295,8 +283,7 @@ fn list_returns_all_concluded_claims() {
 
 #[test]
 fn list_claims_sorted_by_created_at_descending() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id1 = conclude_claim(&dir, "earliest claim");
     let id2 = conclude_claim(&dir, "latest claim");
 
@@ -321,8 +308,7 @@ fn list_claims_sorted_by_created_at_descending() {
 
 #[test]
 fn list_empty_project_returns_empty_array() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--json"])
@@ -341,8 +327,7 @@ fn list_empty_project_returns_empty_array() {
 
 #[test]
 fn list_status_filter_returns_only_matching_claims() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let unverified = conclude_claim(&dir, "still unverified");
     let doubted = conclude_claim(&dir, "will be doubted");
@@ -408,8 +393,7 @@ fn list_status_filter_returns_only_matching_claims() {
 
 #[test]
 fn list_invalid_status_returns_validation_error_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--status", "pending", "--json"])
@@ -428,8 +412,7 @@ fn list_invalid_status_returns_validation_error_exit_1() {
 
 #[test]
 fn list_kind_terms_returns_defined_terms() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let term_id = define_term(&dir, "WB:P001", "a process by which X becomes Y");
     conclude_claim(&dir, "claims should not appear in term listings");
 
@@ -454,8 +437,7 @@ fn list_kind_terms_returns_defined_terms() {
 
 #[test]
 fn list_kind_claims_retains_current_behavior() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     define_term(&dir, "WB:P001", "a process by which X becomes Y");
     let claim_id = conclude_claim(&dir, "claims remain the default listing kind");
 
@@ -478,8 +460,7 @@ fn list_kind_claims_retains_current_behavior() {
 
 #[test]
 fn list_default_claims_emits_hint_when_terms_exist() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     define_term(&dir, "WB:P001", "a process by which X becomes Y");
     conclude_claim(&dir, "default listing still shows claims");
 
@@ -505,8 +486,7 @@ fn list_default_claims_emits_hint_when_terms_exist() {
 
 #[test]
 fn list_kind_terms_supports_status_filter() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let unverified = define_term(&dir, "WB:P001", "a process by which X becomes Y");
     let ignored = define_term(&dir, "WB:P002", "a process by which Y becomes Z");
     dont()
@@ -540,8 +520,7 @@ fn list_kind_terms_supports_status_filter() {
 
 #[test]
 fn list_all_flag_returns_both_claims_and_terms() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let claim_id = conclude_claim(&dir, "a claim for all-listing");
     let term_id = define_term(&dir, "WB:P001", "a process by which X becomes Y");
 
@@ -573,8 +552,7 @@ fn list_all_flag_returns_both_claims_and_terms() {
 
 #[test]
 fn list_invalid_kind_returns_validation_error_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--kind", "events", "--json"])
@@ -595,8 +573,7 @@ fn list_invalid_kind_returns_validation_error_exit_1() {
 
 #[test]
 fn list_derived_assessment_filter_returns_only_stale_claims() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let term_id = define_term(&dir, "WB:P100", "a term that stays unverified");
 
@@ -648,8 +625,7 @@ fn list_derived_assessment_filter_returns_only_stale_claims() {
 
 #[test]
 fn list_as_of_flag_is_accepted_not_unexpected_argument() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--as-of", "2026-01-01", "--json"])
@@ -671,8 +647,7 @@ fn list_as_of_flag_is_accepted_not_unexpected_argument() {
 
 #[test]
 fn list_as_of_invalid_timestamp_returns_validation_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--as-of", "not-a-date", "--json"])
@@ -692,8 +667,7 @@ fn list_as_of_invalid_timestamp_returns_validation_error() {
 
 #[test]
 fn vocab_as_of_flag_is_accepted_not_unexpected_argument() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["vocab", "--as-of", "2026-01-01", "--json"])
@@ -715,8 +689,7 @@ fn vocab_as_of_flag_is_accepted_not_unexpected_argument() {
 
 #[test]
 fn vocab_as_of_invalid_timestamp_returns_validation_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["vocab", "--as-of", "not-a-date", "--json"])

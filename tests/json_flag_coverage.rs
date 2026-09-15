@@ -1,6 +1,6 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -39,8 +39,7 @@ fn version_json_emits_version_envelope() {
 
 #[test]
 fn list_json_emits_claims_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["list", "--json"])
         .env("DONT_DIR", dir.path())
@@ -54,8 +53,7 @@ fn list_json_emits_claims_envelope() {
 
 #[test]
 fn show_claim_json_emits_claim_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a testable claim");
     let out = dont()
         .args(["show", &id, "--json"])
@@ -70,8 +68,7 @@ fn show_claim_json_emits_claim_envelope() {
 
 #[test]
 fn why_json_emits_why_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim to explain");
     let out = dont()
         .args(["why", &id, "--json"])
@@ -86,8 +83,7 @@ fn why_json_emits_why_envelope() {
 
 #[test]
 fn prime_json_emits_prime_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
@@ -101,8 +97,7 @@ fn prime_json_emits_prime_envelope() {
 
 #[test]
 fn trace_json_emits_trace_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim to trace");
     let out = dont()
         .args(["trace", &id, "--json"])
@@ -117,8 +112,7 @@ fn trace_json_emits_trace_envelope() {
 
 #[test]
 fn rules_list_json_emits_rules_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["rules", "list", "--json"])
         .env("DONT_DIR", dir.path())
@@ -139,8 +133,7 @@ fn rules_list_json_emits_rules_envelope() {
 
 #[test]
 fn explain_json_emits_explain_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["explain", "lockable", "--json"])
         .env("DONT_DIR", dir.path())
@@ -168,8 +161,7 @@ fn completions_json_emits_completions_envelope() {
 
 #[test]
 fn conclude_json_emits_envelope_with_id() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["conclude", "test claim for json flag", "--json"])
         .env("DONT_DIR", dir.path())
@@ -203,8 +195,7 @@ fn init_json_emits_envelope() {
 
 #[test]
 fn list_json_stdout_is_single_json_object() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["list", "--json"])
         .env("DONT_DIR", dir.path())
@@ -223,8 +214,7 @@ fn list_json_stdout_is_single_json_object() {
 
 #[test]
 fn show_term_json_emits_term_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["define", "ex:Widget", "--doc", "a widget thing", "--json"])
         .env("DONT_DIR", dir.path())

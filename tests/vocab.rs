@@ -1,10 +1,9 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str, doc: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", doc, "--json"])
         .env("DONT_DIR", dir.path())
@@ -21,8 +20,7 @@ fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
 
 #[test]
 fn vocab_returns_terms_envelope_kind() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let term_id = define_term(&dir, "WB:P001", "a process by which X becomes Y");
 
     let out = dont()
@@ -46,8 +44,7 @@ fn vocab_returns_terms_envelope_kind() {
 
 #[test]
 fn vocab_is_equivalent_to_list_kind_term() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     define_term(&dir, "WB:P001", "a process by which X becomes Y");
     define_term(&dir, "WB:P002", "a secondary concept");
 
@@ -80,8 +77,7 @@ fn vocab_is_equivalent_to_list_kind_term() {
 
 #[test]
 fn vocab_empty_project_returns_empty_array() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["vocab", "--json"])

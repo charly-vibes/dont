@@ -1,13 +1,12 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::{
     HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn define_term(dir: &TempDir, curie: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", "a valid definition", "--json"])
         .env("DONT_DIR", dir.path())
@@ -22,8 +21,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
 
 #[test]
 fn ignore_unverified_claim_produces_ignored_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     let output = dont()
@@ -49,8 +47,7 @@ fn ignore_unverified_claim_produces_ignored_status() {
 
 #[test]
 fn ignore_requires_reason() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     let output = dont()
@@ -69,8 +66,7 @@ fn ignore_requires_reason() {
 
 #[test]
 fn ignore_hedge_only_reason_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     let output = dont()
@@ -89,8 +85,7 @@ fn ignore_hedge_only_reason_is_refused() {
 
 #[test]
 fn ignore_already_ignored_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
@@ -115,8 +110,7 @@ fn ignore_already_ignored_claim_is_refused() {
 
 #[test]
 fn ignore_verified_claim_produces_ignored_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
@@ -153,8 +147,7 @@ fn ignore_verified_claim_produces_ignored_status() {
 
 #[test]
 fn ignore_doubted_claim_produces_ignored_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     dont()
@@ -185,8 +178,7 @@ fn ignore_doubted_claim_produces_ignored_status() {
 
 #[test]
 fn ignore_unverified_term_produces_ignored_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = define_term(&dir, "WB:P001");
 
     let output = dont()
@@ -205,8 +197,7 @@ fn ignore_unverified_term_produces_ignored_status() {
 
 #[test]
 fn ignore_entity_not_found_returns_structured_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -230,8 +221,7 @@ fn ignore_entity_not_found_returns_structured_error() {
 
 #[test]
 fn ignore_carries_tx_in_meta() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "Gravity causes apples to fall");
 
     let output = dont()
@@ -249,8 +239,7 @@ fn ignore_carries_tx_in_meta() {
 
 #[test]
 fn prime_status_counts_includes_ignored() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let claim_id = conclude_claim(&dir, "The sky is blue");
     let term_id = define_term(&dir, "proj:Concept");
 
@@ -304,7 +293,7 @@ fn prime_status_counts_includes_ignored() {
 
 // --- Locked-entity transition refusals ---
 
-fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[&str]) {
+fn seed_verified_claim_with_evidence(dir: &TestProject, claim_id: &str, evidence: &[&str]) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let first = evidence.first().expect("at least one evidence item");
     store
@@ -333,7 +322,7 @@ fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[
     }
 }
 
-fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
+fn seed_assessed_hypotheses(dir: &TestProject, claim_id: &str, count: usize) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let hypotheses: Vec<HypothesisRecord> = (0..count)
         .map(|idx| HypothesisRecord {
@@ -350,7 +339,7 @@ fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
         .unwrap();
 }
 
-fn lock_claim(dir: &TempDir, id: &str) {
+fn lock_claim(dir: &TestProject, id: &str) {
     seed_verified_claim_with_evidence(
         dir,
         id,
@@ -369,8 +358,7 @@ fn lock_claim(dir: &TempDir, id: &str) {
 
 #[test]
 fn ignore_locked_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "A locked claim that cannot be ignored");
     lock_claim(&dir, &id);
 

@@ -1,15 +1,13 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 /// `dont why` on a claim ID that does not exist must return a structured
 /// "claim-not-found" error (exit 1) — the same contract as `show` and `trace`.
 #[test]
 fn why_unknown_claim_id_returns_claim_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["why", "claim:01JNONEXISTENT", "--json"])
@@ -37,8 +35,7 @@ fn why_unknown_claim_id_returns_claim_not_found_exit_1() {
 /// "term-not-found" error (exit 1).
 #[test]
 fn why_unknown_term_id_returns_term_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["why", "term:01JNONEXISTENT", "--json"])
@@ -66,8 +63,7 @@ fn why_unknown_term_id_returns_term_not_found_exit_1() {
 /// and include the CURIE in the error message.
 #[test]
 fn why_unknown_curie_returns_term_not_found_with_curie_in_message() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["why", "WB:ZZZZ", "--json"])
@@ -94,7 +90,7 @@ fn why_unknown_curie_returns_term_not_found_with_curie_in_message() {
 
 // --- happy-path: claim ---
 
-fn conclude_claim(dir: &TempDir, statement: &str) -> String {
+fn conclude_claim(dir: &TestProject, statement: &str) -> String {
     let out = dont()
         .args(["conclude", statement, "--json"])
         .env("DONT_DIR", dir.path())
@@ -109,7 +105,7 @@ fn conclude_claim(dir: &TempDir, statement: &str) -> String {
         .to_string()
 }
 
-fn define_term(dir: &TempDir, curie: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", "a valid definition", "--json"])
         .env("DONT_DIR", dir.path())
@@ -129,8 +125,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
 /// expected fields: `entity`, `history`, `applicable_rules`, `remediation`.
 #[test]
 fn why_existing_claim_returns_ok_true_with_required_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the earth orbits the sun");
 
     let out = dont()
@@ -178,8 +173,7 @@ fn why_existing_claim_returns_ok_true_with_required_fields() {
 /// evidence, created_at.
 #[test]
 fn why_claim_entity_contains_canonical_claim_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "gravity attracts mass");
 
     let out = dont()
@@ -229,8 +223,7 @@ fn why_claim_entity_contains_canonical_claim_fields() {
 /// (or similar), confirming that `why` exposes the event log.
 #[test]
 fn why_claim_history_contains_at_least_one_event() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "light travels fast");
 
     let out = dont()
@@ -265,8 +258,7 @@ fn why_claim_history_contains_at_least_one_event() {
 /// expected fields: `entity`, `history`, `applicable_rules`, `remediation`.
 #[test]
 fn why_existing_term_returns_ok_true_with_required_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = define_term(&dir, "WB:P001");
 
     let out = dont()
@@ -313,8 +305,7 @@ fn why_existing_term_returns_ok_true_with_required_fields() {
 /// term fields: id, entity_kind, curie, status, evidence, created_at.
 #[test]
 fn why_term_entity_contains_canonical_term_fields() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = define_term(&dir, "WB:P002");
 
     let out = dont()
@@ -366,8 +357,7 @@ fn why_term_entity_contains_canonical_term_fields() {
 /// not a JSON object.
 #[test]
 fn why_claim_default_output_is_plain_text_not_json() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "water boils at 100 celsius");
 
     let out = dont()
@@ -389,8 +379,7 @@ fn why_claim_default_output_is_plain_text_not_json() {
 /// `dont why <claim-id> --human` must produce plain text output.
 #[test]
 fn why_claim_human_flag_emits_plain_text() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "ice is cold");
 
     let out = dont()
@@ -422,8 +411,7 @@ fn why_claim_human_flag_emits_plain_text() {
 /// and a non-empty `command` string.
 #[test]
 fn why_claim_with_unmet_lockable_rule_has_non_empty_remediation() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "remediation must be populated for unmet rules");
 
     let out = dont()
@@ -474,8 +462,7 @@ fn why_claim_with_unmet_lockable_rule_has_non_empty_remediation() {
 /// MUST be empty.
 #[test]
 fn why_claim_with_all_rules_met_has_empty_remediation() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "all rules met means empty remediation");
 
     let out = dont()
@@ -510,8 +497,7 @@ fn why_claim_with_all_rules_met_has_empty_remediation() {
 /// `dont why <term-id>` without --json must produce plain text output.
 #[test]
 fn why_term_default_output_is_plain_text_not_json() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = define_term(&dir, "WB:P003");
 
     let out = dont()

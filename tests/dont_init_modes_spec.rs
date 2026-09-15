@@ -1,7 +1,7 @@
 /// dont-init-modes spec alignment: init behavior, mode consistency, seed vocabulary.
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
@@ -10,8 +10,7 @@ use tempfile::TempDir;
 
 #[test]
 fn reinit_refused_with_already_initialised_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["init", "--json"])
@@ -36,8 +35,7 @@ fn reinit_refused_with_already_initialised_error() {
 
 #[test]
 fn init_without_strict_produces_permissive_mode_in_prime() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["prime", "--json"])
@@ -62,8 +60,7 @@ fn init_without_strict_produces_permissive_mode_in_prime() {
 fn seed_terms_are_in_locked_status_after_init() {
     // Seed vocabulary is snapshotted into seed/dont-seed.yaml during init.
     // Each seed term must start with status: locked.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let seed = fs::read_to_string(dir.path().join("seed/dont-seed.yaml"))
         .expect("seed/dont-seed.yaml must exist after init");
@@ -124,8 +121,7 @@ fn init_strict_records_mode_in_events() {
 fn doctor_fix_after_fresh_init_changes_nothing() {
     // Spec: init must produce byte-identical managed files to those that doctor --fix would.
     // After a fresh init, doctor --fix must report no changes needed.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let agents_before = fs::read_to_string(dir.path().join("AGENTS.md")).ok();
     let dont_agents_before = fs::read_to_string(dir.path().join("AGENTS.md")).ok();
@@ -163,8 +159,7 @@ fn doctor_fix_after_fresh_init_changes_nothing() {
 
 #[test]
 fn permissive_mode_allows_conclude_with_unresolved_dep() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir); // permissive by default
+    let dir = init_project(); // permissive by default
 
     let out = dont()
         .args([

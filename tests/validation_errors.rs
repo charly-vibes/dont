@@ -6,14 +6,11 @@
 /// (displayed on stderr as `error: <field>: <reason>; expected <format>`)
 mod common;
 
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn init() -> TempDir {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
-    dir
+fn init() -> TestProject {
+    init_project()
 }
 
 fn json_message(stdout: &[u8]) -> String {

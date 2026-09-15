@@ -1,8 +1,7 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 // --- dont list on empty project ---
 
@@ -10,8 +9,7 @@ use tempfile::TempDir;
 /// empty claims array, count=0, and exit 0.  No panics, no error.
 #[test]
 fn list_empty_project_json_returns_valid_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--json"])
@@ -40,8 +38,7 @@ fn list_empty_project_json_returns_valid_envelope() {
 /// actionable suggestion so users know how to get started.
 #[test]
 fn list_empty_project_human_suggests_conclude() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--human"])
@@ -69,8 +66,7 @@ fn list_empty_project_human_suggests_conclude() {
 /// envelope with an empty data array and exit 0.  No panics, no error.
 #[test]
 fn list_empty_terms_json_returns_valid_envelope() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--kind", "terms", "--json"])
@@ -95,8 +91,7 @@ fn list_empty_terms_json_returns_valid_envelope() {
 /// that includes an actionable suggestion to define terms.
 #[test]
 fn list_empty_terms_human_suggests_define() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--kind", "terms", "--human"])
@@ -124,8 +119,7 @@ fn list_empty_terms_human_suggests_define() {
 /// error with a remediation hint — not a panic.
 #[test]
 fn show_on_empty_project_returns_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["show", "claim:01JNONEXISTENT", "--json"])
@@ -151,8 +145,7 @@ fn show_on_empty_project_returns_not_found_exit_1() {
 /// error — not a panic.
 #[test]
 fn trace_on_empty_project_returns_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["trace", "claim:01JNONEXISTENT", "--json"])
@@ -178,8 +171,7 @@ fn trace_on_empty_project_returns_not_found_exit_1() {
 /// error — not a panic.
 #[test]
 fn why_on_empty_project_returns_not_found_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["why", "claim:01JNONEXISTENT", "--json"])

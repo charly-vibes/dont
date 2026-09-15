@@ -5,28 +5,28 @@ use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
-fn init_project(root: &TempDir) {
-    let dont_dir = root.path().join(".dont");
+fn init_subdir(root: &TempDir) {
+    let dont_dir = root.as_ref().join(".dont");
     dont()
         .args(["init", "--json"])
-        .current_dir(root.path())
+        .current_dir(root.as_ref())
         .env("DONT_DIR", &dont_dir)
         .assert()
         .success();
 }
 
-fn add_managed_skill_pack(root: &TempDir) {
-    let config_path = root.path().join(".dont/config.toml");
+fn add_managed_skill_pack(root: &impl AsRef<std::path::Path>) {
+    let config_path = root.as_ref().join(".dont/config.toml");
     let mut config = fs::read_to_string(&config_path).unwrap();
     config.push_str("\nmanaged_skill_packs = [\"dont-grill\"]\n");
     fs::write(&config_path, config).unwrap();
 }
 
-fn doctor_json(root: &TempDir) -> Value {
-    let dont_dir = root.path().join(".dont");
+fn doctor_json(root: &impl AsRef<std::path::Path>) -> Value {
+    let dont_dir = root.as_ref().join(".dont");
     let output = dont()
         .args(["doctor", "--json"])
-        .current_dir(root.path())
+        .current_dir(root.as_ref())
         .env("DONT_DIR", &dont_dir)
         .assert()
         .success()
@@ -36,11 +36,11 @@ fn doctor_json(root: &TempDir) -> Value {
     serde_json::from_slice(&output).unwrap()
 }
 
-fn doctor_fix(root: &TempDir) {
-    let dont_dir = root.path().join(".dont");
+fn doctor_fix(root: &impl AsRef<std::path::Path>) {
+    let dont_dir = root.as_ref().join(".dont");
     dont()
         .args(["doctor", "--fix", "--json"])
-        .current_dir(root.path())
+        .current_dir(root.as_ref())
         .env("DONT_DIR", &dont_dir)
         .assert()
         .success();
@@ -59,17 +59,17 @@ fn managed_skills_check(v: &Value) -> &Value {
 #[test]
 fn config_rejects_unknown_pack_name() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
-    let config_path = root.path().join(".dont/config.toml");
+    init_subdir(&root);
+    let config_path = root.as_ref().join(".dont/config.toml");
     let mut config = fs::read_to_string(&config_path).unwrap();
     config.push_str("\nmanaged_skill_packs = [\"unknown-pack\"]\n");
     fs::write(&config_path, config).unwrap();
 
-    let dont_dir = root.path().join(".dont");
+    let dont_dir = root.as_ref().join(".dont");
     // unknown pack names should surface an error (config-invalid or similar), not a panic
     let output = dont()
         .args(["doctor", "--json"])
-        .current_dir(root.path())
+        .current_dir(root.as_ref())
         .env("DONT_DIR", &dont_dir)
         .assert()
         .get_output()
@@ -102,11 +102,13 @@ fn init_installs_managed_skill_pack_when_configured() {
     // After init, user adds managed_skill_packs to config, then doctor --fix installs the pack.
     // This covers the spec requirement that dont init + dont doctor --fix are both writers.
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
     doctor_fix(&root);
 
-    let router = root.path().join(".agents/skills/dont-grill/dont-grill.md");
+    let router = root
+        .as_ref()
+        .join(".agents/skills/dont-grill/dont-grill.md");
     assert!(
         router.exists(),
         "router skill should be installed at .agents/skills/dont-grill/dont-grill.md"
@@ -116,9 +118,9 @@ fn init_installs_managed_skill_pack_when_configured() {
 #[test]
 fn init_skips_skill_packs_when_not_configured() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
 
-    let skills_dir = root.path().join(".agents/skills/dont-grill");
+    let skills_dir = root.as_ref().join(".agents/skills/dont-grill");
     assert!(
         !skills_dir.exists(),
         "skill pack dir should not exist when not configured"
@@ -130,7 +132,7 @@ fn init_skips_skill_packs_when_not_configured() {
 #[test]
 fn doctor_reports_missing_when_pack_configured_but_absent() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
 
     let v = doctor_json(&root);
@@ -151,7 +153,7 @@ fn doctor_reports_missing_when_pack_configured_but_absent() {
 #[test]
 fn doctor_reports_pass_when_pack_matches_generator_output() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
 
     // Fix installs the pack
@@ -168,12 +170,14 @@ fn doctor_reports_pass_when_pack_matches_generator_output() {
 #[test]
 fn doctor_reports_stale_when_pack_file_is_modified() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
     doctor_fix(&root);
 
     // Mutate the router file
-    let router = root.path().join(".agents/skills/dont-grill/dont-grill.md");
+    let router = root
+        .as_ref()
+        .join(".agents/skills/dont-grill/dont-grill.md");
     let mut content = fs::read_to_string(&router).unwrap();
     content.push_str("\n<!-- MANUAL EDIT -->\n");
     fs::write(&router, content).unwrap();
@@ -191,12 +195,14 @@ fn doctor_reports_stale_when_pack_file_is_modified() {
 #[test]
 fn doctor_fix_installs_pack_when_missing() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
 
     doctor_fix(&root);
 
-    let router = root.path().join(".agents/skills/dont-grill/dont-grill.md");
+    let router = root
+        .as_ref()
+        .join(".agents/skills/dont-grill/dont-grill.md");
     assert!(
         router.exists(),
         "router skill should be installed after fix"
@@ -212,11 +218,13 @@ fn doctor_fix_installs_pack_when_missing() {
 #[test]
 fn doctor_fix_repairs_stale_pack_and_reports_pass() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
     doctor_fix(&root);
 
-    let router = root.path().join(".agents/skills/dont-grill/dont-grill.md");
+    let router = root
+        .as_ref()
+        .join(".agents/skills/dont-grill/dont-grill.md");
     fs::write(&router, "stale content\n").unwrap();
 
     doctor_fix(&root);
@@ -232,7 +240,7 @@ fn doctor_fix_removes_extra_files_not_in_generated_set() {
     // generator output; otherwise the hash never matches after a version upgrade
     // removes a sub-skill (stale loop forever).
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
     doctor_fix(&root);
 
@@ -265,13 +273,13 @@ fn doctor_fix_removes_extra_files_not_in_generated_set() {
 #[test]
 fn doctor_fix_is_idempotent() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
 
     doctor_fix(&root);
-    let after_first: Vec<(String, String)> = files_in_skills_dir(root.path());
+    let after_first: Vec<(String, String)> = files_in_skills_dir(root.as_ref());
     doctor_fix(&root);
-    let after_second: Vec<(String, String)> = files_in_skills_dir(root.path());
+    let after_second: Vec<(String, String)> = files_in_skills_dir(root.as_ref());
 
     assert_eq!(
         after_first, after_second,
@@ -317,11 +325,11 @@ fn collect_files(
 #[test]
 fn doctor_fix_preserves_unmanaged_sibling_skill() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
 
     // Create a user-authored skill alongside the managed pack
-    let custom_dir = root.path().join(".agents/skills/my-custom-skill");
+    let custom_dir = root.as_ref().join(".agents/skills/my-custom-skill");
     fs::create_dir_all(&custom_dir).unwrap();
     let custom_file = custom_dir.join("SKILL.md");
     fs::write(&custom_file, "# My custom skill\n\nDon't touch this.\n").unwrap();
@@ -344,11 +352,11 @@ fn doctor_fix_preserves_unmanaged_sibling_skill() {
 #[test]
 fn installed_pack_contains_router_and_all_sub_skills() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
     doctor_fix(&root);
 
-    let pack_dir = root.path().join(".agents/skills/dont-grill");
+    let pack_dir = root.as_ref().join(".agents/skills/dont-grill");
     assert!(
         pack_dir.join("dont-grill.md").exists(),
         "router dont-grill.md should exist"
@@ -394,11 +402,13 @@ fn find_file_by_stem(dir: &std::path::Path, stem: &str) -> bool {
 #[test]
 fn router_uses_canonical_verbs_not_deprecated_aliases() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
     doctor_fix(&root);
 
-    let router = root.path().join(".agents/skills/dont-grill/dont-grill.md");
+    let router = root
+        .as_ref()
+        .join(".agents/skills/dont-grill/dont-grill.md");
     let content = fs::read_to_string(&router).unwrap();
 
     assert!(
@@ -422,11 +432,11 @@ fn router_uses_canonical_verbs_not_deprecated_aliases() {
 #[test]
 fn sub_skills_are_installed_in_subdirectory() {
     let root = TempDir::new().unwrap();
-    init_project(&root);
+    init_subdir(&root);
     add_managed_skill_pack(&root);
     doctor_fix(&root);
 
-    let pack_dir = root.path().join(".agents/skills/dont-grill");
+    let pack_dir = root.as_ref().join(".agents/skills/dont-grill");
     let top_level_files: Vec<_> = fs::read_dir(&pack_dir)
         .unwrap()
         .filter_map(|e| e.ok())

@@ -7,15 +7,14 @@
 mod common;
 
 use assert_cmd::Command;
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::{
     HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use predicates::prelude::*;
-use tempfile::TempDir;
 
 /// Seed a claim into a state that satisfies the lockable gate (verified + 3 assessed hypotheses + 2 independent evidence sources).
-fn seed_lockable_claim(dir: &TempDir) -> String {
+fn seed_lockable_claim(dir: &TestProject) -> String {
     let id = conclude_claim(dir, "claim that will be locked via dt");
     let store = Store::open_dont_dir(dir.path()).unwrap();
 
@@ -78,8 +77,7 @@ fn dt() -> Command {
 
 #[test]
 fn dt_record_creates_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dt()
         .args(["record", "the sky is blue", "--json"])
@@ -102,8 +100,7 @@ fn dt_record_creates_claim() {
 
 #[test]
 fn dt_challenge_registers_doubt() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim to challenge");
 
     let out = dt()
@@ -124,8 +121,7 @@ fn dt_challenge_registers_doubt() {
 
 #[test]
 fn dt_lock_locks_verified_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = seed_lockable_claim(&dir);
 
     let out = dt()
@@ -146,8 +142,7 @@ fn dt_lock_locks_verified_claim() {
 
 #[test]
 fn dt_show_works_as_shared_command() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "shared command claim");
 
     dt().args(["show", &id, "--json"])
@@ -162,8 +157,7 @@ fn dt_show_works_as_shared_command() {
 /// "unknown command 'conclude' for dt. Did you mean 'dt record'?"
 #[test]
 fn dt_conclude_is_rejected_with_record_suggestion() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dt().args(["conclude", "some claim", "--human"])
         .env("DONT_DIR", dir.path())
@@ -175,8 +169,7 @@ fn dt_conclude_is_rejected_with_record_suggestion() {
 /// "unknown command 'trust' for dt. Did you mean 'dt challenge'?"
 #[test]
 fn dt_trust_is_rejected_with_challenge_suggestion() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dt().args(["trust", "claim:abc", "--reason", "x", "--human"])
         .env("DONT_DIR", dir.path())
@@ -188,8 +181,7 @@ fn dt_trust_is_rejected_with_challenge_suggestion() {
 /// "unknown command 'forget' for dt. Did you mean 'dt lock'?"
 #[test]
 fn dt_forget_is_rejected_with_lock_suggestion() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dt().args(["forget", "claim:abc", "--human"])
         .env("DONT_DIR", dir.path())
@@ -203,8 +195,7 @@ fn dt_forget_is_rejected_with_lock_suggestion() {
 /// "unknown command 'record' for dont. Did you mean 'dont conclude'?"
 #[test]
 fn dont_record_is_rejected_with_conclude_suggestion() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["record", "some claim", "--human"])
@@ -217,8 +208,7 @@ fn dont_record_is_rejected_with_conclude_suggestion() {
 /// "unknown command 'challenge' for dont. Did you mean 'dont trust'?"
 #[test]
 fn dont_challenge_is_rejected_with_trust_suggestion() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["challenge", "claim:abc", "--reason", "x", "--human"])
@@ -231,8 +221,7 @@ fn dont_challenge_is_rejected_with_trust_suggestion() {
 /// "unknown command 'lock' for dont. Did you mean 'dont forget'?"
 #[test]
 fn dont_lock_is_rejected_with_forget_suggestion() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["lock", "claim:abc", "--human"])

@@ -1,13 +1,11 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 #[test]
 fn explain_ungrounded_returns_why_explain_payload() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["explain", "ungrounded", "--json"])
@@ -30,8 +28,7 @@ fn explain_ungrounded_returns_why_explain_payload() {
 
 #[test]
 fn explain_returns_severity_for_shipped_rule() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["explain", "ungrounded", "--json"])
@@ -52,8 +49,7 @@ fn explain_returns_severity_for_shipped_rule() {
 
 #[test]
 fn explain_unknown_rule_emits_not_found_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["explain", "nonexistent-rule", "--json"])
@@ -71,8 +67,7 @@ fn explain_unknown_rule_emits_not_found_error() {
 
 #[test]
 fn explain_works_without_json_flag() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["explain", "ungrounded"])

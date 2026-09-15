@@ -1,13 +1,12 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::{
     HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn define_term(dir: &TempDir, curie: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", "a valid definition", "--json"])
         .env("DONT_DIR", dir.path())
@@ -20,7 +19,7 @@ fn define_term(dir: &TempDir, curie: &str) -> String {
     v["data"]["id"].as_str().unwrap().to_string()
 }
 
-fn trust(dir: &TempDir, id: &str, reason: &str) -> Vec<u8> {
+fn trust(dir: &TestProject, id: &str, reason: &str) -> Vec<u8> {
     dont()
         .args(["trust", id, "--reason", reason, "--json"])
         .env("DONT_DIR", dir.path())
@@ -35,8 +34,7 @@ fn trust(dir: &TempDir, id: &str, reason: &str) -> Vec<u8> {
 
 #[test]
 fn trust_unverified_claim_produces_doubted_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "rust is memory safe");
     let out = trust(&dir, &id, "I have not verified the proofs myself");
     let v: Value = serde_json::from_slice(&out).unwrap();
@@ -47,8 +45,7 @@ fn trust_unverified_claim_produces_doubted_status() {
 
 #[test]
 fn trust_carries_tx_in_meta() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the earth orbits the sun");
     let out = trust(&dir, &id, "need independent confirmation");
     let v: Value = serde_json::from_slice(&out).unwrap();
@@ -57,8 +54,7 @@ fn trust_carries_tx_in_meta() {
 
 #[test]
 fn trust_verified_claim_produces_doubted_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "water boils at 100C at sea level");
     // Dismiss first to reach verified
     dont()
@@ -74,8 +70,7 @@ fn trust_verified_claim_produces_doubted_status() {
 
 #[test]
 fn trust_unverified_term_produces_doubted_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = define_term(&dir, "WB:P001");
     let out = trust(&dir, &id, "definition conflicts with observed usage");
     let v: Value = serde_json::from_slice(&out).unwrap();
@@ -88,8 +83,7 @@ fn trust_unverified_term_produces_doubted_status() {
 
 #[test]
 fn trust_without_reason_returns_reason_required_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim needing reason");
     let out = dont()
         .args(["trust", &id, "--json"])
@@ -107,8 +101,7 @@ fn trust_without_reason_returns_reason_required_exit_1() {
 
 #[test]
 fn trust_already_doubted_returns_invalid_transition_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim to doubt twice");
     trust(&dir, &id, "first doubt");
     let out = dont()
@@ -127,8 +120,7 @@ fn trust_already_doubted_returns_invalid_transition_exit_1() {
 
 #[test]
 fn trust_claim_not_found_returns_error_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args([
             "trust",
@@ -152,8 +144,7 @@ fn trust_claim_not_found_returns_error_exit_1() {
 
 #[test]
 fn trust_with_hedge_i_think_returns_reason_not_hedge() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "hedged claim");
     let out = dont()
         .args(["trust", &id, "--reason", "I think this is wrong", "--json"])
@@ -171,8 +162,7 @@ fn trust_with_hedge_i_think_returns_reason_not_hedge() {
 
 #[test]
 fn trust_hedge_check_is_case_insensitive() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "another hedged claim");
     let out = dont()
         .args([
@@ -194,8 +184,7 @@ fn trust_hedge_check_is_case_insensitive() {
 
 #[test]
 fn trust_with_non_hedge_reason_succeeds() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim with solid reason");
     let out = trust(
         &dir,
@@ -209,7 +198,7 @@ fn trust_with_non_hedge_reason_succeeds() {
 
 // --- Locked-entity transition refusals ---
 
-fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[&str]) {
+fn seed_verified_claim_with_evidence(dir: &TestProject, claim_id: &str, evidence: &[&str]) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let first = evidence.first().expect("at least one evidence item");
     store
@@ -238,7 +227,7 @@ fn seed_verified_claim_with_evidence(dir: &TempDir, claim_id: &str, evidence: &[
     }
 }
 
-fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
+fn seed_assessed_hypotheses(dir: &TestProject, claim_id: &str, count: usize) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     let hypotheses: Vec<HypothesisRecord> = (0..count)
         .map(|idx| HypothesisRecord {
@@ -255,7 +244,7 @@ fn seed_assessed_hypotheses(dir: &TempDir, claim_id: &str, count: usize) {
         .unwrap();
 }
 
-fn lock_claim(dir: &TempDir, id: &str) {
+fn lock_claim(dir: &TestProject, id: &str) {
     seed_verified_claim_with_evidence(
         dir,
         id,
@@ -274,8 +263,7 @@ fn lock_claim(dir: &TempDir, id: &str) {
 
 #[test]
 fn trust_locked_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "A locked claim that cannot be doubted");
     lock_claim(&dir, &id);
 
@@ -302,8 +290,7 @@ fn trust_locked_claim_is_refused() {
 
 #[test]
 fn trust_ignored_claim_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "An ignored claim that cannot be doubted");
 
     dont()
@@ -336,8 +323,7 @@ fn trust_ignored_claim_is_refused() {
 //  dedicated error codes and MUST set rule_name to null."
 #[test]
 fn trust_reason_not_hedge_has_null_rule_name() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim for rule_name null check");
     let out = dont()
         .args(["trust", &id, "--reason", "I think this is wrong", "--json"])
@@ -361,8 +347,7 @@ fn trust_reason_not_hedge_has_null_rule_name() {
 // "Verb-level validators such as reason-required ... MUST set rule_name to null."
 #[test]
 fn trust_reason_required_has_null_rule_name() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim for reason-required null check");
     let out = dont()
         .args(["trust", &id, "--json"])

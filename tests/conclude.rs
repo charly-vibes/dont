@@ -1,11 +1,11 @@
 mod common;
 
 use assert_cmd::cargo::cargo_bin;
-use common::{dont, init_dir};
+use common::{TestProject, dont, init_project};
 use serde_json::Value;
 use tempfile::TempDir;
 
-fn conclude_in(dir: &TempDir, statement: &str) -> Vec<u8> {
+fn conclude_in(dir: &TestProject, statement: &str) -> Vec<u8> {
     dont()
         .args(["conclude", statement, "--json"])
         .env("DONT_DIR", dir.path())
@@ -20,8 +20,7 @@ fn conclude_in(dir: &TempDir, statement: &str) -> Vec<u8> {
 
 #[test]
 fn conclude_returns_claim_envelope_with_ok_true() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = conclude_in(&dir, "all bachelors are unmarried");
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true);
@@ -31,8 +30,7 @@ fn conclude_returns_claim_envelope_with_ok_true() {
 
 #[test]
 fn conclude_creates_claim_with_unverified_status() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = conclude_in(&dir, "water is H2O");
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["data"]["status"], "unverified");
@@ -40,8 +38,7 @@ fn conclude_creates_claim_with_unverified_status() {
 
 #[test]
 fn conclude_claim_has_prefixed_ulid_id() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = conclude_in(&dir, "entropy always increases");
     let v: Value = serde_json::from_slice(&out).unwrap();
     let id = v["data"]["id"].as_str().unwrap();
@@ -53,8 +50,7 @@ fn conclude_claim_has_prefixed_ulid_id() {
 
 #[test]
 fn conclude_claim_view_has_required_arrays() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = conclude_in(&dir, "test claim");
     let v: Value = serde_json::from_slice(&out).unwrap();
     let data = &v["data"];
@@ -71,8 +67,7 @@ fn conclude_claim_view_has_required_arrays() {
 
 #[test]
 fn conclude_populates_statement_in_claim_view() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let statement = "the sky is blue during clear weather";
     let out = conclude_in(&dir, statement);
     let v: Value = serde_json::from_slice(&out).unwrap();
@@ -81,8 +76,7 @@ fn conclude_populates_statement_in_claim_view() {
 
 #[test]
 fn conclude_envelope_has_tx_set_for_mutation() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = conclude_in(&dir, "mutations carry a tx");
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert!(
@@ -93,8 +87,7 @@ fn conclude_envelope_has_tx_set_for_mutation() {
 
 #[test]
 fn conclude_persists_claim_across_invocations() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = conclude_in(&dir, "gravity attracts masses");
     let v: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["ok"], true, "first conclude should succeed");
@@ -138,8 +131,7 @@ fn conclude_persists_claim_across_invocations() {
 
 #[test]
 fn conclude_empty_statement_returns_validation_error_exit_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["conclude", "", "--json"])
         .env("DONT_DIR", dir.path())
@@ -200,8 +192,7 @@ fn conclude_produces_unique_tx_ids_under_parallel_subprocess_load() {
     let bin = cargo_bin("dont");
 
     for attempt in 1..=3 {
-        let dir = TempDir::new().unwrap();
-        init_dir(&dir);
+        let dir = init_project();
         let dont_dir = dir.path().to_owned();
 
         // Spawn 8 concurrent `dont conclude` subprocesses — the repro from dont-fl6.
@@ -259,8 +250,7 @@ fn conclude_produces_unique_tx_ids_under_parallel_subprocess_load() {
 
 #[test]
 fn conclude_rejects_statement_with_path_traversal_sequence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["conclude", "../evil", "--json"])
@@ -282,8 +272,7 @@ fn conclude_rejects_statement_with_path_traversal_sequence() {
 
 #[test]
 fn conclude_rejects_statement_with_shell_metacharacter() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Semicolon is allowed in prose; only genuine injection vectors are blocked.
     for statement in &["foo|bar", "foo`bar`", "foo$bar", "foo\\bar"] {
@@ -327,8 +316,7 @@ fn conclude_rejects_statement_with_shell_metacharacter() {
 
 #[test]
 fn conclude_accepts_prose_punctuation() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let tests = [
         ("needs an adapter; the frontend is reused", "semicolon"),

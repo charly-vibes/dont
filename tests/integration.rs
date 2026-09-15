@@ -1,6 +1,6 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use serde_json::Value;
 use std::time::Instant;
 use tempfile::TempDir;
@@ -60,8 +60,7 @@ fn assert_envelope_conformance(v: &Value, expect_ok: bool) {
 
 #[test]
 fn workflow_conclude_trust_show() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "bacteria cause cholera");
     dont()
         .args([
@@ -90,8 +89,7 @@ fn workflow_conclude_trust_show() {
 
 #[test]
 fn workflow_conclude_dismiss_show() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the speed of light is constant");
     dont()
         .args([
@@ -125,8 +123,7 @@ fn workflow_conclude_dismiss_show() {
 
 #[test]
 fn workflow_full_transition_cycle() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     // unverified → verified → doubted → verified
     let id = conclude_claim(&dir, "plate tectonics drives continental drift");
     dont()
@@ -284,8 +281,7 @@ fn envelope_conformance_success_commands() {
 
 #[test]
 fn envelope_conformance_error_commands() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim for refusal tests");
 
     // trust without reason → reason-required, exit 1
@@ -339,8 +335,7 @@ fn envelope_conformance_error_commands() {
 
 #[test]
 fn workflow_refusal_loop_dismiss_no_evidence_then_with_evidence() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "vaccines cause immunity");
 
     // dismiss without evidence → error, exit 1, structured remediation
@@ -411,8 +406,7 @@ fn workflow_refusal_loop_dismiss_no_evidence_then_with_evidence() {
 
 #[test]
 fn persistence_across_process_boundaries() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "memory outlives the process");
 
     // Trust in one process
@@ -448,8 +442,7 @@ fn persistence_across_process_boundaries() {
 
 #[test]
 fn list_performance_under_250ms_on_100_claims() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     for i in 0..100 {
         conclude_claim(&dir, &format!("claim number {i} for performance test"));
     }
@@ -471,8 +464,7 @@ fn list_performance_under_250ms_on_100_claims() {
 
 #[test]
 fn test_prime_exits_nonzero_with_doubted_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "The earth orbits the sun");
     dont()
         .args(["trust", &id, "--reason", "test", "--json"])
@@ -489,8 +481,7 @@ fn test_prime_exits_nonzero_with_doubted_claim() {
 
 #[test]
 fn test_prime_exits_zero_without_doubted_claims() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "The earth orbits the sun");
     dont()
         .args(["prime", "--json"])

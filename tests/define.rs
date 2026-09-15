@@ -1,13 +1,11 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 #[test]
 fn define_creates_unverified_term() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -37,8 +35,7 @@ fn define_creates_unverified_term() {
 
 #[test]
 fn define_missing_curie_returns_structured_refusal() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args(["define", "--doc", "A definition", "--json"])
@@ -58,8 +55,7 @@ fn define_missing_curie_returns_structured_refusal() {
 
 #[test]
 fn define_missing_doc_returns_structured_refusal() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args(["define", "WB:P001", "--json"])
@@ -78,8 +74,7 @@ fn define_missing_doc_returns_structured_refusal() {
 
 #[test]
 fn defined_term_can_be_shown_after_reopen() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args(["define", "WB:P001", "--doc", "Process by which X", "--json"])
@@ -107,8 +102,7 @@ fn defined_term_can_be_shown_after_reopen() {
 
 #[test]
 fn define_duplicate_curie_is_refused_without_mutating_existing_term() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let first_output = dont()
         .args(["define", "WB:P001", "--doc", "first definition", "--json"])
@@ -149,8 +143,7 @@ fn define_duplicate_curie_is_refused_without_mutating_existing_term() {
 
 #[test]
 fn define_with_empty_label_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -177,8 +170,7 @@ fn define_with_empty_label_is_refused() {
 
 #[test]
 fn define_with_label_missing_article_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -205,8 +197,7 @@ fn define_with_label_missing_article_is_refused() {
 
 #[test]
 fn define_with_punctuated_label_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -233,8 +224,7 @@ fn define_with_punctuated_label_is_refused() {
 
 #[test]
 fn define_with_compound_label_without_vars_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -261,8 +251,7 @@ fn define_with_compound_label_without_vars_is_refused() {
 
 #[test]
 fn define_with_sentence_shaped_label_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -289,8 +278,7 @@ fn define_with_sentence_shaped_label_is_refused() {
 
 #[test]
 fn define_with_well_formed_label_succeeds() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -316,8 +304,7 @@ fn define_with_well_formed_label_succeeds() {
 
 #[test]
 fn define_with_an_label_succeeds() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -343,8 +330,7 @@ fn define_with_an_label_succeeds() {
 
 #[test]
 fn define_without_label_emits_doc_shape_warning() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -375,8 +361,7 @@ fn define_without_label_emits_doc_shape_warning() {
 
 #[test]
 fn define_with_where_clause_label_passes_sentence_check() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -401,8 +386,7 @@ fn define_with_where_clause_label_passes_sentence_check() {
 
 #[test]
 fn define_with_arity_mismatch_compound_label_is_refused() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([
@@ -428,8 +412,7 @@ fn define_with_arity_mismatch_compound_label_is_refused() {
 
 #[test]
 fn define_without_label_compound_doc_emits_no_doc_shape_warning() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let output = dont()
         .args([

@@ -1,6 +1,6 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use predicates::prelude::*;
 use tempfile::TempDir;
 
@@ -8,8 +8,7 @@ use tempfile::TempDir;
 
 #[test]
 fn error_on_missing_required_arg_goes_to_stderr_not_stdout() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // `conclude` with no statement — clap validation error
     dont()
@@ -23,8 +22,7 @@ fn error_on_missing_required_arg_goes_to_stderr_not_stdout() {
 
 #[test]
 fn validation_error_without_json_goes_to_stderr_only() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // empty statement is a validation error
     dont()
@@ -38,8 +36,7 @@ fn validation_error_without_json_goes_to_stderr_only() {
 
 #[test]
 fn validation_error_with_json_flag_stdout_is_json_stderr_is_empty() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["conclude", "", "--json"])
@@ -65,8 +62,7 @@ fn validation_error_with_json_flag_stdout_is_json_stderr_is_empty() {
 
 #[test]
 fn unknown_entity_error_goes_to_stderr_not_stdout() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     dont()
         .args(["show", "claim:nonexistent00000000000000", "--human"])
@@ -81,8 +77,7 @@ fn unknown_entity_error_goes_to_stderr_not_stdout() {
 
 #[test]
 fn successful_json_output_has_data_on_stdout() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "stdout data test");
 
     let out = dont()
@@ -101,8 +96,7 @@ fn successful_json_output_has_data_on_stdout() {
 
 #[test]
 fn list_json_output_only_on_stdout() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "claim for routing test");
 
     let out = dont()
@@ -126,8 +120,7 @@ fn list_json_output_only_on_stdout() {
 fn warnings_go_to_stderr_not_into_json_stdout() {
     // Deprecation warnings emitted by `dismiss` (alias for `flag`) must not
     // contaminate stdout JSON — they go to stderr or the envelope `warnings` field.
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "claim with deprecation path");
 
     let out = dont()
@@ -153,8 +146,7 @@ fn warnings_go_to_stderr_not_into_json_stdout() {
 
 #[test]
 fn human_success_output_goes_to_stdout_not_stderr() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["conclude", "human routing check"])

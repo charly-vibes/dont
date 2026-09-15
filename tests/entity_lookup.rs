@@ -1,10 +1,9 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
+fn define_term(dir: &TestProject, curie: &str, doc: &str) -> String {
     let out = dont()
         .args(["define", curie, "--doc", doc, "--json"])
         .env("DONT_DIR", dir.path())
@@ -22,8 +21,7 @@ fn define_term(dir: &TempDir, curie: &str, doc: &str) -> String {
 /// CURIE resolves to the correct term — satisfies "Done when: cargo test entity_lookup_curie"
 #[test]
 fn entity_lookup_curie() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     define_term(&dir, "WB:P001", "wellbeing principle 1");
 
     let out = dont()
@@ -44,8 +42,7 @@ fn entity_lookup_curie() {
 /// claim:PREFIX (8 chars) resolves to the correct claim
 #[test]
 fn entity_lookup_claim_short_prefix() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the earth orbits the sun");
     let prefix8 = &id.strip_prefix("claim:").unwrap()[..8];
 
@@ -67,8 +64,7 @@ fn entity_lookup_claim_short_prefix() {
 /// Bare short prefix (no colon) resolves to a claim when unique
 #[test]
 fn entity_lookup_bare_prefix_resolves_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "bare prefix test claim");
     let prefix8 = &id.strip_prefix("claim:").unwrap()[..8];
 
@@ -89,8 +85,7 @@ fn entity_lookup_bare_prefix_resolves_claim() {
 /// Bare short prefix resolves to a term when unique
 #[test]
 fn entity_lookup_bare_prefix_resolves_term() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = define_term(&dir, "WB:P042", "bare prefix term test");
     let prefix8 = &id.strip_prefix("term:").unwrap()[..8];
 
@@ -112,8 +107,7 @@ fn entity_lookup_bare_prefix_resolves_term() {
 /// Prefix that matches no entity exits non-zero with a clear error
 #[test]
 fn entity_lookup_prefix_not_found_exits_nonzero() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "some claim");
 
     let out = dont()
@@ -138,8 +132,7 @@ fn entity_lookup_prefix_not_found_exits_nonzero() {
 /// Empty prefix (claim:) with 2 claims → ambiguous-prefix error, exit non-zero
 #[test]
 fn entity_lookup_ambiguous_prefix_exits_nonzero() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "first claim");
     conclude_claim(&dir, "second claim");
 
@@ -165,8 +158,7 @@ fn entity_lookup_ambiguous_prefix_exits_nonzero() {
 /// Lowercase prefix resolves the same as uppercase (ULID case-insensitivity)
 #[test]
 fn entity_lookup_lowercase_prefix_resolves_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "lowercase prefix test claim");
     let prefix8_upper = &id.strip_prefix("claim:").unwrap()[..8];
     let prefix8_lower = prefix8_upper.to_lowercase();
@@ -187,8 +179,7 @@ fn entity_lookup_lowercase_prefix_resolves_claim() {
 
 #[test]
 fn entity_lookup_unknown_term_id_suggests_vocab() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["show", "term:01JNONEXISTENT", "--json"])
@@ -212,8 +203,7 @@ fn entity_lookup_unknown_term_id_suggests_vocab() {
 /// why with a short prefix resolves to the correct claim (regression guard for why dispatch)
 #[test]
 fn entity_lookup_why_short_prefix() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "why short prefix test claim");
     let prefix8 = &id.strip_prefix("claim:").unwrap()[..8];
 
@@ -234,8 +224,7 @@ fn entity_lookup_why_short_prefix() {
 /// Full claim:ULID still resolves correctly (regression guard)
 #[test]
 fn entity_lookup_full_id_regression() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "regression guard claim");
 
     let out = dont()

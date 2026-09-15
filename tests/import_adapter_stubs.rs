@@ -8,13 +8,11 @@
 
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 fn assert_stub_adapter_contract(adapter: &str) {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["import", adapter, "--json"])

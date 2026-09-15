@@ -1,13 +1,12 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use dont::store::{
     HypothesisAssessment, HypothesisRecord, Status, Store, StoreEvent, StoreEventKind,
 };
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn seed_lockable_claim(dir: &TempDir, claim_id: &str) {
+fn seed_lockable_claim(dir: &TestProject, claim_id: &str) {
     let store = Store::open_dont_dir(dir.path()).unwrap();
     store
         .append_status_change(
@@ -54,8 +53,7 @@ fn seed_lockable_claim(dir: &TempDir, claim_id: &str) {
 
 #[test]
 fn show_stdin_processes_two_ids_as_ndjson() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id1 = conclude_claim(&dir, "claim one");
     let id2 = conclude_claim(&dir, "claim two");
 
@@ -84,8 +82,7 @@ fn show_stdin_processes_two_ids_as_ndjson() {
 
 #[test]
 fn show_stdin_empty_lines_skipped() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id1 = conclude_claim(&dir, "skip empty lines test");
 
     let input = format!("\n\n{id1}\n\n");
@@ -104,8 +101,7 @@ fn show_stdin_empty_lines_skipped() {
 
 #[test]
 fn show_stdin_whitespace_stripped_from_ids() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "whitespace strip test");
 
     let input = format!("  {id}  \r\n");
@@ -126,8 +122,7 @@ fn show_stdin_whitespace_stripped_from_ids() {
 
 #[test]
 fn show_stdin_invalid_id_emits_error_envelope_and_continues() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "valid after invalid");
 
     let input = format!("claim:notexist\n{id}\n");
@@ -156,8 +151,7 @@ fn show_stdin_invalid_id_emits_error_envelope_and_continues() {
 
 #[test]
 fn show_stdin_exit_code_highest_severity() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "mixed result");
 
     // valid then invalid → still exit 1
@@ -176,8 +170,7 @@ fn show_stdin_exit_code_highest_severity() {
 
 #[test]
 fn conclude_rejects_stdin_dash_with_usage_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let raw = dont()
         .args(["conclude", "-", "--json"])
@@ -193,8 +186,7 @@ fn conclude_rejects_stdin_dash_with_usage_error() {
 
 #[test]
 fn ground_rejects_stdin_dash_with_usage_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let raw = dont()
         .args(["ground", "-", "--evidence", "https://example.com", "--json"])
@@ -214,8 +206,7 @@ fn ground_rejects_stdin_dash_with_usage_error() {
 /// all ok=true, exit code 0.
 #[test]
 fn show_stdin_batch_five_items_all_processed() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let ids: Vec<String> = (0..5)
         .map(|i| conclude_claim(&dir, &format!("batch item {i}")))
@@ -244,8 +235,7 @@ fn show_stdin_batch_five_items_all_processed() {
 /// the remaining items after the error must still be processed and appear in output.
 #[test]
 fn show_stdin_batch_partial_failure_continues_processing() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let id1 = conclude_claim(&dir, "partial batch a");
     let id2 = conclude_claim(&dir, "partial batch b");
@@ -292,8 +282,7 @@ fn show_stdin_batch_partial_failure_continues_processing() {
 /// All-invalid batch must exit 1 and emit one error envelope per line.
 #[test]
 fn show_stdin_batch_all_invalid_exits_nonzero() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let input = "claim:fake1\nclaim:fake2\nclaim:fake3\n";
     let raw = dont()
@@ -318,8 +307,7 @@ fn show_stdin_batch_all_invalid_exits_nonzero() {
 
 #[test]
 fn lock_stdin_processes_multiple_ids() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id1 = conclude_claim(&dir, "lock stdin one");
     let id2 = conclude_claim(&dir, "lock stdin two");
 

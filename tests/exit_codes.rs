@@ -1,6 +1,6 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{conclude_claim, dont, init_project};
 use tempfile::TempDir;
 
 // --- exit 0 on success ---
@@ -23,8 +23,7 @@ fn version_exits_0() {
 
 #[test]
 fn conclude_exits_0_on_success() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["conclude", "test claim", "--json"])
         .env("DONT_DIR", dir.path())
@@ -35,8 +34,7 @@ fn conclude_exits_0_on_success() {
 
 #[test]
 fn define_exits_0_on_success() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["define", "ex:Foo", "--doc", "a term", "--json"])
         .env("DONT_DIR", dir.path())
@@ -47,8 +45,7 @@ fn define_exits_0_on_success() {
 
 #[test]
 fn list_exits_0_when_empty() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["list", "--json"])
         .env("DONT_DIR", dir.path())
@@ -59,8 +56,7 @@ fn list_exits_0_when_empty() {
 
 #[test]
 fn prime_exits_0_when_no_blockers() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["prime", "--json"])
         .env("DONT_DIR", dir.path())
@@ -71,8 +67,7 @@ fn prime_exits_0_when_no_blockers() {
 
 #[test]
 fn prime_exits_1_when_doubted_claim_blocks() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim that will be doubted");
     dont()
         .args([
@@ -95,8 +90,7 @@ fn prime_exits_1_when_doubted_claim_blocks() {
 
 #[test]
 fn show_exits_0_for_existing_claim() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "a claim to show");
     dont()
         .args(["show", &id, "--json"])
@@ -117,8 +111,7 @@ fn completions_exits_0() {
 
 #[test]
 fn rules_list_exits_0() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["rules", "list", "--json"])
         .env("DONT_DIR", dir.path())
@@ -146,8 +139,7 @@ fn unknown_flag_exits_2() {
 
 #[test]
 fn re_init_exits_1_not_3() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     // second init should refuse with exit 1 (general error), not 3
     dont()
         .args(["init", "--json"])
@@ -159,8 +151,7 @@ fn re_init_exits_1_not_3() {
 
 #[test]
 fn show_nonexistent_id_exits_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["show", "claim:00000000000000000000000000", "--json"])
         .env("DONT_DIR", dir.path())
@@ -171,8 +162,7 @@ fn show_nonexistent_id_exits_1() {
 
 #[test]
 fn conclude_empty_statement_exits_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["conclude", "", "--json"])
         .env("DONT_DIR", dir.path())
@@ -183,8 +173,7 @@ fn conclude_empty_statement_exits_1() {
 
 #[test]
 fn define_empty_doc_exits_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["define", "ex:Foo", "--doc", "", "--json"])
         .env("DONT_DIR", dir.path())
@@ -195,8 +184,7 @@ fn define_empty_doc_exits_1() {
 
 #[test]
 fn explain_unknown_rule_exits_1() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     dont()
         .args(["explain", "no-such-rule", "--json"])
         .env("DONT_DIR", dir.path())

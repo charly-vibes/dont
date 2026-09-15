@@ -7,8 +7,45 @@
 #![allow(dead_code)]
 
 use assert_cmd::Command;
+use genesis::fixture::Fixture;
 use serde_json::Value;
-use tempfile::TempDir;
+
+/// A dont project fixture backed by `genesis::fixture::Fixture` (dont-7xv8).
+///
+/// Wraps the genesis fixture so tests keep the familiar `dir.path()` access
+/// pattern while temp-dir lifecycle and cleanup are handled by genesis.
+pub struct TestProject {
+    fixture: Fixture,
+}
+
+impl TestProject {
+    /// Root of the temporary project directory (passed as `DONT_DIR`).
+    pub fn path(&self) -> &std::path::Path {
+        self.fixture.root()
+    }
+}
+
+impl AsRef<std::path::Path> for TestProject {
+    fn as_ref(&self) -> &std::path::Path {
+        self.fixture.root()
+    }
+}
+
+/// Create a temporary directory initialised as a dont project.
+///
+/// Replaces the former `TempDir::new()` + `init_dir(&dir)` two-step with a
+/// single genesis-fixture-backed call. Runs `dont init --json` and returns
+/// a handle whose `path()` is the canonical `DONT_DIR`.
+pub fn init_project() -> TestProject {
+    let fixture = Fixture::new().build().expect("build genesis fixture");
+    let project = TestProject { fixture };
+    dont()
+        .args(["init", "--json"])
+        .env("DONT_DIR", project.path())
+        .assert()
+        .success();
+    project
+}
 
 /// Return a `Command` pointing at the `dont` binary under test.
 ///
@@ -22,23 +59,13 @@ pub fn dont() -> Command {
     cmd
 }
 
-/// Initialise a temporary directory as a dont project.
-///
-/// Sets `DONT_DIR` to `dir.path()` (the temp dir itself), which is the
-/// canonical convention used by the vast majority of integration tests.
-pub fn init_dir(dir: &TempDir) {
-    dont()
-        .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
-        .assert()
-        .success();
-}
-
 /// Run `dont conclude <statement> --json` and return the new claim's ID.
-pub fn conclude_claim(dir: &TempDir, statement: &str) -> String {
+///
+/// Accepts any path-like handle (`&TempDir` or `&TestProject`).
+pub fn conclude_claim<P: AsRef<std::path::Path>>(dir: P, statement: &str) -> String {
     let out = dont()
         .args(["conclude", statement, "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()

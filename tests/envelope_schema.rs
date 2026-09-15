@@ -1,13 +1,11 @@
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 #[test]
 fn list_terms_envelope_kind_is_term_list() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["list", "--kind", "terms", "--json"])
@@ -27,8 +25,7 @@ fn list_terms_envelope_kind_is_term_list() {
 
 #[test]
 fn vocab_list_envelope_kind_is_term_list() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["vocab", "--json"])
@@ -48,8 +45,7 @@ fn vocab_list_envelope_kind_is_term_list() {
 
 #[test]
 fn trace_envelope_kind_is_events() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let claim_out = dont()
         .args(["conclude", "test claim for trace", "--json"])
@@ -80,8 +76,7 @@ fn trace_envelope_kind_is_events() {
 
 #[test]
 fn success_envelope_always_carries_hints_key() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["prime", "--json"])
@@ -102,8 +97,7 @@ fn success_envelope_always_carries_hints_key() {
 
 #[test]
 fn error_envelope_does_not_carry_hints() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["explain", "nonexistent-rule", "--json"])
@@ -124,8 +118,7 @@ fn error_envelope_does_not_carry_hints() {
 
 #[test]
 fn envelope_kind_error_on_failure() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let out = dont()
         .args(["explain", "nonexistent-rule", "--json"])

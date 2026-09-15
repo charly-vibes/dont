@@ -11,6 +11,8 @@
 /// helper uses a single shared cache dir).
 mod common;
 
+use common::init_project;
+
 use assert_cmd::Command;
 use serde_json::Value;
 use std::path::Path;
@@ -29,9 +31,8 @@ fn dont_isolated(cache_dir: &Path) -> Command {
 /// "Last Error Context".
 #[test]
 fn feedback_from_last_error_reads_scratch_written_on_error() {
-    let dir = TempDir::new().unwrap();
+    let dir = init_project();
     let cache = TempDir::new().unwrap();
-    common::init_dir(&dir);
 
     // Trigger a non-zero exit (empty statement is refused) — this writes the
     // error scratch via the ErrorSink contract in emit_error_no_exit.
@@ -77,9 +78,8 @@ fn feedback_from_last_error_reads_scratch_written_on_error() {
 /// rather than failing — the scratch read is best-effort.
 #[test]
 fn feedback_from_last_error_with_no_prior_error_reports_absence() {
-    let dir = TempDir::new().unwrap();
+    let dir = init_project();
     let cache = TempDir::new().unwrap();
-    common::init_dir(&dir);
 
     let out = dont_isolated(cache.path())
         .args([

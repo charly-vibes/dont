@@ -8,9 +8,8 @@
 
 mod common;
 
-use common::{dont, init_dir};
+use common::{dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
 // ---------------------------------------------------------------------------
 // (a) Connection-refused: unreachable local port
@@ -20,8 +19,7 @@ use tempfile::TempDir;
 /// include the URL in the error message.
 #[test]
 fn import_from_refused_url_exits_nonzero_with_url_in_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // Port 19999 is almost certainly not listening; connection-refused is instant.
     let url = "http://localhost:19999/schema.yaml";
@@ -50,8 +48,7 @@ fn import_from_refused_url_exits_nonzero_with_url_in_error() {
 /// and surface the URL in the error message.
 #[test]
 fn import_from_unreachable_host_exits_nonzero_with_url_in_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     // 0.0.0.0 is not routable as a destination; connection will fail immediately.
     let url = "http://0.0.0.0:19998/schema.yaml";
@@ -88,8 +85,7 @@ fn import_from_unreachable_host_exits_nonzero_with_url_in_error() {
 /// timeout configuration.
 #[test]
 fn import_from_refused_url_completes_within_30_seconds() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let url = "http://localhost:19997/schema.yaml";
 
@@ -123,8 +119,7 @@ fn import_from_refused_url_completes_within_30_seconds() {
 /// The error response for a network failure must suggest a retry.
 #[test]
 fn import_network_error_suggests_retry() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let url = "http://localhost:19996/schema.yaml";
 
@@ -160,8 +155,7 @@ fn import_network_error_suggests_retry() {
 /// A local file path must still work after the URL detection logic is added.
 #[test]
 fn import_from_local_file_still_works_after_url_handling_added() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
 
     let schema_path = dir.path().join("basic.yaml");
     std::fs::write(

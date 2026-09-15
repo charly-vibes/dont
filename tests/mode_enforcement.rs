@@ -5,8 +5,8 @@ use serde_json::Value;
 use std::io::Write;
 use tempfile::TempDir;
 
-fn switch_mode(dir: &TempDir, from: &str, to: &str) {
-    let config_path = dir.path().join("config.toml");
+fn switch_mode(dir: &impl AsRef<std::path::Path>, from: &str, to: &str) {
+    let config_path = dir.as_ref().join("config.toml");
     let original = std::fs::read_to_string(&config_path)
         .expect("config.toml must exist before switching mode");
     let updated = original.replace(&format!("mode = \"{from}\""), &format!("mode = \"{to}\""));
@@ -19,26 +19,26 @@ fn switch_mode(dir: &TempDir, from: &str, to: &str) {
         .expect("write to config.toml must succeed");
 }
 
-fn init_permissive(dir: &TempDir) {
+fn init_permissive(dir: &impl AsRef<std::path::Path>) {
     dont()
         .args(["init", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success();
 }
 
-fn init_strict(dir: &TempDir) {
+fn init_strict(dir: &impl AsRef<std::path::Path>) {
     dont()
         .args(["init", "--strict", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success();
 }
 
-fn define_term(dir: &TempDir, curie: &str) {
+fn define_term(dir: &impl AsRef<std::path::Path>, curie: &str) {
     dont()
         .args(["define", curie, "--doc", "a valid definition", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success();
 }
@@ -50,7 +50,7 @@ fn conclude_with_resolved_depends_on_succeeds_in_permissive_mode() {
 
     let defined = dont()
         .args(["define", "WB:P001", "--doc", "a valid definition", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -67,7 +67,7 @@ fn conclude_with_resolved_depends_on_succeeds_in_permissive_mode() {
             "WB:P001",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -95,7 +95,7 @@ fn conclude_with_unresolved_depends_on_succeeds_in_permissive_mode() {
             "WB:P001",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -128,7 +128,7 @@ fn conclude_with_unresolved_depends_on_is_refused_in_strict_mode() {
             "WB:P001",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .code(1)
         .get_output()
@@ -154,7 +154,7 @@ fn conclude_with_resolved_depends_on_succeeds_in_strict_mode() {
             "WB:P001",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -173,7 +173,7 @@ fn conclude_without_depends_on_succeeds_in_strict_mode() {
 
     let output = dont()
         .args(["conclude", "A self-contained claim", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -200,7 +200,7 @@ fn conclude_multiple_depends_on_one_unresolved_is_refused_in_strict_mode() {
             "WB:P002",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .code(1)
         .get_output()
@@ -219,7 +219,7 @@ fn conclude_with_existing_term_id_depends_on_emits_no_unresolved_warning() {
 
     let defined = dont()
         .args(["define", "WB:P001", "--doc", "a valid definition", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -236,7 +236,7 @@ fn conclude_with_existing_term_id_depends_on_emits_no_unresolved_warning() {
             &term_id,
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -264,13 +264,13 @@ fn ungrounded_rule_reports_warn_severity_in_permissive_mode() {
             "NS:UNRESOLVED",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success();
 
     let output = dont()
         .args(["rules", "test", "ungrounded", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -307,7 +307,7 @@ fn ungrounded_rule_reports_strict_severity_in_strict_mode() {
             "NS:UNRESOLVED",
             "--json",
         ])
-        .env("DONT_DIR", perm_dir.path())
+        .env("DONT_DIR", perm_dir.as_ref())
         .assert()
         .success();
 
@@ -316,7 +316,7 @@ fn ungrounded_rule_reports_strict_severity_in_strict_mode() {
 
     let output = dont()
         .args(["rules", "test", "ungrounded", "--json"])
-        .env("DONT_DIR", perm_dir.path())
+        .env("DONT_DIR", perm_dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -347,14 +347,14 @@ fn mode_switch_from_strict_to_permissive_changes_ungrounded_severity() {
             "NS:UNRESOLVED",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success();
 
     // Confirm warn severity while permissive
     let output_perm = dont()
         .args(["rules", "test", "ungrounded", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -369,7 +369,7 @@ fn mode_switch_from_strict_to_permissive_changes_ungrounded_severity() {
     // Severity should reflect new mode immediately (no restart needed)
     let output_strict = dont()
         .args(["rules", "test", "ungrounded", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()
@@ -400,13 +400,13 @@ fn ungrounded_rule_severity_reads_persisted_mode_not_default() {
             "NS:UNRESOLVED",
             "--json",
         ])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success();
 
     let output = dont()
         .args(["rules", "test", "ungrounded", "--json"])
-        .env("DONT_DIR", dir.path())
+        .env("DONT_DIR", dir.as_ref())
         .assert()
         .success()
         .get_output()

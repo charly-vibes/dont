@@ -1,10 +1,9 @@
 mod common;
 
-use common::{conclude_claim, dont, init_dir};
+use common::{TestProject, conclude_claim, dont, init_project};
 use serde_json::Value;
-use tempfile::TempDir;
 
-fn list_claims(dir: &TempDir) -> Vec<Value> {
+fn list_claims(dir: &TestProject) -> Vec<Value> {
     let out = dont()
         .args(["list", "--json"])
         .env("DONT_DIR", dir.path())
@@ -19,8 +18,7 @@ fn list_claims(dir: &TempDir) -> Vec<Value> {
 
 #[test]
 fn no_persist_conclude_returns_success_without_writing() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["conclude", "an ephemeral claim", "--no-persist", "--json"])
         .env("DONT_DIR", dir.path())
@@ -43,8 +41,7 @@ fn no_persist_conclude_returns_success_without_writing() {
 
 #[test]
 fn no_persist_conclude_duplicate_returns_error_without_writing() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     // First, conclude a claim normally
     conclude_claim(&dir, "the cache expires after 60 seconds");
     // Now try to conclude the same text with --no-persist
@@ -80,8 +77,7 @@ fn no_persist_conclude_duplicate_returns_error_without_writing() {
 
 #[test]
 fn no_persist_trust_with_hedge_returns_error_without_writing() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the payment gateway is stable");
     let out = dont()
         .args([
@@ -123,8 +119,7 @@ fn no_persist_trust_with_hedge_returns_error_without_writing() {
 
 #[test]
 fn no_persist_on_readonly_command_is_noop() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     conclude_claim(&dir, "a claim to list");
     // list with --no-persist should behave identically to list without it
     let with_flag: Value = serde_json::from_slice(
@@ -158,8 +153,7 @@ fn no_persist_on_readonly_command_is_noop() {
 
 #[test]
 fn no_persist_trust_valid_returns_success_without_writing() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let id = conclude_claim(&dir, "the retry logic uses exponential backoff");
     let out = dont()
         .args([
@@ -199,8 +193,7 @@ fn no_persist_trust_valid_returns_success_without_writing() {
 
 #[test]
 fn no_persist_flag_is_accepted_on_all_subcommands_without_error() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     // --no-persist must not cause an unrecognised flag error on read-only commands
     let read_only_cmds: &[&[&str]] = &[
         &["list", "--no-persist", "--json"],
@@ -224,8 +217,7 @@ fn no_persist_flag_is_accepted_on_all_subcommands_without_error() {
 
 #[test]
 fn dont_no_persist_env_var_makes_writes_ephemeral() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["conclude", "env var driven ephemeral claim", "--json"])
         .env("DONT_DIR", dir.path())
@@ -251,8 +243,7 @@ fn dont_no_persist_env_var_makes_writes_ephemeral() {
 
 #[test]
 fn dont_no_persist_env_var_0_is_treated_as_unset() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["conclude", "a persisted claim", "--json"])
         .env("DONT_DIR", dir.path())
@@ -275,8 +266,7 @@ fn dont_no_persist_env_var_0_is_treated_as_unset() {
 
 #[test]
 fn no_persist_response_has_ephemeral_true() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args([
             "conclude",
@@ -299,8 +289,7 @@ fn no_persist_response_has_ephemeral_true() {
 
 #[test]
 fn normal_response_has_no_ephemeral_field() {
-    let dir = TempDir::new().unwrap();
-    init_dir(&dir);
+    let dir = init_project();
     let out = dont()
         .args(["conclude", "a normal persisted claim", "--json"])
         .env("DONT_DIR", dir.path())
