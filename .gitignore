@@ -1,55 +1,51 @@
-# OS / editor
-.DS_Store
+
 *~
-*.swp
-*.swo
-
-# Environment
-.env
-.env.*
-.direnv/
-
-# Tool caches
+.beads/*
+!.beads/config.yaml
+.beads-credential-key
+# Beads / Dolt files (added by bd init)
+# Beads internal state (track only issues.jsonl for backup)
+!.beads/issues.jsonl
+/book/
 .cache/
+*.db
+.direnv/
 docs/_book/
 docs/specs/
-target/
+.dolt/
 .dont/*
 !.dont/AGENTS.md
 !.dont/config.toml
-!.dont/events.jsonl
 !.dont/db.cozo
-!.dont/seed/
-!.dont/vocab/
-!.dont/rules/
+!.dont/events.jsonl
 !.dont/imports/
-!.dont/sessions/
-!.dont/schemas/
-.dont/seed/*
-.dont/vocab/*
-.dont/rules/*
 .dont/imports/*
-.dont/sessions/*
-.dont/schemas/*
-!.dont/seed/.gitkeep
-!.dont/vocab/.gitkeep
-!.dont/rules/.gitkeep
 !.dont/imports/.gitkeep
-!.dont/sessions/.gitkeep
+!.dont/rules/
+.dont/rules/*
+!.dont/rules/.gitkeep
+!.dont/schemas/
+.dont/schemas/*
 !.dont/schemas/.gitkeep
-
+!.dont/seed/
+.dont/seed/*
+!.dont/seed/.gitkeep
+!.dont/sessions/
+.dont/sessions/*
+!.dont/sessions/.gitkeep
+!.dont/vocab/
+.dont/vocab/*
+!.dont/vocab/.gitkeep
+.DS_Store
+.env
+.env.*
+# Environment
 # Local notes
-*.tmp
-
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-
-# Beads internal state (track only issues.jsonl for backup)
-.beads/*
-!.beads/issues.jsonl
-!.beads/config.yaml
-
-# testaruda store (local SQLite DB)
+# OS / editor
+*.swo
+*.swp
+target/
 .testaruda/
+# testaruda store (local SQLite DB)
+*.tmp
+# Tool caches

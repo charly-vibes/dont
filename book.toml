@@ -9,9 +9,10 @@ description = "Purpose, design, and usage guide for dont, a CLI that forces auto
 build-dir = "docs/_book"
 
 [output.html]
-default-theme = "navy"
+default-theme = "coal"
+preferred-dark-theme = "coal"
 git-repository-url = "https://github.com/charly-vibes/dont"
 edit-url-template = "https://github.com/charly-vibes/dont/edit/main/{path}"
 site-url = "/dont/"
 no-section-label = true
-additional-css = []
+additional-css = ["theme/charly.css"]

@@ -17,5 +17,6 @@ extend-exclude = [
   ".git/",
   ".wai/",
   ".agents/",
-  "0-*.md"
+  "0-*.md",
+  "theme/charly.css"
 ]

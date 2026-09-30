@@ -10,6 +10,12 @@
 
 # dont
 
+> **Why:** autonomous LLM agents assert claims they never grounded — hallucinated
+> facts compound silently across a session. dont forces epistemic discipline:
+> claims must be flagged, grounded, and concluded before the agent may act on
+> them, enforced as a hard gate in its own and other tools' CI.
+> **Status:** [beta](docs/src/status.md) · check/define/flag/conclude shipped · [Motivation & design](docs/src/index.md)
+
 `dont` is a Rust CLI for forcing epistemic discipline in autonomous LLM workflows.
 
 It gives agents an explicit state machine for claims and terms so ungrounded assertions do not quietly become accepted project truth.
