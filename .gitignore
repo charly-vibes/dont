@@ -49,3 +49,4 @@ target/
 # testaruda store (local SQLite DB)
 *.tmp
 # Tool caches
+docs/src/specs/
