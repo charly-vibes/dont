@@ -39,7 +39,7 @@ This repository contains both:
 
 - a working Rust implementation
 - OpenSpec source-of-truth specs in `openspec/`
-- user-facing docs in `docs/`
+- user-facing docs in `docs/src/`
 - workflow context in `.wai/`
 
 ## Installation
@@ -90,10 +90,10 @@ just ci
 
 ## Learn more
 
-- Book intro: `docs/introduction.md`
-- Tutorial: `docs/tutorial.md`
-- Purpose: `docs/purpose.md`
-- Grounding workflow: `docs/grounding-workflow.md`
+- Book intro: `docs/src/introduction.md`
+- Tutorial: `docs/src/tutorial.md`
+- Purpose: `docs/src/purpose.md`
+- Grounding workflow: `docs/src/grounding-workflow.md`
 - OpenSpec project context: `openspec/project.md`
 - Contributing guide: `CONTRIBUTING.md`
 

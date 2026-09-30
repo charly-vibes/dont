@@ -28,10 +28,10 @@ jobs:
 
       - name: Copy OpenSpec specs into docs source
         run: |
-          mkdir -p docs/specs
+          mkdir -p docs/src/specs
           for dir in openspec/specs/*/; do
             name=$(basename "$dir")
-            cp "$dir/spec.md" "docs/specs/$name.md"
+            cp "$dir/spec.md" "docs/src/specs/$name.md"
           done
 
       - name: Build book
