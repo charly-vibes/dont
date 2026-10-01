@@ -1,6 +1,7 @@
 # Summary
 
 - [Introduction](./introduction.md)
+- [charly-vibes Tool Ecosystem](https://charly-vibes.github.io/dulce-de-leche/ecosystem-map.html)
 - [Release Status](./release.md)
 - [Getting Started](./tutorial.md)
 - [Competing hypotheses and atoms](./hypotheses.md)
