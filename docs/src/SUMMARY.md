@@ -1,6 +1,7 @@
 # Summary
 
 - [Introduction](./introduction.md)
+- [Release Status](./release.md)
 - [Getting Started](./tutorial.md)
 - [Competing hypotheses and atoms](./hypotheses.md)
 - [Using `dont` as an LLM agent](./agent-guide.md)
