@@ -52,3 +52,8 @@ target/
 docs/src/specs/
 # §6: generated from Cargo.toml by docs.yml — never committed
 docs/src/release.md
+
+# bd gate runtime lock
+.beads.gate.lock
+# mdbook 0.5 fallout (specodelic-j0m latent bug)
+docs/src/https:/
