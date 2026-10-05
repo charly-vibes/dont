@@ -58,7 +58,7 @@ jobs:
           ddl status >/dev/null
           wai status >/dev/null
           openspec validate --all >/dev/null
-          pretender check >/dev/null
+          pretender check --mode guidance >/dev/null
       - name: Run repository checks
         run: just ci
 
