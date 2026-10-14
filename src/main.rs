@@ -1613,8 +1613,8 @@ fn format_claim_detail(data: &Value) -> String {
                     let display = format!("url:{url}{anchor_suffix}");
                     format!("    {}", truncate_evidence_for_display(&display))
                 } else {
-                    let raw = ev.to_string();
-                    format!("    {}", truncate_evidence_for_display(&raw))
+                    let ev_json = ev.to_string();
+                    format!("    {}", truncate_evidence_for_display(&ev_json))
                 }
             })
             .collect::<Vec<_>>()
@@ -2695,8 +2695,8 @@ fn evidence_check_warning(entity_id: &str, result: &EvidenceCheckResult) -> Opti
 }
 
 fn mocked_evidence_outcomes() -> Option<HashMap<String, MockEvidenceCheckResult>> {
-    let raw = std::env::var("DONT_VERIFY_EVIDENCE_MOCK").ok()?;
-    serde_json::from_str(&raw).ok()
+    let raw_json = std::env::var("DONT_VERIFY_EVIDENCE_MOCK").ok()?;
+    serde_json::from_str(&raw_json).ok()
 }
 
 fn check_evidence_uri(
@@ -5119,13 +5119,13 @@ fn main() {
             }
             let project = open_project_or_exit();
             let status_filter = match status {
-                Some(raw) => match parse_claim_status_filter(&raw) {
+                Some(status_raw) => match parse_claim_status_filter(&status_raw) {
                     Some(status) => Some(status),
                     None => emit_error_and_exit(
                         refusal(
                             "invalid-status",
                             &format!(
-                                "unsupported claim status '{raw}'; expected one of: unverified, verified, doubted, ignored, locked"
+                                "unsupported claim status '{status_raw}'; expected one of: unverified, verified, doubted, ignored, locked"
                             ),
                             None,
                             vec![RemediationEntry {
@@ -5146,13 +5146,13 @@ fn main() {
                 ListKind::All
             } else {
                 match kind {
-                    Some(raw) => match parse_list_kind(&raw) {
+                    Some(kind_raw) => match parse_list_kind(&kind_raw) {
                         Some(kind) => kind,
                         None => emit_error_and_exit(
                             refusal(
                                 "invalid-kind",
                                 &format!(
-                                    "unsupported list kind '{raw}'; expected one of: claims, terms"
+                                    "unsupported list kind '{kind_raw}'; expected one of: claims, terms"
                                 ),
                                 None,
                                 vec![RemediationEntry {
@@ -5326,13 +5326,13 @@ fn main() {
             }
             let project = open_project_or_exit();
             let status_filter = match status {
-                Some(raw) => match parse_claim_status_filter(&raw) {
+                Some(status_raw) => match parse_claim_status_filter(&status_raw) {
                     Some(status) => Some(status),
                     None => emit_error_and_exit(
                         refusal(
                             "invalid-status",
                             &format!(
-                                "unsupported term status '{raw}'; expected one of: unverified, verified, doubted, ignored"
+                                "unsupported term status '{status_raw}'; expected one of: unverified, verified, doubted, ignored"
                             ),
                             None,
                             vec![RemediationEntry {

@@ -1,5 +1,8 @@
 [pretender]
 mode = "tiered"
+# Advisory lease for guidance/tiered modes (required since the 0.7.0 pin;
+# missing lease fails closed). Renew by pushing the date forward.
+advisory_until = "2026-12-31"
 languages = ["auto"]
 exclude = ["vendor/**", "node_modules/**", "**/*_generated.*", "**/docs/_book/**", "**/target/**", "**/.espectacular/**", "**/.dont/**"]
 
