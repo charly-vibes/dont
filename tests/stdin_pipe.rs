@@ -172,15 +172,15 @@ fn show_stdin_exit_code_highest_severity() {
 fn conclude_rejects_stdin_dash_with_usage_error() {
     let dir = init_project();
 
-    let raw = dont()
+    let res = dont()
         .args(["conclude", "-", "--json"])
         .env("DONT_DIR", dir.path())
         .write_stdin("some statement\n")
         .output()
         .unwrap();
 
-    assert_eq!(raw.status.code(), Some(2));
-    let v: Value = serde_json::from_slice(&raw.stdout).unwrap();
+    assert_eq!(res.status.code(), Some(2));
+    let v: Value = serde_json::from_slice(&res.stdout).unwrap();
     assert_eq!(v["ok"], false);
 }
 
@@ -188,15 +188,15 @@ fn conclude_rejects_stdin_dash_with_usage_error() {
 fn ground_rejects_stdin_dash_with_usage_error() {
     let dir = init_project();
 
-    let raw = dont()
+    let res = dont()
         .args(["ground", "-", "--evidence", "https://example.com", "--json"])
         .env("DONT_DIR", dir.path())
         .write_stdin("some statement\n")
         .output()
         .unwrap();
 
-    assert_eq!(raw.status.code(), Some(2));
-    let v: Value = serde_json::from_slice(&raw.stdout).unwrap();
+    assert_eq!(res.status.code(), Some(2));
+    let v: Value = serde_json::from_slice(&res.stdout).unwrap();
     assert_eq!(v["ok"], false);
 }
 
