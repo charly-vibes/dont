@@ -67,4 +67,8 @@ docs/src/https:/
 .ddl/compatibility-cache.json
 
 # tool data dirs (managed by `ddl init --gates`)
-.pretender/
+# the findings snapshot IS the recorded gate baseline (gh #29) — commit it
+.pretender/*
+!.pretender/history/
+.pretender/history/*
+!.pretender/history/last-findings.json

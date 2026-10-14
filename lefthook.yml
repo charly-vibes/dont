@@ -5,7 +5,9 @@ pre-commit:
     ddl-ah-check:
       run: ah check
     ddl-pretender-gate:
-      run: pretender check --mode gate
+      # only-new gate: fails on new violations vs the committed baseline
+      # (.pretender/history/last-findings.json) — gh #29
+      run: scripts/pretender-gate
     ddl-spk-lint:
       run: spk lint openspec
     # ddl:managed:end (pre-commit)
