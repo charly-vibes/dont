@@ -1,3 +1,45 @@
+<!-- BEADS:START -->
+<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
+## Beads Issue Tracker
+
+This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+
+### Quick Reference
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --claim  # Claim work
+bd close <id>         # Complete work
+```
+
+### Rules
+
+- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- Run `bd prime` for detailed command reference and session close protocol
+- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+
+## Session Completion
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY.
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+<!-- END BEADS INTEGRATION -->
+<!-- BEADS:END -->
+
+<!-- DONT:START -->
+<!-- dont: managed block -->
+See .dont/ for grounded-claim workflow.
+<!-- DONT:END -->
+
 <!-- OPENSPEC:START -->
 # OpenSpec Instructions
 
@@ -17,15 +59,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
 
-<!-- WAI:START -->
-## PRIMARY OBJECTIVE
-
-Build and maintain **dont** — the epistemic discipline CLI that forces
-agents to ground claims before asserting them. Every action should trace
-back to: does this make dont more reliable, more self-disciplined, or
-better at catching ungrounded assertions?
-
-# Workflow Tools
+<!-- WAI:START --># Workflow Tools
 
 This project uses **wai** to track the *why* behind decisions — research,
 reasoning, and design choices that shaped the code. Run `wai status` first
@@ -48,22 +82,40 @@ Detected workflow tools:
 
 1. `wai sync` — ensure agent tools are projected
 2. `wai status` — see active projects, phase, and suggestions
-3. `dont prime` — see current claim status (open questions, unverified claims)
-4. `bd ready` — find available work items
+3. `bd ready` — find available work items
 
 When context reaches ~40%: stop and tell the user — responses degrade past
 this point. Recommend `wai close` then `/clear` to resume cleanly.
 Do NOT skip `wai close` — it enables resume detection.
 
-
-
 ## Available Pipelines
 
 | Pipeline | When to Use | Start |
 |----------|-------------|-------|
+| epic-tdd-ro5 | Working through an epic where each ticket requires full TDD discipline and quality review | `wai pipeline start epic-tdd-ro5 --topic=<topic>` |
 | tdd-ro5 | Feature development or bug fixes requiring test-driven discipline and quality review | `wai pipeline start tdd-ro5 --topic=<topic>` |
 
 > Pipeline steps may have gates that enforce artifact creation, review coverage, and oracle checks before advancement. Run `wai pipeline gates <name>` for details.
+> **Before any edit**: run `wai pipeline current --json`; if a run is active for this project, resume it (`wai pipeline next`) rather than starting ad-hoc work.
+
+## Ubiquitous Language
+
+If `.wai/resources/ubiquitous-language/README.md` exists, read it first as the
+navigation index, then open only the bounded-context files relevant to the task.
+Avoid loading every terminology file unless the work truly spans multiple contexts.
+
+## Autonomous Work Policy
+
+Proceed without routine confirmation when the next step is clear.
+Do not ask to continue, fix, or commit — just do it.
+
+**Stop and ask** only when:
+- Conflicting requirements or ambiguous intent
+- Destructive actions (data loss, force-push, drop table)
+- Credentials, secrets, or external services not yet authorized
+- Unresolved test failures after two attempts
+- Push, deploy, or release — always get explicit authorization
+- Context approaching 40% — recommend `wai close` then `/clear`
 
 ## Detailed Instructions
 
@@ -71,15 +123,10 @@ Full workflow reference — session lifecycle, capturing work, command cheat
 sheets, cross-tool sync, and PARA structure — lives in **`.wai/AGENTS.md`**.
 Read it at the start of your first session or when you need detailed guidance.
 
-## PRIMARY OBJECTIVE (echo)
-
-Build and maintain **dont** — the epistemic discipline CLI that forces
-agents to ground claims before asserting them. Every action should trace
-back to: does this make dont more reliable, more self-disciplined, or
-better at catching ungrounded assertions?
-
 Keep this managed block so `wai init` can refresh the instructions.
 
+
+<!-- provenance: generator=wai version=0.12.3 source=WAI sha=77c71824 -->
 <!-- WAI:END -->
 
 ## Behavioral Constraints
@@ -140,6 +187,9 @@ context before starting research or creating tickets.
 
 > **Before research or ticket creation**: always run `wai search "<topic>"` to
 > check for known patterns. Do not rediscover what is already documented.
+
+
+<!-- provenance: generator=wai version=0.12.3 source=WAI:REFLECT:REF sha=73879972 -->
 <!-- WAI:REFLECT:REF:END -->
 
 
@@ -196,3 +246,21 @@ Run `ah check` to verify spec-test correspondence before committing.
 - `ah doctor --enable <adapter>` — write adapter config into .espectacular/config.toml
 - `ah signals` — emit dont drift signals
 <!-- ah:managed:end -->
+<!-- DDL:START -->
+
+## dulce-de-leche (ddl v0.8.0)
+
+Orchestrator for the charly-vibes tool ecosystem. Run `ddl init` to
+install and configure all tools. Run `ddl status` for a health overview.
+
+Commands:
+- init     Bootstrap the toolset
+- install  Install a single tool
+- status   Show health overview
+- doctor   Run diagnostics
+- version  Show versions
+- upgrade  Update tools
+- migrate  Migrate configs
+- scope    Show active .ddl/
+
+<!-- DDL:END -->

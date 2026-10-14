@@ -2,8 +2,8 @@ plugins = []
 
 [project]
 name = "dont"
-version = "2026.4.8"
+version = "2026.10.10"
 description = ""
-tool_commit = "c2bfba9"
+tool_commit = "4f812dd"
 
 [llm]
