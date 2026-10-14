@@ -110,11 +110,11 @@ The system SHALL allow derived dependency-trace assessments to inform later comm
 ### Requirement: Status transition terminology
 The system SHALL use the terms `trust`, `flag`, and `undoubt` to describe the primary lifecycle transitions in v0.3. Documentation and error messages SHALL reflect this terminology while acknowledging deprecated aliases.
 
-#### Scenario: trust transition records its reason
+#### Scenario: trust command records its stated reason
 - **WHEN** an actor transitions an entity to `doubted` using the `trust` command
 - **THEN** the transition record includes the stated reason for doubt
 
-#### Scenario: flag transition records evidence references
+#### Scenario: flag command records evidence references
 - **WHEN** an actor transitions an entity to `verified` using the `flag` command
 - **THEN** the transition record includes the evidence references used for that verification
 
