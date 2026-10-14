@@ -1,5 +1,0 @@
-[default]
-fail-under = 60
-out = ["Xml"]
-output-dir = "target/coverage"
-exclude-files = ["tests/*", "src/main.rs"]

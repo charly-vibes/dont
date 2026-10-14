@@ -12,6 +12,17 @@ use std::time::Instant;
 const CLAIM_COUNT: usize = 1_000;
 const LIMIT_SECS: u64 = 5;
 
+/// These tests spawn the `dont` binary CLAIM_COUNT times each — ~85s total on
+/// every run. They run in CI (GitHub Actions sets `CI`), but are skipped
+/// locally so `cargo test` stays fast (ticket dont-a4lk / gh #35).
+fn skip_outside_ci() -> bool {
+    if std::env::var_os("CI").is_some() {
+        return false;
+    }
+    eprintln!("skipping performance test outside CI (spawns {CLAIM_COUNT} processes)");
+    true
+}
+
 /// Create CLAIM_COUNT claims in `dir`, return the last claim's ID.
 fn populate(dir: &TestProject) -> String {
     let mut last_id = String::new();
@@ -23,6 +34,9 @@ fn populate(dir: &TestProject) -> String {
 
 #[test]
 fn list_1000_claims_completes_within_5s() {
+    if skip_outside_ci() {
+        return;
+    }
     let dir = init_project();
     populate(&dir);
 
@@ -42,6 +56,9 @@ fn list_1000_claims_completes_within_5s() {
 
 #[test]
 fn show_in_1000_claim_graph_completes_within_5s() {
+    if skip_outside_ci() {
+        return;
+    }
     let dir = init_project();
     let id = populate(&dir);
 
@@ -61,6 +78,9 @@ fn show_in_1000_claim_graph_completes_within_5s() {
 
 #[test]
 fn why_in_1000_claim_graph_completes_within_5s() {
+    if skip_outside_ci() {
+        return;
+    }
     let dir = init_project();
     let id = populate(&dir);
 

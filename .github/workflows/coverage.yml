@@ -1,0 +1,66 @@
+name: Coverage
+
+# dont-a4lk: coverage used to run on every PR via cargo-tarpaulin (a full
+# instrumented rebuild, uncached — often slower than the main CI job). Now
+# nightly-only, and skipped entirely when the repo hasn't changed since the
+# last successful coverage run.
+
+on:
+  schedule:
+    - cron: "37 4 * * *" # daily, off the hour to avoid runner congestion
+  workflow_dispatch:
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Skip when HEAD is identical to the last successful coverage run.
+      - name: Skip if no changes since last coverage run
+        id: changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/coverage.yml/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // empty')
+          head=$(git rev-parse HEAD)
+          if [ "$last" = "$head" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No commits since last successful coverage run (${head:0:7}) — skipping."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Rust toolchain
+        if: steps.changed.outputs.changed == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        if: steps.changed.outputs.changed == 'true'
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        if: steps.changed.outputs.changed == 'true'
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run coverage (threshold 60% line coverage, matching codecov.yml)
+        if: steps.changed.outputs.changed == 'true'
+        run: |
+          cargo llvm-cov \
+            --workspace \
+            --lcov \
+            --output-path target/coverage/lcov.info \
+            --fail-under-lines 60 \
+            --exclude 'src/main.rs' \
+            --ignore-filename-regex '^tests/'
+
+      - name: Upload coverage to Codecov
+        if: steps.changed.outputs.changed == 'true'
+        uses: codecov/codecov-action@v5
+        with:
+          files: target/coverage/lcov.info
+          fail_ci_if_error: false
