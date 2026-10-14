@@ -598,6 +598,93 @@ fn flag_file_dirty_has_content_hash() {
     assert_eq!(commit_ref, format!("git:content:{expected_hash}"));
 }
 
+/// Second temp git repo whose paths are injected as hook-context env vars
+/// (GIT_DIR/GIT_INDEX_FILE/GIT_WORK_TREE) into the `dont` child process.
+/// Mirrors `init_git_repo` but for an unrelated repository.
+fn init_foreign_git_repo(dir: &TempDir) {
+    init_git_repo(dir);
+    std::fs::write(dir.path().join("foreign.md"), "foreign seed\n").unwrap();
+    git_add_commit(dir, "foreign.md");
+}
+
+#[test]
+fn flag_file_resolves_provenance_under_hook_env() {
+    // dont runs inside git hooks (bd hooks, lefthook/prek), where GIT_DIR,
+    // GIT_INDEX_FILE, and GIT_WORK_TREE point at the hook's repo. Provenance
+    // for the flagged file must still resolve against the project's OWN repo,
+    // so the hook-injected vars must not leak into the git invocations.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    init_git_repo(&dir);
+    std::fs::write(dir.path().join("initial.md"), "seed\n").unwrap();
+    git_add_commit(&dir, "initial.md");
+    let foreign = TempDir::new().unwrap();
+    init_foreign_git_repo(&foreign);
+
+    let id = conclude_claim(&dir, "claim flagged under hook env");
+    let out = dont()
+        .args(["flag", &id, "--json", "--file", "initial.md"])
+        .env("DONT_DIR", dir.path().join(".dont"))
+        // Hook context: all three vars point at the foreign repo.
+        .env("GIT_DIR", foreign.path().join(".git"))
+        .env("GIT_INDEX_FILE", foreign.path().join(".git").join("index"))
+        .env("GIT_WORK_TREE", foreign.path())
+        .output()
+        .unwrap()
+        .stdout;
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(
+        v["ok"], true,
+        "flag --file should succeed under hook env: {v}"
+    );
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    let locator = evidence.iter().find(|e| e.is_object()).unwrap();
+    let commit_ref = locator["commit_ref"].as_str().unwrap();
+    // Expected: the blob sha in the project's own repo, NOT the foreign one.
+    let expected_out = std::process::Command::new("git")
+        .args([
+            "-C",
+            dir.path().to_str().unwrap(),
+            "rev-parse",
+            "HEAD:initial.md",
+        ])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_WORK_TREE")
+        .output()
+        .unwrap();
+    let expected = String::from_utf8_lossy(&expected_out.stdout)
+        .trim()
+        .to_string();
+    assert_eq!(
+        commit_ref,
+        format!("git:{expected}"),
+        "commit_ref must resolve in the project's own repo under hook env"
+    );
+}
+
+#[test]
+fn flag_file_outside_git_repo_omits_commit_ref() {
+    // Degradation pin: a project dir that is not inside a git repo yields a
+    // successful flag with a locator that carries no commit_ref.
+    let dir = TempDir::new().unwrap();
+    init_dir(&dir);
+    std::fs::write(dir.path().join("plain.md"), "plain content\n").unwrap();
+    let id = conclude_claim(&dir, "claim outside any git repo");
+    let out = flag_file(&dir, &id, &["--file", "plain.md"]);
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(
+        v["ok"], true,
+        "flag --file outside a git repo should still succeed: {v}"
+    );
+    let evidence = v["data"]["evidence"].as_array().unwrap();
+    let locator = evidence.iter().find(|e| e.is_object()).unwrap();
+    assert!(
+        locator.get("commit_ref").is_none(),
+        "commit_ref must be absent outside a git repo: {locator}"
+    );
+}
+
 // --- Locked-entity transition refusals ---
 
 fn seed_verified_claim_with_evidence_in_dont_dir(dir: &TempDir, claim_id: &str, evidence: &[&str]) {

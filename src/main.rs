@@ -2735,68 +2735,27 @@ fn check_git_provenance(
     project_root: &std::path::Path,
     entity_id: Option<&str>,
 ) -> Option<String> {
-    let root = project_root.to_string_lossy();
+    use genesis::git::{
+        EnvPolicy, PathStatus, committed_content_hash_with_policy, content_hash_with_policy,
+        path_status_with_policy, repo_root_from,
+    };
+    // dont runs inside hook processes (bd hooks, lefthook/prek) whose
+    // GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE point at the hook's repo —
+    // strip them so git discovers the repository from project_root alone.
+    const POLICY: EnvPolicy = EnvPolicy::StripHookContext;
+
     let rel = rel_path.to_string_lossy();
+    let abs_path = project_root.join(rel_path);
 
-    // Unset GIT_DIR, GIT_INDEX_FILE, and GIT_WORK_TREE so that hook environments
-    // (e.g. prek/lefthook) do not override the repo that -C discovers from
-    // the project_root path.  GIT_WORK_TREE without GIT_DIR is also fatal to git.
-    let status = std::process::Command::new("git")
-        .args(["-C", &root, "status", "--porcelain", &rel])
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_INDEX_FILE")
-        .env_remove("GIT_WORK_TREE")
-        .output();
-
-    let output = match status {
-        Ok(o) if o.status.success() => o,
-        _ => return None, // not a git repo or git unavailable
+    // Single-path porcelain status drives the dispatch. Any git failure
+    // (not a repo, git unavailable) degrades to None exactly as before.
+    let status = match path_status_with_policy(project_root, &abs_path, POLICY) {
+        Ok(status) => status,
+        Err(_) => return None,
     };
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout.lines().next().unwrap_or("");
-
-    if line.is_empty() {
-        // HEAD:<path> requires a path relative to the git root (not project_root),
-        // and must use forward slashes even on Windows.
-        let toplevel_out = std::process::Command::new("git")
-            .args(["-C", &root, "rev-parse", "--show-toplevel"])
-            .env_remove("GIT_DIR")
-            .env_remove("GIT_INDEX_FILE")
-            .env_remove("GIT_WORK_TREE")
-            .output();
-        let git_root = match toplevel_out {
-            Ok(o) if o.status.success() => {
-                std::path::PathBuf::from(String::from_utf8_lossy(&o.stdout).trim().to_string())
-            }
-            _ => return None,
-        };
-        let abs_path = project_root.join(rel_path);
-        let git_rel = match abs_path.strip_prefix(&git_root) {
-            Ok(p) => p.to_string_lossy().replace('\\', "/"),
-            Err(_) => return None,
-        };
-        let sha_out = std::process::Command::new("git")
-            .args(["-C", &root, "rev-parse", &format!("HEAD:{git_rel}")])
-            .env_remove("GIT_DIR")
-            .env_remove("GIT_INDEX_FILE")
-            .env_remove("GIT_WORK_TREE")
-            .output();
-        return match sha_out {
-            Ok(o) if o.status.success() => {
-                let sha = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                Some(format!("git:{sha}"))
-            }
-            _ => None,
-        };
-    }
-
-    let mut chars = line.chars();
-    let index_status = chars.next().unwrap_or(' ');
-    let worktree_status = chars.next().unwrap_or(' ');
-
-    if index_status == '?' {
-        emit_error_and_exit(
+    match status {
+        Some(PathStatus::Untracked) => emit_error_and_exit(
             refusal(
                 "untracked-file",
                 "file is not tracked by git; commit it before using as evidence",
@@ -2808,40 +2767,30 @@ fn check_git_provenance(
             ),
             vec![],
             1,
-        );
-    }
-
-    if worktree_status != ' ' {
-        // Dirty tracked file: use git hash-object to compute a content-based SHA
-        let content_hash_out = std::process::Command::new("git")
-            .args(["-C", &root, "hash-object", &rel])
-            .env_remove("GIT_DIR")
-            .env_remove("GIT_INDEX_FILE")
-            .env_remove("GIT_WORK_TREE")
-            .output();
-        return match content_hash_out {
-            Ok(o) if o.status.success() => {
-                let sha = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                Some(format!("git:content:{sha}"))
-            }
-            _ => None,
-        };
-    }
-
-    // index_status is non-space, non-? → staged but not committed
-    // Use git hash-object to compute a content-based SHA (same as dirty files).
-    let content_hash_out = std::process::Command::new("git")
-        .args(["-C", &root, "hash-object", &rel])
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_INDEX_FILE")
-        .env_remove("GIT_WORK_TREE")
-        .output();
-    match content_hash_out {
-        Ok(o) if o.status.success() => {
-            let sha = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            Some(format!("git:content:{sha}"))
+        ),
+        // Dirty (worktree differs from the index; unmerged mapped to dirty)
+        // and staged-only changes both hash the working-tree content.
+        Some(PathStatus::Dirty) | Some(PathStatus::Staged) => {
+            content_hash_with_policy(project_root, &abs_path, POLICY)
+                .ok()
+                .map(|sha| format!("git:content:{sha}"))
         }
-        _ => None,
+        // Clean tracked file: blob sha at HEAD. HEAD:<path> is repo-root
+        // relative, so resolve the pathspec against the git root with
+        // forward slashes (strip_prefix failure degrades to None, as before).
+        None => {
+            let git_root = repo_root_from(project_root).ok()?;
+            let git_rel = match abs_path.strip_prefix(&git_root) {
+                Ok(p) => p.to_string_lossy().replace('\\', "/"),
+                Err(_) => return None,
+            };
+            // Passing the git-root-relative pathspec lets
+            // committed_content_hash_with_policy emit HEAD:<git_rel> through
+            // its relative_to fallback, without re-deriving the plumbing.
+            committed_content_hash_with_policy(&git_root, std::path::Path::new(&git_rel), POLICY)
+                .ok()
+                .map(|sha| format!("git:{sha}"))
+        }
     }
 }
 
