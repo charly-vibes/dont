@@ -22,8 +22,21 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # dont-a4lk: cache cargo registry + target so we stop recompiling the
+      # world on every run (release.yml already did this; ci.yml did not).
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      # dont-a4lk: prebuilt binaries instead of `cargo install --locked`
+      # from source (~8.5min/run). binstall falls back gracefully per-crate;
+      # anything without a prebuilt artifact still builds from source below.
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@cargo-binstall
+
       - name: Install quality tools
-        run: cargo install --locked prek typos-cli
+        run: |
+          cargo binstall -y --locked typos-cli || cargo install --locked typos-cli
+          cargo binstall -y prek || cargo install --locked prek
 
       - name: Install Vale
         run: |
@@ -32,14 +45,20 @@ jobs:
           sudo mv vale /usr/local/bin/vale
 
       - name: Install wai (§4, pinned)
-        run: cargo install --locked wai-cli@2026.9.28
+        run: cargo binstall -y --locked wai-cli@2026.9.28 || cargo install --locked wai-cli@2026.9.28
 
       - name: Install mdBook
         uses: taiki-e/install-action@mdbook
 
+      # dont-a4lk: nextest for parallel test execution across the 80
+      # integration binaries (per-test timing, better failure reporting).
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
       - name: Install ecosystem tools (§4 dogfood matrix, pinned)
         run: |
-          cargo install --locked pretender@0.7.0 dulce-de-leche@0.7.0
+          cargo binstall -y --locked pretender@0.7.0 dulce-de-leche@0.7.0 \
+            || cargo install --locked pretender@0.7.0 dulce-de-leche@0.7.0
           npm install -g @fission-ai/openspec@0.19.0
       - name: Install bd (beads, pinned §4)
         run: |
@@ -66,25 +85,3 @@ jobs:
         run: curl -fsS --max-time 10 --retry 2 https://charly-vibes.github.io/dont/ >/dev/null
       - name: Run repository checks
         run: just ci
-
-  coverage:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-tarpaulin
-        uses: taiki-e/install-action@cargo-tarpaulin
-
-      - name: Run coverage (threshold from .tarpaulin.toml)
-        run: cargo tarpaulin
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: target/coverage/cobertura.xml
-          fail_ci_if_error: false

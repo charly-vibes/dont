@@ -10,7 +10,15 @@ install:
   cargo install --path . --locked
 
 test:
-  cargo test
+	#!/usr/bin/env bash
+	# dont-a4lk: prefer nextest (parallel, per-test timing); fall back to cargo test
+	if command -v cargo-nextest >/dev/null 2>&1; then
+		cargo nextest run
+	else
+		cargo test
+	fi
+	# nextest does not run doctests; keep them covered explicitly
+	cargo test --doc --quiet
 
 # Validate spec-test correspondence (requires espectacular)
 validate:
@@ -58,7 +66,7 @@ docs-build:
 docs: docs-build
 
 coverage:
-  cargo tarpaulin
+  cargo llvm-cov --workspace --lcov --output-path target/coverage/lcov.info --fail-under-lines 60
 
 check-claims:
   cargo build --quiet
