@@ -37,3 +37,7 @@ This book is the reader-friendly front door for the project. It does not replace
 - [Research: forcing doubt in minds and machines](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-forcing-doubt-in-minds-and-machines-why-llms-de.md)
 - [Research: designing doubt into AI interaction](https://github.com/charly-vibes/dont/blob/main/.wai/projects/dont/research/2026-04-20-designing-doubt-into-ai-interaction-what-the.md)
 - [Repository README](https://github.com/charly-vibes/dont/blob/main/README.md)
+
+## Ecosystem
+
+dont is part of the [charly-vibes Tool Ecosystem](https://charly-vibes.github.io/dulce-de-leche/ecosystem-map.html) — the map shows how it relates to its sibling tools.
