@@ -1726,17 +1726,29 @@ impl Store {
     }
 
     fn run(&self, script: &str) -> Result<(), StoreError> {
-        // CozoDB's SQLite backend sets no busy_timeout. Rayon worker threads
-        // inside concurrent DbInstance objects can hold read locks that block
-        // writes, returning SQLITE_BUSY (code 5). Retry with exponential backoff
-        // so callers don't see transient lock contention as hard errors.
+        self.run_script_with_lock_retry(script, false).map(|_| ())
+    }
+
+    // CozoDB's SQLite backend sets no busy_timeout. Rayon worker threads
+    // inside concurrent DbInstance objects can hold read locks that block
+    // writes, returning SQLITE_BUSY (code 5). Retry with exponential backoff
+    // so callers don't see transient lock contention as hard errors.
+    //
+    // Applies to BOTH write scripts (`run`) and read queries (`query_rows`):
+    // reads issued outside the write lock (e.g. the dedup check in
+    // `append_claim`) can hit SQLITE_BUSY while another connection commits.
+    fn run_script_with_lock_retry(
+        &self,
+        script: &str,
+        extract_rows: bool,
+    ) -> Result<Value, StoreError> {
         const MAX_ATTEMPTS: u32 = 5;
         let mut attempt = 0u32;
         loop {
-            let result = self.db.run_script_str(script, "", false);
+            let result = self.db.run_script_str(script, "", extract_rows);
             let value: Value = serde_json::from_str(&result).map_err(StoreError::from_err)?;
             if value.get("ok").and_then(Value::as_bool) != Some(false) {
-                return Ok(());
+                return Ok(value);
             }
             let json_str = value.to_string();
             if attempt < MAX_ATTEMPTS && json_str.contains("database is locked") {
@@ -1749,11 +1761,7 @@ impl Store {
     }
 
     fn query_rows(&self, script: &str) -> Result<Vec<Vec<Value>>, StoreError> {
-        let result = self.db.run_script_str(script, "", true);
-        let value: Value = serde_json::from_str(&result).map_err(StoreError::from_err)?;
-        if value.get("ok").and_then(Value::as_bool) == Some(false) {
-            return Err(StoreError::Cozo(value.to_string()));
-        }
+        let value = self.run_script_with_lock_retry(script, true)?;
         serde_json::from_value(value.get("rows").cloned().unwrap_or(Value::Array(vec![])))
             .map_err(StoreError::from_err)
     }
