@@ -1,7 +1,7 @@
 [pretender]
 mode = "tiered"
 languages = ["auto"]
-exclude = ["vendor/**", "node_modules/**", "**/*_generated.*"]
+exclude = ["vendor/**", "node_modules/**", "**/*_generated.*", "**/docs/_book/**", "**/target/**", "**/.espectacular/**", "**/.dont/**"]
 
 [roles.test]
 paths = ["tests/**", "**/*_test.*", "spec/**"]

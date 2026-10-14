@@ -43,6 +43,16 @@ This repository contains both:
 
 ## Installation
 
+### Binary (curl)
+
+```bash
+V=$(basename "$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+  https://github.com/charly-vibes/dont/releases/latest)" | sed 's/^v//')
+TGT="$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/^x86_64$/amd64/; s/^aarch64$/arm64/')"
+curl -fsSL "https://github.com/charly-vibes/dont/releases/download/v${V}/dont_${V}_${TGT}.tar.gz" | tar xz
+chmod +x dont && sudo mv dont /usr/local/bin/
+```
+
 ### Cargo (crates.io)
 
 ```bash
