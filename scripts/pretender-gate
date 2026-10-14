@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# pretender-gate — only-new pretender gate using pretender's own findings
+# snapshot (gh #29 / dont-3rzr).
+#
+# Gate policy: fail on NEW violations vs the recorded baseline
+# (.pretender/history/last-findings.json — pretender's findings snapshot,
+# committed to git) or on files pretender could not parse. The 229
+# pre-existing violations stay advisory.
+#
+# (Note: .pretender/last-check.json is a full report dump, NOT the
+# snapshot. The snapshot — stable path::unit::rule fingerprints — lives
+# in .pretender/history/last-findings.json.)
+#
+# Why restore the baseline after every gate run: pretender persists the
+# findings snapshot BEFORE the exit decision — without the restore, a
+# failed run would absorb its own violations and pass on the next run.
+#
+# Usage:
+#   scripts/pretender-gate            gate run (hook / CI)
+#   scripts/pretender-gate --record   deliberately rewrite the baseline
+#                                     from the current scan, then commit it
+#
+# Tests: python3 scripts/test_pretender_gate.py
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+cd "$root"
+baseline=.pretender/history/last-findings.json
+
+record=0
+if [ "${1:-}" = "--record" ]; then
+  record=1
+elif [ -n "${1:-}" ]; then
+  echo "pretender-gate: unknown argument '$1' (expected --record or nothing)" >&2
+  exit 2
+fi
+
+if [ "$record" -eq 0 ] && [ ! -f "$baseline" ]; then
+  echo "pretender-gate: no baseline at $baseline" >&2
+  echo "  run 'scripts/pretender-gate --record' to record one, then commit it" >&2
+  exit 1
+fi
+
+backup=$(mktemp)
+fresh=$(mktemp)
+report=$(mktemp)
+trap 'rm -f "$backup" "$fresh" "$report"' EXIT
+if [ -f "$baseline" ]; then cp "$baseline" "$backup"; fi
+
+# tiered = advisory exit, but every run persists the findings snapshot we
+# diff against — that is the whole mechanism.
+if ! pretender check --mode tiered --format json -q > "$report"; then
+  cat "$report" >&2
+  echo "pretender-gate: pretender check failed to run (lease expired? config broken?)" >&2
+  exit 1
+fi
+
+# Grab the fresh snapshot before the restore clobbers it.
+if [ -f "$baseline" ]; then cp "$baseline" "$fresh"; fi
+
+# Restore the recorded baseline (no-op in --record mode: the fresh
+# snapshot IS the new baseline).
+if [ "$record" -eq 0 ]; then
+  if [ -s "$backup" ]; then cp "$backup" "$baseline"; else rm -f "$baseline"; fi
+else
+  # Terminate the recorded baseline with a newline — pretender writes it
+  # without one, which trips lefthook's end-of-file-fixer on commit.
+  [ -f "$baseline" ] && [ -n "$(tail -c1 "$baseline")" ] && printf '\n' >> "$baseline"
+fi
+
+python3 - "$report" "$backup" "$fresh" "$record" <<'PY'
+import json
+import sys
+
+report_path, backup_path, fresh_path, record = (
+    sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1",
+)
+
+with open(report_path) as fh:
+    report = json.load(fh)
+data = report.get("data", report)
+files = data.get("files", [])
+
+# A file pretender could not parse yields no findings — a blind spot the
+# gate must not wave through. Parse errors carry severity "Warning" (not
+# "Error") in pretender 0.7.x, so match the message too.
+def is_skip(diag):
+    return diag.get("severity") == "Error" or "parse error" in diag.get("message", "").lower()
+
+
+skipped = sorted(
+    f["path"]
+    for f in files
+    if any(is_skip(d) for d in f.get("diagnostics", []))
+)
+
+def ids(path):
+    try:
+        with open(path) as fh:
+            return set(json.load(fh).get("finding_ids", []))
+    except (OSError, ValueError):
+        return set()
+
+prev = ids(backup_path) if (backup_path and not record) else set()
+cur = ids(fresh_path)
+new = sorted(cur - prev)
+
+if record:
+    if skipped:
+        print("pretender-gate: WARNING — unparsable files recorded blind spots:")
+        for p in skipped:
+            print(f"  {p}")
+    print("pretender-gate: baseline recorded — commit .pretender/history/last-findings.json")
+    sys.exit(0)
+
+ok = True
+if new:
+    ok = False
+    print(f"pretender-gate: {len(new)} NEW violation(s) — fix, or --record to accept:")
+    for finding in new:
+        print(f"  {finding}")
+if skipped:
+    ok = False
+    print(f"pretender-gate: {len(skipped)} unparsable file(s) — gate cannot assess:")
+    for p in skipped:
+        print(f"  {p}")
+if ok:
+    total = len(cur)
+    print(f"pretender-gate: ok — {total} advisory (pre-existing), 0 new")
+sys.exit(0 if ok else 1)
+PY
