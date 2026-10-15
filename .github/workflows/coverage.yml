@@ -52,6 +52,7 @@ jobs:
         # --exclude takes a package name, not a path (dont-bd fix);
         # keep the bin entry point out of the denominator via regex instead.
         run: |
+          mkdir -p target/coverage
           cargo llvm-cov \
             --workspace \
             --lcov \
