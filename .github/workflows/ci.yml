@@ -57,8 +57,8 @@ jobs:
 
       - name: Install ecosystem tools (§4 dogfood matrix, pinned)
         run: |
-          cargo binstall -y --locked pretender@0.7.0 dulce-de-leche@0.7.0 \
-            || cargo install --locked pretender@0.7.0 dulce-de-leche@0.7.0
+          cargo binstall -y --locked pretender@0.10.0 dulce-de-leche@0.7.0 \
+            || cargo install --locked pretender@0.10.0 dulce-de-leche@0.7.0
           npm install -g @fission-ai/openspec@0.19.0
       - name: Install bd (beads, pinned §4)
         run: |
