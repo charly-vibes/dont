@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.2] — 2026-11-16
+
+### Fixed
+- The published binary reports the version its release names. v0.4.1 was
+  tagged on a tree whose `Cargo.toml` still said `0.4.0`, so the release
+  asset `dont_0.4.1_linux_amd64.tar.gz` shipped a binary answering
+  `dont 0.4.0`; version-detecting installers (ddl) correctly kept reading the
+  installed version as 0.4.0, so the release could never be adopted. No
+  behavior change beyond the version identity — same code as v0.4.1's tree.
+
 ## [0.4.0] — 2026-09-15
 
 ### Fixed
