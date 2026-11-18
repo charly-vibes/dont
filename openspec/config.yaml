@@ -1,0 +1,68 @@
+schema: spec-driven
+
+context: |
+  `dont` is an epistemic forcing-function CLI for LLM harnesses: it forces
+  autonomous agents to ground claims before asserting them. The repo holds a
+  working Rust implementation alongside its OpenSpec source of truth, so
+  implementation, tests, and specs stay aligned. It works alongside wai
+  (workflow) and beads/`bd` (issues) but remains an independent tool.
+
+  Canonical domain definitions live in `openspec/specs/dont-glossary/spec.md`;
+  adjacent capabilities own behavior. Core concepts: claims, atoms (independently
+  checkable sub-statements), evidence, terms, an append-only event log, the
+  epistemic (status) lattice, the four-verb core (`conclude`, `define`, `trust`,
+  `flag`), lifecycle verbs (`lock`, `reopen`, `ignore`, `verify-evidence`),
+  hedge patterns, rules, author strings (`<actor-kind>:<id>`), seed vocabulary,
+  and envelope/error remediation. Read the glossary before naming anything new.
+
+  Stack: Markdown specs plus a Rust single-binary CLI, with auxiliary
+  out-of-process import tooling where required. `wai` captures workflow
+  context, `bd` tracks issues, OpenSpec owns structured capability specs and
+  change proposals, `just` holds repo recipes.
+
+  Conventions: primary artifacts are Markdown; requirements stay normative and
+  precise; prefer small capability-focused specs over monolithic documents;
+  separate workflow, issue tracking, and capability specification; decompose by
+  capability boundary (CLI verbs, lifecycle/status model, data model,
+  envelopes, imports, integration rules); use OpenSpec proposals before large
+  structural changes and make atomic commits with descriptive messages;
+  capture reasoning in `wai` alongside structural spec changes.
+
+  Gates: `just ci` for repository hygiene, `openspec validate <change-id>
+  --strict` for spec changes, `spk lint openspec` on pre-commit (change deltas
+  are plain openspec files; any specodelic layer lives in a sibling
+  `layer.md` sidecar). As implementation grows, capability-level tests track the
+  OpenSpec scenarios directly.
+
+  Source draft: `dont-spec-v0_3_2.md` is the archived monolith that OpenSpec
+  decomposes; preserve traceability back to it. Normative sections map onto
+  change proposals in `openspec/changes/` (core specs, data model, operational,
+  envelope, harness, rules, project layout, import specs), while architectural
+  and informative sections stay in design docs and this context.
+
+rules:
+  proposal:
+    - Name the capability spec the change lands in and its boundary against
+      adjacent capabilities (glossary owns definitions, others own behavior)
+    - State what is out of scope and which monolith section the change traces to
+  specs:
+    - Change deltas are plain openspec files (ADDED/MODIFIED/REMOVED sections);
+      the specodelic layer, when present, lives in a sibling layer.md
+    - A MODIFIED requirement replaces the whole block — copy every scenario the
+      deployed spec still has, then add or change behavior
+  design:
+    - Record alternatives and rejected options; substrate choices belong in the
+      change's design.md, not the deployed specs
+  tasks:
+    - Map each task to a spec scenario and a red→green→refactor cycle
+
+operations:
+  apply:
+    guidance:
+      - Keep implementation, tests, and specs aligned in the same change
+      - Run `just ci` plus `openspec validate <change-id> --strict` before
+        claiming a task done
+  archive:
+    guidance:
+      - Confirm the archived requirements kept their traceability notes and that
+        `spk lint openspec` still passes
