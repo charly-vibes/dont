@@ -3,6 +3,18 @@
 ### Requirement: Core layout entries and roles
 The system SHALL reserve the following entries within `.dont/`: the primary store path, `config.toml`, `AGENTS.md`, `seed/`, `vocab/`, `rules/`, `imports/`, `sessions/`, `schemas/`, and `events.jsonl`. Each entry MUST exist to serve its documented role: persistent store, project configuration, canonical LLM-facing docs, seed vocabulary snapshot, coined vocabulary files, rule files, import manifests, spawn/session scratch, JSON Schema documents, and interchange event log respectively. `.dont/db.cozo*` (the primary store file and any Cozo/SQLite journal or WAL) SHALL be treated as a locally-rebuildable cache derived from `events.jsonl` plus in-progress write transactions. Git-tracked artifacts SHALL include `events.jsonl` as the interchange format; gitignored artifacts SHALL include `db.cozo*` as the rebuildable persistent store.
 
+#### Scenario: canonical agent docs live under .dont
+- **WHEN** a harness or operator looks for the primary LLM-facing documentation
+- **THEN** `.dont/AGENTS.md` is the canonical source
+
+#### Scenario: rule files live under rules directory
+- **WHEN** a project ships default or custom rules
+- **THEN** those rule artifacts live under `.dont/rules/`
+
+#### Scenario: schema docs live under schemas directory
+- **WHEN** the project exposes JSON Schemas for envelopes or payloads
+- **THEN** those schema documents live under `.dont/schemas/`
+
 #### Scenario: events.jsonl is a recognised layout entry
 - **WHEN** a project has run `dont log export` at least once
 - **THEN** `.dont/events.jsonl` exists as a recognised layout entry
