@@ -6,4 +6,6 @@ exclude = [ "target", ".git", "node_modules", ".venv", "venv", "__pycache__", ".
 
 [adapters.extensions]
 ".rs" = "testaruda-adapter-rust"
-".py" = "testaruda-adapter-python"
+# No ".py" mapping: this repo ships no pytest suite. scripts/test_pretender_gate.py
+# is a standalone harness (run it directly); routing .py here made the pytest
+# adapter collect zero tests and exit 5, failing `just test` and `just ci`.
