@@ -20,9 +20,10 @@ install:
 test:
 	#!/usr/bin/env bash
 	set -uo pipefail
-	if [ ! -d .testaruda ]; then
-	  testaruda init || { echo "❌ testaruda init failed" >&2; exit 1; }
-	fi
+	# Always init: the store directory can exist without being initialized
+	# (ddl status probes `testaruda status`, which creates .testaruda/ before
+	# any store exists). init is idempotent.
+	testaruda init >/dev/null || { echo "❌ testaruda init failed" >&2; exit 1; }
 	code=0
 	testaruda exec || code=$?
 	case "$code" in
