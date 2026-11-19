@@ -11,6 +11,8 @@
 # dont
 
 > **Why:** autonomous LLM agents assert claims they never grounded — hallucinated
+
+[![dont on StartupScores](https://startupscores.com/badge/dont.svg?style=shield&v=combo&theme=dark)](https://startupscores.com/open-source/dont)
 > facts compound silently across a session. dont forces epistemic discipline:
 > claims must be flagged, grounded, and concluded before the agent may act on
 > them, enforced as a hard gate in its own and other tools' CI.
